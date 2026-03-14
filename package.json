@@ -1,0 +1,51 @@
+{
+  "name": "garycio-system",
+  "version": "0.1.0",
+  "description": "Sistema de automatización logística para recolección - GARYCIO",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "bot": "ts-node-dev --respawn --transpile-only src/bot/index.ts",
+    "migrate": "ts-node src/database/migrate.ts",
+    "seed": "ts-node src/database/seed.ts",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint src/ --ext .ts"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "canvas": "^3.2.1",
+    "chart.js": "^4.5.1",
+    "chartjs-node-canvas": "^5.0.0",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.4",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/pdfkit": "^0.17.5",
+    "@types/pg": "^8.11.11",
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "drizzle-kit": "^0.30.5",
+    "eslint": "^9.22.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

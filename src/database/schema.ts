@@ -1,0 +1,279 @@
+import {
+  pgTable,
+  serial,
+  varchar,
+  text,
+  integer,
+  boolean,
+  timestamp,
+  date,
+  decimal,
+  pgEnum,
+} from "drizzle-orm/pg-core";
+
+// ============================================================
+// Enums
+// ============================================================
+
+export const estadoDonante = pgEnum("estado_donante", [
+  "activa",
+  "inactiva",
+  "vacaciones",
+  "baja_medica",
+  "nueva",
+]);
+
+export const tipoReclamo = pgEnum("tipo_reclamo", [
+  "regalo",
+  "falta_bidon",
+  "nueva_pelela",
+  "otro",
+]);
+
+export const tipoAviso = pgEnum("tipo_aviso", [
+  "vacaciones",
+  "enfermedad",
+  "medicacion",
+]);
+
+export const estadoReclamo = pgEnum("estado_reclamo", [
+  "pendiente",
+  "notificado_chofer",
+  "seguimiento_enviado",
+  "escalado_visitadora",
+  "resuelto",
+]);
+
+export const estadoCamion = pgEnum("estado_camion", ["disponible", "en_ruta", "mantenimiento"]);
+
+// ============================================================
+// Tablas principales
+// ============================================================
+
+export const zonas = pgTable("zonas", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
+  descripcion: text("descripcion"),
+  activa: boolean("activa").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const donantes = pgTable("donantes", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 150 }).notNull(),
+  telefono: varchar("telefono", { length: 20 }).notNull().unique(),
+  direccion: text("direccion").notNull(),
+  zonaId: integer("zona_id").references(() => zonas.id),
+  estado: estadoDonante("estado").default("activa"),
+  diasRecoleccion: varchar("dias_recoleccion", { length: 100 }),
+  donandoActualmente: boolean("donando_actualmente").default(true),
+  fechaAlta: date("fecha_alta").defaultNow(),
+  fechaVueltaDonacion: date("fecha_vuelta_donacion"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const choferes = pgTable("choferes", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 150 }).notNull(),
+  telefono: varchar("telefono", { length: 20 }).notNull().unique(),
+  licencia: varchar("licencia", { length: 50 }),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const peones = pgTable("peones", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 150 }).notNull(),
+  telefono: varchar("telefono", { length: 20 }).notNull().unique(),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const camiones = pgTable("camiones", {
+  id: serial("id").primaryKey(),
+  patente: varchar("patente", { length: 20 }).notNull().unique(),
+  modelo: varchar("modelo", { length: 100 }),
+  capacidadLitros: integer("capacidad_litros"),
+  estado: estadoCamion("estado").default("disponible"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const visitadoras = pgTable("visitadoras", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 150 }).notNull(),
+  telefono: varchar("telefono", { length: 20 }).notNull().unique(),
+  activa: boolean("activa").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Recorridos y asignaciones
+// ============================================================
+
+export const recorridos = pgTable("recorridos", {
+  id: serial("id").primaryKey(),
+  zonaId: integer("zona_id").references(() => zonas.id),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  camionId: integer("camion_id").references(() => camiones.id),
+  fecha: date("fecha").notNull(),
+  orden: text("orden"),
+  completado: boolean("completado").default(false),
+  porcentajeCompletado: decimal("porcentaje_completado", { precision: 5, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const recorridoPeones = pgTable("recorrido_peones", {
+  id: serial("id").primaryKey(),
+  recorridoId: integer("recorrido_id").references(() => recorridos.id),
+  peonId: integer("peon_id").references(() => peones.id),
+});
+
+export const recorridoDonantes = pgTable("recorrido_donantes", {
+  id: serial("id").primaryKey(),
+  recorridoId: integer("recorrido_id").references(() => recorridos.id),
+  donanteId: integer("donante_id").references(() => donantes.id),
+  orden: integer("orden"),
+  recolectado: boolean("recolectado").default(false),
+  litros: decimal("litros", { precision: 8, scale: 2 }),
+  bidones: integer("bidones"),
+  horaRecoleccion: timestamp("hora_recoleccion"),
+});
+
+// ============================================================
+// Reclamos y avisos
+// ============================================================
+
+export const reclamos = pgTable("reclamos", {
+  id: serial("id").primaryKey(),
+  donanteId: integer("donante_id").references(() => donantes.id).notNull(),
+  tipo: tipoReclamo("tipo").notNull(),
+  descripcion: text("descripcion"),
+  estado: estadoReclamo("estado").default("pendiente"),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  visitadoraId: integer("visitadora_id").references(() => visitadoras.id),
+  fechaCreacion: timestamp("fecha_creacion").defaultNow(),
+  fechaSeguimiento: timestamp("fecha_seguimiento"),
+  fechaResolucion: timestamp("fecha_resolucion"),
+  resuelto: boolean("resuelto").default(false),
+  devolucionVisitadora: text("devolucion_visitadora"),
+});
+
+export const avisos = pgTable("avisos", {
+  id: serial("id").primaryKey(),
+  donanteId: integer("donante_id").references(() => donantes.id).notNull(),
+  tipo: tipoAviso("tipo").notNull(),
+  fechaInicio: date("fecha_inicio").notNull(),
+  fechaFin: date("fecha_fin"),
+  notificacionVueltaEnviada: boolean("notificacion_vuelta_enviada").default(false),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Registros operativos
+// ============================================================
+
+export const registrosRecoleccion = pgTable("registros_recoleccion", {
+  id: serial("id").primaryKey(),
+  recorridoId: integer("recorrido_id").references(() => recorridos.id),
+  fecha: date("fecha").notNull(),
+  litrosTotales: decimal("litros_totales", { precision: 10, scale: 2 }),
+  bidonesTotales: integer("bidones_totales"),
+  fotoComprobante: text("foto_comprobante"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const registrosCombustible = pgTable("registros_combustible", {
+  id: serial("id").primaryKey(),
+  camionId: integer("camion_id").references(() => camiones.id).notNull(),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  fecha: date("fecha").notNull(),
+  litros: decimal("litros", { precision: 8, scale: 2 }),
+  monto: decimal("monto", { precision: 10, scale: 2 }),
+  fotoComprobante: text("foto_comprobante"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const registrosLavado = pgTable("registros_lavado", {
+  id: serial("id").primaryKey(),
+  camionId: integer("camion_id").references(() => camiones.id).notNull(),
+  fecha: date("fecha").notNull(),
+  fotoComprobante: text("foto_comprobante"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Progreso mensual
+// ============================================================
+
+export const progresoMensual = pgTable("progreso_mensual", {
+  id: serial("id").primaryKey(),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  litrosRecolectados: decimal("litros_recolectados", { precision: 12, scale: 2 }).default("0"),
+  objetivoLitros: decimal("objetivo_litros", { precision: 12, scale: 2 }).default("260000"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================================
+// Asignación zona-chofer
+// ============================================================
+
+export const zonaChoferes = pgTable("zona_choferes", {
+  id: serial("id").primaryKey(),
+  zonaId: integer("zona_id").references(() => zonas.id).notNull(),
+  choferId: integer("chofer_id").references(() => choferes.id).notNull(),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Incidentes
+// ============================================================
+
+export const tipoIncidente = pgEnum("tipo_incidente", [
+  "accidente",
+  "retraso",
+  "averia",
+  "robo",
+  "clima",
+  "otro",
+]);
+
+export const gravedadIncidente = pgEnum("gravedad_incidente", [
+  "baja",
+  "media",
+  "alta",
+  "critica",
+]);
+
+export const incidentes = pgTable("incidentes", {
+  id: serial("id").primaryKey(),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  tipo: tipoIncidente("tipo").notNull(),
+  gravedad: gravedadIncidente("gravedad").default("media"),
+  descripcion: text("descripcion").notNull(),
+  zonaId: integer("zona_id").references(() => zonas.id),
+  notificadoCeo: boolean("notificado_ceo").default(false),
+  resuelto: boolean("resuelto").default(false),
+  fecha: timestamp("fecha").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Mensajes WhatsApp (log)
+// ============================================================
+
+export const mensajesLog = pgTable("mensajes_log", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull(),
+  contenido: text("contenido"),
+  direccion: varchar("direccion_msg", { length: 10 }).notNull(),
+  exitoso: boolean("exitoso").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
