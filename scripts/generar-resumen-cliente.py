@@ -114,10 +114,6 @@ def cover_page(canvas: Canvas, doc):
     canvas.setFillColor(PRIMARY)
     canvas.rect(0, 0, w, h, fill=1, stroke=0)
 
-    # Banda accent
-    canvas.setFillColor(ACCENT)
-    canvas.rect(0, h * 0.52, w, 5 * mm, fill=1, stroke=0)
-
     # Footer portada
     canvas.setFillColor(HexColor("#A0B4D0"))
     canvas.setFont("Helvetica", 8)
