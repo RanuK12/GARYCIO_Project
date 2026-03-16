@@ -160,7 +160,7 @@ def build_pdf():
     cover_data = [
         ["Desarrollado por", "Ranuk Development"],
         ["Contacto", "Emilio Ranucoli"],
-        ["Estado", "Fase 1 - En desarrollo"],
+        ["Estado", "Fase 1 - En proceso de producción"],
         ["Entrega estimada", "13 de Abril, 2026"],
     ]
     cover_table = Table(cover_data, colWidths=[pw * 0.4, pw * 0.4])
@@ -534,7 +534,7 @@ def build_pdf():
     story.append(Paragraph("Estado Actual y Próximos Pasos", style_h1))
     story.append(HRFlowable(width="100%", thickness=2, color=ACCENT, spaceBefore=2, spaceAfter=10))
 
-    story.append(Paragraph("Completado en Fase 1:", style_h2))
+    story.append(Paragraph("En proceso de producción - Fase 1:", style_h2))
     done = [
         "Bot de WhatsApp con 7 flujos de conversación operativos",
         "Base de datos PostgreSQL con 18 tablas y migraciones automáticas",
@@ -548,7 +548,7 @@ def build_pdf():
         "Importador CSV para carga masiva de donantes",
     ]
     for d in done:
-        story.append(Paragraph(f"<font color='#27AE60'>&#10003;</font>  {d}", style_bullet))
+        story.append(Paragraph(f"<font color='#2E86AB'>&#9654;</font>  {d}", style_bullet))
 
     story.append(Spacer(1, 6 * mm))
     story.append(Paragraph("Pendiente para completar Fase 1:", style_h2))

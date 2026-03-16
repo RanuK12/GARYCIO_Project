@@ -196,11 +196,10 @@ def generate_docx():
     add_heading_styled(doc, "Presupuesto Fase 1", level=2)
     fase1_headers = ["Concepto", "Precio Mercado (USD)", "Precio Amigo (USD)"]
     fase1_rows = [
-        ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,200", "700"],
-        ["Reportes PDF diarios + on-demand", "300", "200"],
+        ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,400", "850"],
+        ["Reportes PDF diarios + on-demand", "350", "200"],
         ["Base de datos PostgreSQL + migración", "350", "200"],
-        ["Optimización de recorridos", "300", "150"],
-        ["Deploy + configuración servidor", "200", "50"],
+        ["Deploy + configuración servidor", "150", "50"],
     ]
     fase1_total = ["TOTAL FASE 1", "2,250", "1,300"]
     add_styled_table(doc, fase1_headers, fase1_rows, total_row=fase1_total,
@@ -222,6 +221,8 @@ def generate_docx():
                "App móvil: ")
     add_bullet(doc, "Sistema completo de gestión de flota con tracking GPS en tiempo real",
                "Gestión de flota: ")
+    add_bullet(doc, "Optimización inteligente de recorridos y rutas de recolección",
+               "Optimización de recorridos: ")
     add_bullet(doc, "Testing integral y deploy de la plataforma completa",
                "Testing + Deploy: ")
 
@@ -281,19 +282,16 @@ def generate_docx():
     add_heading_styled(doc, "Forma de Pago", level=1)
 
     add_heading_styled(doc, "Fase 1", level=2)
-    add_bullet(doc, "50% al inicio del proyecto")
-    add_bullet(doc, "50% al finalizar y entregar Fase 1")
+    add_bullet(doc, "Pago único una vez finalizado el testing y validación completa del sistema")
+    add_bullet(doc, "El pago se realiza unos días antes de la entrega final")
 
     add_heading_styled(doc, "Fase 2", level=2)
-    add_bullet(doc, "Pago 1: al inicio de Fase 2")
-    add_bullet(doc, "Pago 2: al alcanzar hito intermedio (entrega parcial)")
-    add_bullet(doc, "Pago 3: al finalizar y entregar Fase 2")
+    add_bullet(doc, "Condiciones de pago a definir al inicio de la Fase 2")
 
     doc.add_paragraph()  # Spacer
 
     # --- Notas ---
     add_heading_styled(doc, "Notas Importantes", level=1)
-    add_bullet(doc, "Los precios no incluyen IVA.")
     add_bullet(doc, "Los plazos de entrega se acordarán al inicio de cada fase.")
     add_bullet(doc, "El precio amigo está sujeto a la relación comercial y confianza mutua.")
     add_bullet(doc, "Cualquier funcionalidad fuera del alcance descrito se cotizará por separado.")
@@ -520,11 +518,10 @@ def generate_pdf():
     elements.append(make_table(
         ["Concepto", "Precio Mercado (USD)", "Precio Amigo (USD)"],
         [
-            ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,200", "700"],
-            ["Reportes PDF diarios + on-demand", "300", "200"],
+            ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,400", "850"],
+            ["Reportes PDF diarios + on-demand", "350", "200"],
             ["Base de datos PostgreSQL + migración", "350", "200"],
-            ["Optimización de recorridos", "300", "150"],
-            ["Deploy + configuración servidor", "200", "50"],
+            ["Deploy + configuración servidor", "150", "50"],
         ],
         total_row=["TOTAL FASE 1", "2,250", "1,300"]
     ))
@@ -541,7 +538,8 @@ def generate_pdf():
     for item in [
         "<b>Dashboard web:</b> Panel web completo para administraci\u00f3n y monitoreo en tiempo real",
         "<b>App m\u00f3vil:</b> Aplicaci\u00f3n m\u00f3vil nativa para choferes y peones con funcionalidades offline",
-        "<b>Gesti\u00f3n de flota:</b> Sistema completo de gesti\u00f3n de flota con tracking GPS en tiempo real",
+        "<b>Gesti\u00f3n de flota:</b> Sistema completo de gestión de flota con tracking GPS en tiempo real",
+        "<b>Optimización de recorridos:</b> Algoritmos inteligentes para optimizar rutas de recolección",
         "<b>Testing + Deploy:</b> Testing integral y deploy de la plataforma completa",
     ]:
         elements.append(Paragraph(f"\u2022 {item}", bullet_style))
@@ -596,19 +594,16 @@ def generate_pdf():
     # Forma de Pago
     elements.append(Paragraph("Forma de Pago", h1_style))
     elements.append(Paragraph("Fase 1", h2_style))
-    elements.append(Paragraph("\u2022 50% al inicio del proyecto", bullet_style))
-    elements.append(Paragraph("\u2022 50% al finalizar y entregar Fase 1", bullet_style))
+    elements.append(Paragraph("\u2022 Pago único una vez finalizado el testing y validación completa del sistema", bullet_style))
+    elements.append(Paragraph("\u2022 El pago se realiza unos días antes de la entrega final", bullet_style))
     elements.append(Paragraph("Fase 2", h2_style))
-    elements.append(Paragraph("\u2022 Pago 1: al inicio de Fase 2", bullet_style))
-    elements.append(Paragraph("\u2022 Pago 2: al alcanzar hito intermedio (entrega parcial)", bullet_style))
-    elements.append(Paragraph("\u2022 Pago 3: al finalizar y entregar Fase 2", bullet_style))
+    elements.append(Paragraph("\u2022 Condiciones de pago a definir al inicio de la Fase 2", bullet_style))
     elements.append(Spacer(1, 12))
 
     # Notas
     elements.append(Paragraph("Notas Importantes", h1_style))
     for note in [
-        "Los precios no incluyen IVA.",
-        "Los plazos de entrega se acordar\u00e1n al inicio de cada fase.",
+        "Los plazos de entrega se acordarán al inicio de cada fase.",
         "El precio amigo est\u00e1 sujeto a la relaci\u00f3n comercial y confianza mutua.",
         "Cualquier funcionalidad fuera del alcance descrito se cotizar\u00e1 por separado.",
         "Se incluye soporte t\u00e9cnico durante 30 d\u00edas posteriores a cada entrega sin costo adicional.",
