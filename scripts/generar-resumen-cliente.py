@@ -258,8 +258,8 @@ def build_pdf():
 
     flows = [
         [Paragraph("Flujo", cell_header), Paragraph("Descripción", cell_header), Paragraph("Acciones automáticas", cell_header)],
-        [Paragraph("Contacto Inicial", cell_bold), Paragraph("Donantes de zonas nuevas que escriben por primera vez", cell_style),
-         Paragraph("Registra datos, confirma dirección y días de recolección", cell_style)],
+        [Paragraph("Contacto Inicial", cell_bold), Paragraph("Donantes de zonas nuevas: confirma si donan, qué día, y pide dirección exacta", cell_style),
+         Paragraph("Recolecta dirección exacta (calle, nro, entre calles, piso/depto, barrio) para reorganizar recorridos", cell_style)],
         [Paragraph("Reclamos", cell_bold), Paragraph("Falta de regalo, bidón, pelela nueva, otros", cell_style),
          Paragraph("Notifica al chofer, seguimiento a los 4 días, escalamiento", cell_style)],
         [Paragraph("Avisos", cell_bold), Paragraph("Vacaciones, enfermedad o medicación", cell_style),
@@ -544,6 +544,7 @@ def build_pdf():
         "Gestión automática de reclamos con seguimiento y escalamiento",
         "Gestión de avisos (vacaciones, enfermedad, medicación) con recordatorios",
         "Alta de nuevas donantes con notificación automática al chofer de zona",
+        "Recolección de dirección exacta de donantes para reorganizar recorridos de choferes",
         "Importador CSV para carga masiva de donantes",
     ]
     for d in done:

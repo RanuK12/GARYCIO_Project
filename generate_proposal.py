@@ -182,11 +182,13 @@ def generate_docx():
     )
 
     add_heading_styled(doc, "Alcance de Fase 1", level=2)
-    add_bullet(doc, "Desarrollo completo del Bot de WhatsApp con flujos conversacionales, "
-               "incluyendo sistema de reclamos y avisos automatizados", "Bot WhatsApp: ")
-    add_bullet(doc, "Algoritmo de optimización de recorridos para rutas de recolección",
-               "Optimización de recorridos: ")
-    add_bullet(doc, "Diseño e implementación de base de datos con migración de datos existentes",
+    add_bullet(doc, "Desarrollo completo del Bot de WhatsApp con 7 flujos conversacionales, "
+               "incluyendo reclamos, avisos, alta de donantes y recolección de dirección exacta", "Bot WhatsApp: ")
+    add_bullet(doc, "Interfaz para choferes: registro de litros, bidones, combustible e incidentes "
+               "con alerta inmediata al CEO", "Sistema de choferes: ")
+    add_bullet(doc, "Reporte PDF diario automático a las 19:00 hs con gráficos y estadísticas, "
+               "más opción on-demand", "Reportes PDF: ")
+    add_bullet(doc, "Diseño e implementación de base de datos PostgreSQL con 18 tablas y migración de datos",
                "Base de datos: ")
     add_bullet(doc, "Deploy en servidor de producción y configuración completa",
                "Deploy: ")
@@ -194,10 +196,11 @@ def generate_docx():
     add_heading_styled(doc, "Presupuesto Fase 1", level=2)
     fase1_headers = ["Concepto", "Precio Mercado (USD)", "Precio Amigo (USD)"]
     fase1_rows = [
-        ["Bot WhatsApp (desarrollo + flows + reclamos)", "1,200", "700"],
-        ["Optimización de recorridos", "500", "300"],
-        ["Base de datos + migración de datos", "350", "200"],
-        ["Deploy + configuración servidor", "200", "100"],
+        ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,200", "700"],
+        ["Reportes PDF diarios + on-demand", "300", "200"],
+        ["Base de datos PostgreSQL + migración", "350", "200"],
+        ["Optimización de recorridos", "300", "150"],
+        ["Deploy + configuración servidor", "200", "50"],
     ]
     fase1_total = ["TOTAL FASE 1", "2,250", "1,300"]
     add_styled_table(doc, fase1_headers, fase1_rows, total_row=fase1_total,
@@ -505,10 +508,11 @@ def generate_pdf():
     ))
     elements.append(Paragraph("Alcance de Fase 1", h2_style))
     for item in [
-        "<b>Bot WhatsApp:</b> Desarrollo completo del Bot de WhatsApp con flujos conversacionales, incluyendo sistema de reclamos y avisos automatizados",
-        "<b>Optimizaci\u00f3n de recorridos:</b> Algoritmo de optimizaci\u00f3n de recorridos para rutas de recolecci\u00f3n",
-        "<b>Base de datos:</b> Dise\u00f1o e implementaci\u00f3n de base de datos con migraci\u00f3n de datos existentes",
-        "<b>Deploy:</b> Deploy en servidor de producci\u00f3n y configuraci\u00f3n completa",
+        "<b>Bot WhatsApp:</b> Bot con 7 flujos conversacionales: reclamos, avisos, alta de donantes, recolección de dirección exacta para reorganizar recorridos",
+        "<b>Sistema de choferes:</b> Registro de litros, bidones, combustible e incidentes con alerta inmediata al CEO",
+        "<b>Reportes PDF:</b> Reporte diario automático a las 19:00 hs con gráficos y estadísticas, más opción on-demand",
+        "<b>Base de datos:</b> PostgreSQL con 18 tablas y migración de datos existentes",
+        "<b>Deploy:</b> Deploy en servidor de producción y configuración completa",
     ]:
         elements.append(Paragraph(f"\u2022 {item}", bullet_style))
 
@@ -516,10 +520,11 @@ def generate_pdf():
     elements.append(make_table(
         ["Concepto", "Precio Mercado (USD)", "Precio Amigo (USD)"],
         [
-            ["Bot WhatsApp (desarrollo + flows + reclamos)", "1,200", "700"],
-            ["Optimizaci\u00f3n de recorridos", "500", "300"],
-            ["Base de datos + migraci\u00f3n de datos", "350", "200"],
-            ["Deploy + configuraci\u00f3n servidor", "200", "100"],
+            ["Bot WhatsApp (7 flujos + choferes + incidentes)", "1,200", "700"],
+            ["Reportes PDF diarios + on-demand", "300", "200"],
+            ["Base de datos PostgreSQL + migración", "350", "200"],
+            ["Optimización de recorridos", "300", "150"],
+            ["Deploy + configuración servidor", "200", "50"],
         ],
         total_row=["TOTAL FASE 1", "2,250", "1,300"]
     ))
