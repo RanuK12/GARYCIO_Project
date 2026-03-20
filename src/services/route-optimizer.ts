@@ -9,6 +9,7 @@ import {
 } from "../database/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../config/logger";
+import { env } from "../config/env";
 
 interface Punto {
   id: number;
@@ -17,6 +18,15 @@ interface Punto {
   lat: number;
   lon: number;
 }
+
+// ── Galpón: punto de partida y llegada de todos los camiones ──
+const GALPON: Punto = {
+  id: 0,
+  nombre: "Galpón (Base)",
+  direccion: env.GALPON_DIRECCION,
+  lat: env.GALPON_LAT,
+  lon: env.GALPON_LON,
+};
 
 interface RutaGenerada {
   subZonaId: number;
@@ -121,16 +131,16 @@ export async function asignarSubZonas(): Promise<{
  * Es una heurística simple pero efectiva como punto de partida.
  * En producción, OR-Tools con OSRM daría resultados mejores.
  */
-export function nearestNeighborRoute(puntos: Punto[]): Punto[] {
-  if (puntos.length <= 1) return puntos;
+export function nearestNeighborRoute(puntos: Punto[], inicio?: Punto): Punto[] {
+  if (puntos.length <= 1) return inicio ? [inicio, ...puntos, inicio] : puntos;
 
   const visited = new Set<number>();
   const route: Punto[] = [];
 
-  // Empezar por el primer punto
-  let current = puntos[0];
+  // Empezar desde el galpón (o punto de inicio indicado)
+  let current = inicio || puntos[0];
   route.push(current);
-  visited.add(current.id);
+  if (!inicio) visited.add(current.id);
 
   while (visited.size < puntos.length) {
     let nearest: Punto | null = null;
@@ -150,6 +160,11 @@ export function nearestNeighborRoute(puntos: Punto[]): Punto[] {
       visited.add(nearest.id);
       current = nearest;
     }
+  }
+
+  // Volver al galpón al final
+  if (inicio) {
+    route.push(inicio);
   }
 
   return route;
@@ -206,10 +221,10 @@ export async function generarRutaParaSubZona(
     lon: parseFloat(d.longitud || "0"),
   }));
 
-  // Optimizar con Nearest Neighbor
-  const rutaOptimizada = nearestNeighborRoute(puntos);
+  // Optimizar con Nearest Neighbor (saliendo y volviendo al galpón)
+  const rutaOptimizada = nearestNeighborRoute(puntos, GALPON);
 
-  // Calcular distancia total
+  // Calcular distancia total (incluye ida desde galpón y vuelta)
   let distanciaTotal = 0;
   for (let i = 0; i < rutaOptimizada.length - 1; i++) {
     distanciaTotal += haversineDistance(

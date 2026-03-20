@@ -25,6 +25,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.string().default("info"),
 
+  // WhatsApp Business Phone (el número real)
+  WHATSAPP_BUSINESS_PHONE: z.string().default("5491171560000"),
+
   // Rate limiting & queue
   SEND_RATE_PER_SECOND: z.coerce.number().default(30),
   MAX_RETRIES: z.coerce.number().default(3),
@@ -33,6 +36,11 @@ const envSchema = z.object({
   GEOCODING_BASE_URL: z.string().default("https://nominatim.openstreetmap.org"),
   GEOCODING_COUNTRY: z.string().default("ar"),
   GEOCODING_RATE_MS: z.coerce.number().default(1100),
+
+  // Galpón / Punto de partida y llegada de los camiones
+  GALPON_DIRECCION: z.string().default("Murature 3820, Villa Lynch, Provincia de Buenos Aires"),
+  GALPON_LAT: z.coerce.number().default(-34.5944),
+  GALPON_LON: z.coerce.number().default(-58.5339),
 });
 
 export type Env = z.infer<typeof envSchema>;

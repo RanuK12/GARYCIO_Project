@@ -10,6 +10,12 @@ import { geocodeBatch } from "./services/geocoding";
 import { asignarSubZonas, generarRutaParaSubZona } from "./services/route-optimizer";
 import { enviarAsignacionDias } from "./services/mensajeria-masiva";
 import { generarResumenCEO, generarReporteCEOPDF } from "./services/reportes-ceo";
+import {
+  obtenerPosiciones,
+  obtenerPosicionVehiculo,
+  detectarDesvio,
+  isIturanConfigured,
+} from "./services/ituran-tracker";
 
 const startTime = new Date();
 let requestCount = 0;
@@ -190,6 +196,38 @@ async function main(): Promise<void> {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="reporte-ceo-${new Date().toISOString().split("T")[0]}.pdf"`);
       res.send(pdf);
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Tracking de camiones (Ituran) ─────────────────────
+  app.get("/admin/tracking/posiciones", async (_req, res) => {
+    try {
+      const posiciones = await obtenerPosiciones();
+      res.json({
+        status: "ok",
+        ituranConectado: isIturanConfigured(),
+        galpon: {
+          direccion: env.GALPON_DIRECCION,
+          lat: env.GALPON_LAT,
+          lon: env.GALPON_LON,
+        },
+        vehiculos: posiciones,
+      });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/tracking/vehiculo/:patente", async (req, res) => {
+    try {
+      const pos = await obtenerPosicionVehiculo(req.params.patente);
+      if (!pos) {
+        res.status(404).json({ error: "Vehículo no encontrado" });
+        return;
+      }
+      res.json({ status: "ok", vehiculo: pos });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }
