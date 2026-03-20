@@ -4,17 +4,35 @@ import { z } from "zod";
 config();
 
 const envSchema = z.object({
+  // Database
   DATABASE_URL: z.string().url(),
   DB_HOST: z.string().default("localhost"),
   DB_PORT: z.coerce.number().default(5432),
   DB_NAME: z.string().default("garycio"),
   DB_USER: z.string(),
   DB_PASSWORD: z.string(),
-  BOT_SESSION_NAME: z.string().default("garycio-bot"),
+
+  // WhatsApp Cloud API
+  WHATSAPP_TOKEN: z.string().min(1),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
+  WHATSAPP_VERIFY_TOKEN: z.string().min(1),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().default(""),
+  WHATSAPP_API_VERSION: z.string().default("v21.0"),
+
+  // App
   CEO_PHONE: z.string().min(8),
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.string().default("info"),
+
+  // Rate limiting & queue
+  SEND_RATE_PER_SECOND: z.coerce.number().default(30),
+  MAX_RETRIES: z.coerce.number().default(3),
+
+  // Geocoding (Nominatim gratuito por defecto)
+  GEOCODING_BASE_URL: z.string().default("https://nominatim.openstreetmap.org"),
+  GEOCODING_COUNTRY: z.string().default("ar"),
+  GEOCODING_RATE_MS: z.coerce.number().default(1100),
 });
 
 export type Env = z.infer<typeof envSchema>;

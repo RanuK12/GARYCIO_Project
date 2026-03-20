@@ -1,0 +1,10 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "garycio-bot",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ts-node-dev", "--transpile-only", "src/index.ts"],
+      "port": 3000
+    }  ]
+}

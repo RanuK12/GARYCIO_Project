@@ -1,7 +1,4 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
-import { sendMessage } from "../client";
-import { env } from "../../config/env";
-import { logger } from "../../config/logger";
 
 /**
  * Flow para choferes.
@@ -291,21 +288,7 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
   const desc = state.data.descripcionIncidente;
   const emoji = GRAVEDAD_EMOJI[gravedad];
 
-  // Construir alerta para CEO (se envía INMEDIATAMENTE)
-  const alertaCEO =
-    `${emoji} *INCIDENTE REPORTADO*\n\n` +
-    `Chofer: *#${state.data.codigoChofer}*\n` +
-    `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
-    `Gravedad: *${gravedad.toUpperCase()}*\n` +
-    `Descripción: ${desc}\n` +
-    `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
-    `_Notificación automática de GARYCIO_`;
-
-  // Enviar al CEO inmediatamente (fire-and-forget)
-  sendMessage(env.CEO_PHONE, alertaCEO).catch((err) => {
-    logger.error({ err }, "Error al notificar incidente al CEO");
-  });
-
+  // La notificación al CEO se maneja via el campo notify → handler.ts
   return {
     reply:
       `${emoji} *Incidente registrado*\n\n` +
@@ -318,7 +301,13 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
     notify: {
       target: "admin",
       message:
-        `${emoji} *Incidente*\nChofer: #${state.data.codigoChofer}\nTipo: ${LABELS_INCIDENTE[tipo]}\nGravedad: ${gravedad}\nDescripción: ${desc}`,
+        `${emoji} *INCIDENTE REPORTADO*\n\n` +
+        `Chofer: *#${state.data.codigoChofer}*\n` +
+        `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
+        `Gravedad: *${gravedad.toUpperCase()}*\n` +
+        `Descripción: ${desc}\n` +
+        `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
+        `_Notificación automática de GARYCIO_`,
     },
   };
 }

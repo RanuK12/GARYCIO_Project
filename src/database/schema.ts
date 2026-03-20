@@ -8,6 +8,7 @@ import {
   timestamp,
   date,
   decimal,
+  jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
@@ -64,6 +65,10 @@ export const donantes = pgTable("donantes", {
   telefono: varchar("telefono", { length: 20 }).notNull().unique(),
   direccion: text("direccion").notNull(),
   zonaId: integer("zona_id").references(() => zonas.id),
+  subZona: varchar("sub_zona", { length: 10 }),
+  latitud: decimal("latitud", { precision: 10, scale: 7 }),
+  longitud: decimal("longitud", { precision: 10, scale: 7 }),
+  geocodificado: boolean("geocodificado").default(false),
   estado: estadoDonante("estado").default("activa"),
   diasRecoleccion: varchar("dias_recoleccion", { length: 100 }),
   donandoActualmente: boolean("donando_actualmente").default(true),
@@ -145,14 +150,23 @@ export const recorridoDonantes = pgTable("recorrido_donantes", {
 // Reclamos y avisos
 // ============================================================
 
+export const gravedadReclamo = pgEnum("gravedad_reclamo", [
+  "leve",
+  "moderado",
+  "grave",
+  "critico",
+]);
+
 export const reclamos = pgTable("reclamos", {
   id: serial("id").primaryKey(),
   donanteId: integer("donante_id").references(() => donantes.id).notNull(),
   tipo: tipoReclamo("tipo").notNull(),
   descripcion: text("descripcion"),
   estado: estadoReclamo("estado").default("pendiente"),
+  gravedad: gravedadReclamo("gravedad").default("leve"),
   choferId: integer("chofer_id").references(() => choferes.id),
   visitadoraId: integer("visitadora_id").references(() => visitadoras.id),
+  notificadoCeo: boolean("notificado_ceo").default(false),
   fechaCreacion: timestamp("fecha_creacion").defaultNow(),
   fechaSeguimiento: timestamp("fecha_seguimiento"),
   fechaResolucion: timestamp("fecha_resolucion"),
@@ -276,4 +290,83 @@ export const mensajesLog = pgTable("mensajes_log", {
   direccion: varchar("direccion_msg", { length: 10 }).notNull(),
   exitoso: boolean("exitoso").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Estado de conversación (persistencia en DB)
+// ============================================================
+
+export const conversationStates = pgTable("conversation_states", {
+  id: serial("id").primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
+  currentFlow: varchar("current_flow", { length: 50 }),
+  step: integer("step").default(0),
+  data: jsonb("data").default({}),
+  lastInteraction: timestamp("last_interaction").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Sub-zonas (A/B por zona - Lun/Mié/Vie vs Mar/Jue/Sáb)
+// ============================================================
+
+export const subZonas = pgTable("sub_zonas", {
+  id: serial("id").primaryKey(),
+  zonaId: integer("zona_id").references(() => zonas.id).notNull(),
+  codigo: varchar("codigo", { length: 10 }).notNull(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
+  diasRecoleccion: varchar("dias_recoleccion", { length: 50 }).notNull(),
+  activa: boolean("activa").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Rutas optimizadas (generadas por OR-Tools/OptimoRoute)
+// ============================================================
+
+export const estadoRuta = pgEnum("estado_ruta", [
+  "borrador",
+  "activa",
+  "completada",
+  "cancelada",
+]);
+
+export const rutasOptimizadas = pgTable("rutas_optimizadas", {
+  id: serial("id").primaryKey(),
+  subZonaId: integer("sub_zona_id").references(() => subZonas.id),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  fecha: date("fecha").notNull(),
+  estado: estadoRuta("estado").default("borrador"),
+  distanciaEstimadaKm: decimal("distancia_estimada_km", { precision: 8, scale: 2 }),
+  tiempoEstimadoMin: integer("tiempo_estimado_min"),
+  paradas: jsonb("paradas").default([]),
+  generadoPor: varchar("generado_por", { length: 50 }).default("manual"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================================
+// Dead Letter Queue (mensajes fallidos para reintentar/auditar)
+// ============================================================
+
+export const estadoDLQ = pgEnum("estado_dlq", [
+  "pendiente",
+  "reintentado",
+  "descartado",
+  "exitoso",
+]);
+
+export const deadLetterQueue = pgTable("dead_letter_queue", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull(),
+  contenido: text("contenido"),
+  templateName: varchar("template_name", { length: 100 }),
+  templateParams: jsonb("template_params"),
+  errorMessage: text("error_message"),
+  errorCode: integer("error_code"),
+  intentos: integer("intentos").default(0),
+  estado: estadoDLQ("estado").default("pendiente"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
