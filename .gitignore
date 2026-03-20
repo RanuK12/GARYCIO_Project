@@ -1,10 +1,35 @@
+# Dependencias
 node_modules/
 dist/
+
+# Variables de entorno (contiene tokens y contraseñas)
 .env
-*.log
+
+# Sesiones de WhatsApp (credenciales sensibles)
 auth_info/
-.DS_Store
-coverage/
-reports/
+
+# Logs
+*.log
+
+# Datos del cliente (Excel, CSV con datos personales)
+data/
+
+# Fotos y comprobantes subidos por choferes
 uploads/
+
+# Reportes generados (se regeneran con los scripts)
+reports/
+
+# Datos de prueba generados
 test-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Coverage
+coverage/
