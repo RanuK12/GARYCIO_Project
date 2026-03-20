@@ -16,6 +16,7 @@ import { logger } from "../config/logger";
 import type { FlowResponse } from "./flows";
 import { addToDeadLetterQueue } from "../services/dead-letter-queue";
 import { guardarReclamo, guardarIncidente } from "../services/reportes-ceo";
+import type { MediaInfo } from "./webhook";
 
 /**
  * Procesa un mensaje entrante de principio a fin:
@@ -29,6 +30,7 @@ export async function processIncomingMessage(
   phone: string,
   text: string,
   messageId?: string,
+  mediaInfo?: MediaInfo,
 ): Promise<void> {
   await withUserLock(phone, async () => {
     // Marcar como leído
@@ -39,8 +41,8 @@ export async function processIncomingMessage(
     // Log del mensaje entrante
     logMessage(phone, "entrante", text, true).catch(() => {});
 
-    // Procesar
-    const result = await handleIncomingMessage(phone, text);
+    // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
+    const result = await handleIncomingMessage(phone, text, mediaInfo);
 
     // Enviar respuesta
     try {

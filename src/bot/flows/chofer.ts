@@ -1,4 +1,6 @@
-import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, MediaInfo } from "./types";
+import { procesarComprobante, TipoComprobante } from "../../services/image-processor";
+import { logger } from "../../config/logger";
 
 /**
  * Flow para choferes.
@@ -6,6 +8,7 @@ import { FlowHandler, ConversationState, FlowResponse } from "./types";
  * - Registrar litros y bidones recolectados
  * - Registrar carga de combustible
  * - Reportar incidentes (notificación INMEDIATA al CEO)
+ * - Enviar fotos de comprobantes (recolección, combustible, lavado)
  * - Finalizar jornada
  *
  * Steps:
@@ -19,12 +22,15 @@ import { FlowHandler, ConversationState, FlowResponse } from "./types";
  * 20 - Tipo de incidente
  * 21 - Descripción del incidente
  * 22 - Gravedad del incidente
+ * 30 - Tipo de comprobante (foto)
+ * 31 - Esperando foto
+ * 32 - Confirmar datos extraídos de la foto
  */
 export const choferFlow: FlowHandler = {
   name: "chofer",
   keyword: ["chofer", "recolector", "registro", "cargar datos", "litros"],
 
-  async handle(state: ConversationState, message: string): Promise<FlowResponse> {
+  async handle(state: ConversationState, message: string, mediaInfo?: MediaInfo): Promise<FlowResponse> {
     const respuesta = message.trim();
 
     switch (state.step) {
@@ -38,6 +44,9 @@ export const choferFlow: FlowHandler = {
       case 20: return handleTipoIncidente(respuesta);
       case 21: return handleDescripcionIncidente(respuesta, state);
       case 22: return handleGravedadIncidente(respuesta, state);
+      case 30: return handleTipoComprobante(respuesta);
+      case 31: return handleRecibirFoto(respuesta, state, mediaInfo);
+      case 32: return handleConfirmarDatosFoto(respuesta, state);
       default:
         return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
     }
@@ -67,7 +76,8 @@ function handleIdentificacion(respuesta: string): FlowResponse {
       "*1* - Litros y bidones recolectados\n" +
       "*2* - Carga de combustible\n" +
       "*3* - Reportar incidente\n" +
-      "*4* - Finalizar jornada\n\n" +
+      "*4* - Enviar foto/comprobante 📸\n" +
+      "*5* - Finalizar jornada\n\n" +
       "Respondé con el número.",
     nextStep: 1,
     data: { codigoChofer, choferId: parseInt(match[1], 10) },
@@ -114,7 +124,20 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
     };
   }
 
-  if (lower === "4" || lower.includes("finalizar")) {
+  if (lower === "4" || lower.includes("foto") || lower.includes("comprobante") || lower.includes("imagen")) {
+    return {
+      reply:
+        "📸 *Enviar Comprobante / Foto*\n\n" +
+        "¿Qué tipo de comprobante querés enviar?\n\n" +
+        "*1* - Foto de bidones recolectados\n" +
+        "*2* - Ticket de combustible\n" +
+        "*3* - Foto de lavado de camión\n\n" +
+        "Respondé con el número.",
+      nextStep: 30,
+    };
+  }
+
+  if (lower === "5" || lower.includes("finalizar")) {
     return {
       reply:
         `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
@@ -137,7 +160,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
       "*1* - Litros y bidones\n" +
       "*2* - Combustible\n" +
       "*3* - Reportar incidente\n" +
-      "*4* - Finalizar jornada",
+      "*4* - Enviar foto/comprobante 📸\n" +
+      "*5* - Finalizar jornada",
     nextStep: 1,
   };
 }
@@ -309,5 +333,168 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
         `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
         `_Notificación automática de GARYCIO_`,
     },
+  };
+}
+
+// ── Comprobantes / Fotos ────────────────────────────────
+
+const TIPOS_COMPROBANTE: Record<string, TipoComprobante> = {
+  "1": "recoleccion",
+  "2": "combustible",
+  "3": "lavado",
+};
+
+const LABELS_COMPROBANTE: Record<string, string> = {
+  recoleccion: "Bidones recolectados",
+  combustible: "Ticket de combustible",
+  lavado: "Lavado de camión",
+};
+
+function handleTipoComprobante(respuesta: string): FlowResponse {
+  const tipo = TIPOS_COMPROBANTE[respuesta.trim()];
+
+  if (!tipo) {
+    return {
+      reply:
+        "Respondé con el número del tipo de comprobante:\n\n" +
+        "*1* - Foto de bidones recolectados\n" +
+        "*2* - Ticket de combustible\n" +
+        "*3* - Foto de lavado de camión",
+      nextStep: 30,
+    };
+  }
+
+  return {
+    reply:
+      `📸 *${LABELS_COMPROBANTE[tipo]}*\n\n` +
+      "Enviá la foto ahora.\n" +
+      "Podés adjuntar una imagen directamente en el chat.\n\n" +
+      "_El sistema va a leer automáticamente los datos de la foto._",
+    nextStep: 31,
+    data: { tipoComprobante: tipo },
+  };
+}
+
+async function handleRecibirFoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  // Si no envió una imagen
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    // Permitir cancelar
+    if (["cancelar", "volver", "atras", "no"].some((w) => respuesta.toLowerCase().includes(w))) {
+      return {
+        reply: "Cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
+        nextStep: 1,
+      };
+    }
+
+    return {
+      reply:
+        "No recibí una imagen. Por favor *enviá una foto* desde la cámara o galería.\n\n" +
+        "Si querés cancelar, escribí *cancelar*.",
+      nextStep: 31,
+    };
+  }
+
+  // Procesar la imagen
+  const tipo = state.data.tipoComprobante as TipoComprobante;
+  const choferId = state.data.choferId || 0;
+
+  try {
+    const resultado = await procesarComprobante(mediaInfo.mediaId, tipo, choferId, {
+      litros: state.data.litros ? parseFloat(state.data.litros) : undefined,
+      bidones: state.data.bidones ? parseInt(state.data.bidones, 10) : undefined,
+      monto: state.data.montoCombustible ? parseFloat(state.data.montoCombustible) : undefined,
+    });
+
+    const datos = resultado.datosExtraidos;
+
+    // Construir resumen de lo que se detectó
+    let resumen = `📋 *Datos detectados en la foto:*\n\n`;
+
+    if (datos.litros) resumen += `  Litros: *${datos.litros}*\n`;
+    if (datos.bidones) resumen += `  Bidones: *${datos.bidones}*\n`;
+    if (datos.monto) resumen += `  Monto: *$${datos.monto.toLocaleString("es-AR")}*\n`;
+    if (datos.fecha) resumen += `  Fecha: *${datos.fecha}*\n`;
+    if (datos.patente) resumen += `  Patente: *${datos.patente}*\n`;
+
+    if (!datos.litros && !datos.bidones && !datos.monto && !datos.fecha) {
+      resumen += "  _No se pudo leer texto automáticamente de la imagen._\n";
+      resumen += "  _La foto quedó guardada igual como comprobante._\n";
+    }
+
+    resumen += `\n  Confianza: ${datos.confianza}%`;
+    resumen += `\n  Tipo: *${LABELS_COMPROBANTE[tipo]}*`;
+
+    resumen += "\n\n*1* - Confirmar y guardar";
+    resumen += "\n*2* - Enviar otra foto";
+    resumen += "\n*3* - Cancelar";
+
+    return {
+      reply: resumen,
+      nextStep: 32,
+      data: {
+        fotoPath: resultado.filePath,
+        fotoRegistroId: resultado.registroId,
+        fotoDatos: datos,
+        fotoGuardada: resultado.guardadoEnDB,
+      },
+    };
+  } catch (err) {
+    logger.error({ err, mediaId: mediaInfo.mediaId }, "Error procesando foto");
+
+    return {
+      reply:
+        "Hubo un error al procesar la foto. Podés intentar de nuevo:\n\n" +
+        "*1* - Enviar otra foto\n" +
+        "*2* - Volver al menú",
+      nextStep: 31,
+    };
+  }
+}
+
+function handleConfirmarDatosFoto(respuesta: string, state: ConversationState): FlowResponse {
+  const lower = respuesta.toLowerCase().trim();
+
+  if (lower === "1" || lower.includes("confirm") || lower.includes("si") || lower === "sí") {
+    const tipo = state.data.tipoComprobante as string;
+
+    return {
+      reply:
+        `✅ *Comprobante guardado*\n\n` +
+        `Tipo: *${LABELS_COMPROBANTE[tipo]}*\n` +
+        `La foto y los datos quedaron registrados en el sistema.\n\n` +
+        "¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada",
+      nextStep: 1,
+      data: { comprobanteGuardado: true },
+      notify: {
+        target: "admin",
+        message:
+          `📸 *Comprobante recibido*\n\n` +
+          `Chofer: *#${state.data.codigoChofer}*\n` +
+          `Tipo: *${LABELS_COMPROBANTE[tipo]}*\n` +
+          `Archivo: ${state.data.fotoPath || "guardado"}\n` +
+          (state.data.fotoDatos?.litros ? `Litros detectados: ${state.data.fotoDatos.litros}\n` : "") +
+          (state.data.fotoDatos?.monto ? `Monto detectado: $${state.data.fotoDatos.monto}\n` : "") +
+          (state.data.fotoDatos?.bidones ? `Bidones detectados: ${state.data.fotoDatos.bidones}\n` : "") +
+          `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
+          `_Notificación automática de GARYCIO_`,
+      },
+    };
+  }
+
+  if (lower === "2") {
+    return {
+      reply: "Enviá otra foto ahora:",
+      nextStep: 31,
+    };
+  }
+
+  // Cancelar
+  return {
+    reply: "Comprobante cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
+    nextStep: 1,
   };
 }

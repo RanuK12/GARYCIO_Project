@@ -1,4 +1,5 @@
 import { ConversationState, FlowType, FlowResponse, detectFlow, getFlowByName } from "./flows";
+import type { MediaInfo } from "./webhook";
 import { db } from "../database";
 import { conversationStates } from "../database/schema";
 import { eq } from "drizzle-orm";
@@ -109,6 +110,7 @@ async function endConversation(phone: string): Promise<void> {
 export async function handleIncomingMessage(
   phone: string,
   message: string,
+  mediaInfo?: MediaInfo,
 ): Promise<{
   reply: string;
   notify?: FlowResponse["notify"];
@@ -152,7 +154,7 @@ export async function handleIncomingMessage(
   }
 
   try {
-    const response = await flowHandler.handle(state, message);
+    const response = await flowHandler.handle(state, message, mediaInfo);
 
     if (response.data) {
       state.data = { ...state.data, ...response.data };

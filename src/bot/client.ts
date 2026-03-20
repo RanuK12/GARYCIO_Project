@@ -206,6 +206,55 @@ async function uploadMedia(filePath: string, fileName: string): Promise<string> 
   return data.id as string;
 }
 
+// ── Descarga de media (imágenes, documentos) ────────────
+
+/**
+ * Obtiene la URL de descarga de un media object de WhatsApp.
+ * Paso 1: GET /media_id → retorna url
+ * Paso 2: GET url con Authorization → retorna el archivo binario
+ */
+export async function getMediaUrl(mediaId: string): Promise<string> {
+  const url = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`;
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+  });
+
+  const data = (await response.json()) as Record<string, any>;
+
+  if (!response.ok) {
+    throw new Error(`Error obteniendo media URL: ${data?.error?.message || JSON.stringify(data)}`);
+  }
+
+  return data.url as string;
+}
+
+/**
+ * Descarga un archivo de media de WhatsApp y lo retorna como Buffer.
+ */
+export async function downloadMedia(mediaId: string): Promise<{
+  buffer: Buffer;
+  mimeType: string;
+}> {
+  const mediaUrl = await getMediaUrl(mediaId);
+
+  const response = await fetch(mediaUrl, {
+    headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error descargando media: HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "image/jpeg";
+  const arrayBuffer = await response.arrayBuffer();
+
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    mimeType: contentType,
+  };
+}
+
 // ── Marcar mensaje como leído ───────────────────────────
 export async function markAsRead(messageId: string): Promise<void> {
   try {

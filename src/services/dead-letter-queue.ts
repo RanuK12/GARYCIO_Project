@@ -9,7 +9,7 @@ import { logger } from "../config/logger";
  */
 export async function addToDeadLetterQueue(params: {
   telefono: string;
-  tipo: "texto" | "template" | "documento";
+  tipo: "texto" | "template" | "documento" | "alerta_ceo";
   contenido?: string;
   templateName?: string;
   templateParams?: any;

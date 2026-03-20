@@ -1,3 +1,6 @@
+import type { MediaInfo as _MediaInfo } from "../webhook";
+export type MediaInfo = _MediaInfo;
+
 export interface ConversationState {
   phone: string;
   currentFlow: FlowType | null;
@@ -18,7 +21,7 @@ export type FlowType =
 export interface FlowHandler {
   name: FlowType;
   keyword: string[];
-  handle(state: ConversationState, message: string): Promise<FlowResponse>;
+  handle(state: ConversationState, message: string, mediaInfo?: MediaInfo): Promise<FlowResponse>;
 }
 
 export interface FlowResponse {

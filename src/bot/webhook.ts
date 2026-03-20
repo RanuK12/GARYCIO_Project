@@ -46,18 +46,21 @@ export function createWebhookRouter(): Router {
 
           for (const message of value.messages) {
             const phone = message.from;
-            const text = extractTextFromMessage(message);
             const messageId = message.id;
+
+            // Extraer datos de imagen si es mensaje de imagen
+            const mediaInfo = extractMediaFromMessage(message);
+            const text = mediaInfo ? (mediaInfo.caption || "__IMAGEN__") : extractTextFromMessage(message);
 
             if (!phone || !text) continue;
 
             logger.info(
-              { phone, text: text.slice(0, 80), messageId },
+              { phone, text: text.slice(0, 80), messageId, hasMedia: !!mediaInfo },
               "Mensaje recibido via webhook",
             );
 
             // Procesar asincrónicamente (no bloquear la respuesta)
-            processIncomingMessage(phone, text, messageId).catch((err) => {
+            processIncomingMessage(phone, text, messageId, mediaInfo || undefined).catch((err) => {
               logger.error({ phone, err }, "Error procesando mensaje entrante");
             });
           }
@@ -69,6 +72,39 @@ export function createWebhookRouter(): Router {
   });
 
   return router;
+}
+
+/** Datos de media adjunta (imagen, documento) */
+export interface MediaInfo {
+  mediaId: string;
+  mimeType: string;
+  caption: string | null;
+  type: "image" | "document";
+}
+
+/**
+ * Extrae datos de media si el mensaje es imagen o documento.
+ */
+function extractMediaFromMessage(message: any): MediaInfo | null {
+  if (message.type === "image" && message.image?.id) {
+    return {
+      mediaId: message.image.id,
+      mimeType: message.image.mime_type || "image/jpeg",
+      caption: message.image.caption || null,
+      type: "image",
+    };
+  }
+
+  if (message.type === "document" && message.document?.id) {
+    return {
+      mediaId: message.document.id,
+      mimeType: message.document.mime_type || "application/octet-stream",
+      caption: message.document.caption || null,
+      type: "document",
+    };
+  }
+
+  return null;
 }
 
 /**
