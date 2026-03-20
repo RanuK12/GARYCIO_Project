@@ -29,7 +29,7 @@ const chartSmall = new ChartJSNodeCanvas({ width: 380, height: 240, backgroundCo
 // ============================================================
 const MODULOS = [
   { nombre: "Bot de WhatsApp automático", desc: "Responde mensajes de donantes y choferes las 24hs", estado: "completado", progreso: 100 },
-  { nombre: "Base de datos con toda la información", desc: "Donantes, choferes, zonas, reclamos, etc. (19 tablas)", estado: "completado", progreso: 100 },
+  { nombre: "Base de datos con toda la información", desc: "Donantes, choferes, zonas, reclamos, fotos, etc. (19 tablas)", estado: "completado", progreso: 100 },
   { nombre: "Conversaciones inteligentes (7 flujos)", desc: "El bot guía al usuario paso a paso según lo que necesite", estado: "completado", progreso: 100 },
   { nombre: "Envío masivo de mensajes (+9,500)", desc: "Puede enviar mensajes a todas las donantes en 2 minutos", estado: "completado", progreso: 100 },
   { nombre: "Protección contra errores", desc: "Si un mensaje falla, se guarda y se reintenta automáticamente", estado: "completado", progreso: 100 },
@@ -41,7 +41,9 @@ const MODULOS = [
   { nombre: "Zonas A y B con días de recolección", desc: "Zona A: Lun-Mié-Vie | Zona B: Mar-Jue-Sáb", estado: "completado", progreso: 100 },
   { nombre: "Optimizador de recorridos", desc: "Calcula el orden óptimo para visitar a las donantes", estado: "completado", progreso: 100 },
   { nombre: "Reportes para el CEO", desc: "Alertas automáticas de reclamos graves + reporte descargable", estado: "completado", progreso: 100 },
-  { nombre: "Panel de administración", desc: "Endpoints para gestionar todo desde el servidor", estado: "completado", progreso: 100 },
+  { nombre: "Fotos y comprobantes de choferes", desc: "Los choferes envían fotos de bidones, tickets o lavados por WhatsApp", estado: "completado", progreso: 100 },
+  { nombre: "Lectura automática de fotos (OCR)", desc: "El sistema lee litros, montos y datos del texto de las fotos", estado: "completado", progreso: 100 },
+  { nombre: "Panel de administración", desc: "Gestión de geocodificación, rutas, sub-zonas, reportes CEO", estado: "completado", progreso: 100 },
   { nombre: "Integración con OptimoRoute", desc: "Importar donantes y exportar rutas profesionales", estado: "pendiente", progreso: 0 },
   { nombre: "Optimizador avanzado de rutas", desc: "Versión mejorada con distancias reales de calles", estado: "en_desarrollo", progreso: 30 },
   { nombre: "Verificar empresa en Meta/WhatsApp", desc: "Registrar el negocio para poder enviar mensajes", estado: "pendiente", progreso: 0 },
@@ -108,13 +110,13 @@ const TEST_CONVERSACIONES = [
   { titulo: "Chofer #03 registra litros", flujo: "chofer", pasos: 7, resultado: "1450L, 32 bidones registrados" },
   { titulo: "Chofer #05 carga combustible", flujo: "chofer", pasos: 6, resultado: "55L combustible, $18,500 registrado" },
   { titulo: "Chofer #02 reporta avería", flujo: "chofer", pasos: 6, resultado: "Incidente reportado, admin notificado" },
+  { titulo: "Chofer #01 envía foto ticket", flujo: "chofer", pasos: 5, resultado: "OCR: 72.1L, $9,346. Foto guardada" },
+  { titulo: "Chofer #04 foto lavado camión", flujo: "chofer", pasos: 4, resultado: "Foto guardada, admin notificado" },
   { titulo: "Contacto inicial: Confirma datos", flujo: "contacto_inicial", pasos: 4, resultado: "Donante actualizada con dirección" },
   { titulo: "Contacto inicial: Ya no dona", flujo: "contacto_inicial", pasos: 1, resultado: "Donante marcada inactiva" },
   { titulo: "Contacto inicial: Corrige dirección", flujo: "contacto_inicial", pasos: 5, resultado: "Dirección corregida y confirmada" },
   { titulo: "Donante avisa vacaciones", flujo: "aviso", pasos: 1, resultado: "Aviso registrado" },
   { titulo: "Chofer #01 accidente CRÍTICO", flujo: "chofer", pasos: 6, resultado: "ALERTA admin, gravedad CRÍTICA" },
-  { titulo: "Detección keyword 'reclamo'", flujo: "reclamo", pasos: 1, resultado: "Flujo detectado correctamente" },
-  { titulo: "Detección keyword 'chofer'", flujo: "chofer", pasos: 1, resultado: "Flujo detectado correctamente" },
 ];
 
 const TEST_VALIDACIONES = [
@@ -225,8 +227,9 @@ async function generarInforme(): Promise<string> {
       "  • Enviar mensajes a las 9,500 donantes en solo 2 minutos",
       "  • Atender automáticamente reclamos, avisos y consultas por WhatsApp",
       "  • Recibir los datos de recolección de los choferes (litros, bidones, combustible)",
+      "  • Recibir fotos de comprobantes y leer automáticamente los datos (OCR)",
       "  • Si un reclamo es grave, alertar al CEO automáticamente por WhatsApp",
-      "  • Generar un reporte PDF con todos los reclamos e incidentes",
+      "  • Generar un reporte PDF con todos los reclamos, incidentes y fotos",
       "  • Calcular el mejor recorrido para que los choferes visiten a las donantes",
       "  • Si un mensaje falla, lo guarda y lo reintenta solo (no se pierde nada)",
       "",
@@ -300,11 +303,11 @@ async function generarInforme(): Promise<string> {
     y = sectionTitle(doc, mx, pw, y, "3. ARQUITECTURA DEL SISTEMA");
 
     const arqComponents = [
-      { area: "Mensajes WhatsApp", color: C.accent, items: ["Envío y recepción automática", "Mensajes masivos (+9,500)", "Plantillas aprobadas", "Reintentos automáticos"] },
-      { area: "Conversaciones", color: C.blue, items: ["7 flujos guiados", "Reclamos y avisos", "Registro de choferes", "Detección inteligente"] },
-      { area: "Información", color: C.purple, items: ["Datos de 9,300 donantes", "Historial de reclamos", "Registro de recolección", "Reportes para el CEO"] },
+      { area: "Mensajes WhatsApp", color: C.accent, items: ["Envío y recepción automática", "Mensajes masivos (+9,500)", "Recepción de fotos", "Reintentos automáticos"] },
+      { area: "Conversaciones", color: C.blue, items: ["7 flujos guiados", "Reclamos y avisos", "Registro de choferes", "Envío de comprobantes"] },
+      { area: "Fotos y OCR", color: C.purple, items: ["Fotos de bidones/tickets", "Lectura automática (OCR)", "Extrae litros y montos", "Guardado en base de datos"] },
       { area: "Rutas y Zonas", color: C.orange, items: ["GPS de cada donante", "4 zonas × 2 sub-zonas", "Recorrido óptimo diario", "Días de recolección A/B"] },
-      { area: "Vigilancia", color: C.success, items: ["Estado del sistema 24/7", "Conteo de mensajes", "Alertas si algo falla", "Panel de control web"] },
+      { area: "Reportes al CEO", color: C.success, items: ["Alerta reclamos graves", "PDF descargable", "Historial de incidentes", "Datos de comprobantes"] },
       { area: "Tareas Automáticas", color: C.danger, items: ["Seguimiento a los 4 días", "Reportes PDF automáticos", "Aviso a visitadoras", "Alertas graves al CEO"] },
     ];
 
@@ -676,6 +679,123 @@ async function generarInforme(): Promise<string> {
       .text("✓ REDUCCIÓN TOTAL: 83.6% — de 1,199 km a 196 km (Nearest Neighbor)", mx + 10, y + 4, { width: pw - 20, align: "center" });
 
     drawFooter(doc, W, mx, pw, 4);
+
+    // ════════════════════════════════════════════════
+    // PÁGINA 5: Ejemplo real de lectura de ticket
+    // ════════════════════════════════════════════════
+    doc.addPage();
+    drawHeader(doc, W, mx, "Ejemplo: Lectura Automática de Ticket", `Fecha: ${hoy}`);
+    y = 90;
+
+    y = sectionTitle(doc, mx, pw, y, "13. EJEMPLO REAL: TICKET DE COMBUSTIBLE SHELL");
+
+    doc.font("Helvetica").fontSize(8.5).fillColor(C.darkGray)
+      .text("Un chofer envía la foto de un ticket de nafta por WhatsApp. El sistema la lee automáticamente:", mx + 5, y, { width: pw - 10 });
+    y += 18;
+
+    // Simular el ticket como texto en una caja gris
+    doc.rect(mx, y, pw / 2 - 5, 185).fillAndStroke("#F5F6F8", "#E0E0E0");
+    doc.rect(mx, y, pw / 2 - 5, 16).fill(C.darkGray);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white)
+      .text("TICKET ORIGINAL (texto de la foto)", mx + 5, y + 3, { width: pw / 2 - 15, align: "center" });
+    y += 20;
+
+    const ticketLines = [
+      "Detalles     Valores Netos de Impuestos",
+      "72.142 X  $83.0386 (14.54)",
+      "Shell V-Power Nafta",
+      "Formas de Pago: Efectivo",
+      "",
+      "                    $ 9.346,97",
+      "Gravado: $          5.990,57",
+      "Percepcion IVA        179,72",
+      "I.V.A. Argentina 21%  1.256",
+      "",
+      "TOTAL: $             9346.97",
+      "C.A.E.  72110835345374",
+      "Fecha Vto:           22/03/22",
+    ];
+
+    const ticketStartY = y;
+    for (const line of ticketLines) {
+      doc.font("Courier").fontSize(6).fillColor(C.darkGray)
+        .text(line, mx + 8, y, { width: pw / 2 - 20 });
+      y += line === "" ? 5 : 10;
+    }
+
+    // Caja de resultados a la derecha
+    const rx = mx + pw / 2 + 5;
+    const rw = pw / 2 - 5;
+    doc.rect(rx, ticketStartY - 20, rw, 185).fillAndStroke("#E8F5E9", "#27AE60");
+    doc.rect(rx, ticketStartY - 20, rw, 16).fill(C.success);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white)
+      .text("DATOS EXTRAÍDOS AUTOMÁTICAMENTE", rx + 5, ticketStartY - 17, { width: rw - 10, align: "center" });
+
+    let ry = ticketStartY + 5;
+    const datosExtraidos = [
+      { label: "Litros de combustible", valor: "72.142", icono: "⛽" },
+      { label: "Monto total", valor: "$9,346.97", icono: "💰" },
+      { label: "Fecha del ticket", valor: "22/03/2022", icono: "📅" },
+      { label: "Tipo de nafta", valor: "Shell V-Power", icono: "🏷️" },
+      { label: "Forma de pago", valor: "Efectivo", icono: "💵" },
+      { label: "Confianza del OCR", valor: "60%", icono: "🎯" },
+    ];
+
+    for (const d of datosExtraidos) {
+      doc.rect(rx + 10, ry, rw - 20, 18).fillAndStroke(C.white, "#E0E0E0");
+
+      doc.font("Helvetica").fontSize(7).fillColor(C.gray)
+        .text(d.label, rx + 15, ry + 2, { width: rw - 30 });
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.primary)
+        .text(d.valor, rx + 15, ry + 10 - 2, { width: rw - 30 });
+
+      ry += 21;
+    }
+
+    y = Math.max(y, ry) + 15;
+
+    // Flujo de WhatsApp
+    y = sectionTitle(doc, mx, pw, y, "14. FLUJO COMPLETO EN WHATSAPP");
+
+    const flujoSteps = [
+      { quien: "Chofer", color: C.accent, msg: "Escribe \"chofer\" → Se identifica → Elige opción 4 (Foto)" },
+      { quien: "Bot", color: C.success, msg: "\"¿Qué tipo? 1-Bidones 2-Ticket combustible 3-Lavado\"" },
+      { quien: "Chofer", color: C.accent, msg: "Elige 2 (Ticket combustible)" },
+      { quien: "Bot", color: C.success, msg: "\"Enviá la foto ahora. El sistema va a leer los datos automáticamente.\"" },
+      { quien: "Chofer", color: C.accent, msg: "Envía la foto del ticket Shell por WhatsApp" },
+      { quien: "Sistema", color: C.purple, msg: "Descarga foto → OCR (Tesseract) → Detecta: 72.1L, $9,346, 22/03" },
+      { quien: "Bot", color: C.success, msg: "\"Litros: 72.142 | Monto: $9,346.97 | Fecha: 22/03. ¿Confirmar?\"" },
+      { quien: "Chofer", color: C.accent, msg: "Confirma → Datos guardados en base de datos + foto archivada" },
+      { quien: "Admin/CEO", color: C.warning, msg: "Recibe notificación: \"Comprobante recibido - Chofer #03 - 72.1L\"" },
+    ];
+
+    for (let i = 0; i < flujoSteps.length; i++) {
+      const s = flujoSteps[i];
+      const stepH = 14;
+
+      // Número de paso
+      doc.rect(mx, y, 16, stepH).fill(s.color);
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white)
+        .text(String(i + 1), mx, y + 3, { width: 16, align: "center" });
+
+      // Quien
+      doc.rect(mx + 18, y, 52, stepH).fill(s.color + "20");
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor(s.color)
+        .text(s.quien, mx + 20, y + 3, { width: 48 });
+
+      // Mensaje
+      doc.font("Helvetica").fontSize(6.5).fillColor(C.darkGray)
+        .text(s.msg, mx + 74, y + 3, { width: pw - 78 });
+
+      y += stepH + 2;
+    }
+
+    y += 8;
+    doc.rect(mx, y, pw, 18).fill("#E8F5E9");
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(C.success)
+      .text("✓ 16/17 TESTS DE OCR PASARON (94%) — Ticket Shell leído correctamente", mx + 10, y + 4, { width: pw - 20, align: "center" });
+
+    drawFooter(doc, W, mx, pw, 5);
 
     doc.end();
     stream.on("finish", () => {

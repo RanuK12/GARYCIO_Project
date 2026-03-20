@@ -103,58 +103,115 @@ export async function extraerTextoDeImagen(imagePath: string): Promise<string> {
 /**
  * Parsea el texto OCR buscando datos relevantes:
  * litros, montos, bidones, fechas, patentes, direcciones.
+ *
+ * Estrategia:
+ * - TOTAL/monto: buscar primero "TOTAL:" que es el valor final del ticket
+ * - Litros: buscar "X" como indicador de cantidad (ej: "72.142 X $83") o "litros"
+ * - Bidones: buscar "bidones" o "total bidones"
+ * - Patente: excluir falsos positivos (IVA, CAE, etc.)
  */
 export function analizarTextoComprobante(texto: string): DatosExtraidos {
   const lower = texto.toLowerCase();
   let confianza = 0;
 
-  // Buscar litros (ej: "45.5 lt", "100 litros", "LTS: 85")
-  let litros: number | null = null;
-  const litrosMatch = texto.match(/(\d+[.,]?\d*)\s*(?:lt(?:s|ros)?|liter|litro)/i)
-    || texto.match(/(?:litros?|lts?|volumen)\s*[:\-=]?\s*(\d+[.,]?\d*)/i);
-  if (litrosMatch) {
-    litros = parseFloat((litrosMatch[1] || litrosMatch[1]).replace(",", "."));
-    confianza += 25;
-  }
-
-  // Buscar monto ($, pesos, total)
+  // ── MONTO: buscar TOTAL primero (es el valor más importante del ticket) ──
   let monto: number | null = null;
-  const montoMatch = texto.match(/\$\s*(\d+[.,]?\d*)/i)
-    || texto.match(/(?:total|importe|monto|precio)\s*[:\-=]?\s*\$?\s*(\d+[.,]?\d*)/i);
-  if (montoMatch) {
-    monto = parseFloat(montoMatch[1].replace(",", "."));
+
+  // Prioridad 1: "TOTAL: $9346.97" o "TOTAL: $ 9.346,97"
+  const totalMatch = texto.match(/TOTAL\s*[:=]?\s*\$?\s*([\d.,]+)/i);
+  if (totalMatch) {
+    monto = parsearMontoArgentino(totalMatch[1]);
     confianza += 25;
   }
 
-  // Buscar bidones (ej: "25 bidones", "bid: 18")
+  // Prioridad 2: "$ 9.346,97" (formato argentino con punto como separador de miles)
+  if (monto === null) {
+    const montoArg = texto.match(/\$\s*([\d.]+,\d{2})/);
+    if (montoArg) {
+      monto = parsearMontoArgentino(montoArg[1]);
+      confianza += 25;
+    }
+  }
+
+  // Prioridad 3: cualquier "$ numero"
+  if (monto === null) {
+    const montoSimple = texto.match(/\$\s*(\d+[.,]?\d*)/);
+    if (montoSimple) {
+      monto = parsearMontoArgentino(montoSimple[1]);
+      confianza += 20;
+    }
+  }
+
+  // ── LITROS ──
+  let litros: number | null = null;
+
+  // Prioridad 1: "72.142 X" (formato de ticket: cantidad X precio)
+  const litrosXMatch = texto.match(/(\d+[.,]\d+)\s*[Xx]\s*\$?\s*\d/);
+  if (litrosXMatch) {
+    litros = parseFloat(litrosXMatch[1].replace(",", "."));
+    confianza += 25;
+  }
+
+  // Prioridad 2: "Litros: 55" o "55 litros" o "55 lts"
+  if (litros === null) {
+    const litrosMatch = texto.match(/(\d+[.,]?\d*)\s*(?:lt(?:s|ros)?|liter|litro)/i)
+      || texto.match(/(?:litros?|lts?|volumen)\s*[:\-=]?\s*(\d+[.,]?\d*)/i);
+    if (litrosMatch) {
+      litros = parseFloat((litrosMatch[1] || litrosMatch[2]).replace(",", "."));
+      confianza += 25;
+    }
+  }
+
+  // ── BIDONES ──
   let bidones: number | null = null;
-  const bidonesMatch = texto.match(/(\d+)\s*(?:bidones?|bid)/i)
-    || texto.match(/(?:bidones?|bid)\s*[:\-=]?\s*(\d+)/i);
-  if (bidonesMatch) {
-    bidones = parseInt(bidonesMatch[1] || bidonesMatch[2], 10);
+
+  // "total bidones: 28" o "28 bidones"
+  const bidonesTotalMatch = texto.match(/(?:total\s+)?bidones?\s*[:\-=]?\s*(\d+)/i)
+    || texto.match(/(\d+)\s*bidones?/i);
+  if (bidonesTotalMatch) {
+    bidones = parseInt(bidonesTotalMatch[1], 10);
     confianza += 25;
   }
 
-  // Buscar fecha (dd/mm/yyyy, dd-mm-yyyy)
+  // ── FECHA ──
   let fecha: string | null = null;
-  const fechaMatch = texto.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if (fechaMatch) {
-    fecha = `${fechaMatch[1]}/${fechaMatch[2]}/${fechaMatch[3]}`;
+  // Buscar "Fecha" primero para tomar la fecha correcta (no cualquier dd/mm/yy)
+  const fechaLabelMatch = texto.match(/(?:fecha|fec\.?|vto\.?)\s*[:\-=]?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i);
+  if (fechaLabelMatch) {
+    fecha = `${fechaLabelMatch[1]}/${fechaLabelMatch[2]}/${fechaLabelMatch[3]}`;
     confianza += 10;
+  } else {
+    const fechaMatch = texto.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (fechaMatch) {
+      fecha = `${fechaMatch[1]}/${fechaMatch[2]}/${fechaMatch[3]}`;
+      confianza += 10;
+    }
   }
 
-  // Buscar patente (formato argentino: AA 123 BB o ABC 123)
+  // ── PATENTE (formato argentino, evitando falsos positivos) ──
   let patente: string | null = null;
-  const patenteMatch = texto.match(/([A-Z]{2,3})\s*(\d{3})\s*([A-Z]{2,3})/i)
-    || texto.match(/([A-Z]{3})\s*(\d{3})/i);
-  if (patenteMatch) {
-    patente = patenteMatch[0].toUpperCase().replace(/\s+/g, " ");
-    confianza += 10;
+  // Formato nuevo: AA 123 BB | Formato viejo: ABC 123
+  // Excluir: IVA, CAE, ICL, Sft, etc.
+  const exclusiones = /^(IVA|CAE|ICL|SFT|PER|GRA|EXE|DC\s)/i;
+  const patenteMatches = texto.matchAll(/\b([A-Z]{2})\s*(\d{3})\s*([A-Z]{2})\b/gi);
+  for (const m of patenteMatches) {
+    if (!exclusiones.test(m[0])) {
+      patente = m[0].toUpperCase().replace(/\s+/g, " ");
+      confianza += 10;
+      break;
+    }
+  }
+  if (!patente) {
+    const patenteVieja = texto.match(/\b(?:patente|pat\.?)\s*[:\-=]?\s*([A-Z]{2,3}\s*\d{3}\s*[A-Z]{0,3})/i);
+    if (patenteVieja) {
+      patente = patenteVieja[1].toUpperCase().replace(/\s+/g, " ");
+      confianza += 10;
+    }
   }
 
-  // Buscar dirección (calle + número)
+  // ── DIRECCIÓN ──
   let direccion: string | null = null;
-  const dirMatch = texto.match(/(?:calle|av\.?|avenida|bvd?\.?)\s+[\w\s]+\d+/i);
+  const dirMatch = texto.match(/(?:calle|av\.?|avenida|bvd?\.?|bvar\.?)\s+[\w\s]+\d+/i);
   if (dirMatch) {
     direccion = dirMatch[0].trim();
     confianza += 5;
@@ -164,15 +221,29 @@ export function analizarTextoComprobante(texto: string): DatosExtraidos {
   if (texto.length > 10 && confianza === 0) confianza = 5;
 
   return {
-    textoCompleto: texto.slice(0, 2000), // limitar tamaño
-    litros,
-    monto,
-    bidones,
-    fecha,
-    direccion,
-    patente,
+    textoCompleto: texto.slice(0, 2000),
+    litros, monto, bidones, fecha, direccion, patente,
     confianza: Math.min(confianza, 100),
   };
+}
+
+/**
+ * Parsea un monto en formato argentino:
+ * "9.346,97" → 9346.97
+ * "9346.97" → 9346.97
+ * "17,627.50" → 17627.50
+ */
+function parsearMontoArgentino(raw: string): number {
+  // Si tiene formato "9.346,97" (punto=miles, coma=decimales)
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(raw)) {
+    return parseFloat(raw.replace(/\./g, "").replace(",", "."));
+  }
+  // Si tiene formato "17,627.50" (coma=miles, punto=decimales)
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(raw)) {
+    return parseFloat(raw.replace(/,/g, ""));
+  }
+  // Formato simple "9346.97" o "9346,97"
+  return parseFloat(raw.replace(",", "."));
 }
 
 // ============================================================
