@@ -1,11 +1,17 @@
 /**
  * Servicio de seguimiento de camiones via Ituran.
  *
- * Ituran expone un Web Service SOAP (Service3.asmx) con la operación
- * GetFullReport que devuelve posición GPS, velocidad, rumbo, kilometraje,
- * patente, chofer, y geofencing de cada vehículo.
+ * Ituran expone un Web Service SOAP (Service3.asmx) con operaciones:
+ * - GetAllPlatformsData_JSON: posición actual de todos los vehículos
+ * - GetFullReport_JSON: historial de posiciones por rango de fechas
  *
- * Credenciales obtenidas 2026-03-20. Configurar en .env:
+ * Namespace: http://www.ituran.com/ituranWebService3
+ * URL: https://web2.ituran.com.ar/ituranwebservice3/Service3.asmx
+ *
+ * NOTA: El usuario necesita el permiso "CanUseWebserviceApi" habilitado
+ * por Ituran. Sin esto, devuelve error de permisos.
+ *
+ * Configurar en .env:
  *   ITURAN_USER=garycio
  *   ITURAN_PASSWORD=***
  */
@@ -60,6 +66,7 @@ export interface ComparacionRuta {
 // ============================================================
 
 const ITURAN_SOAP_URL = "https://web2.ituran.com.ar/ituranwebservice3/Service3.asmx";
+const ITURAN_NAMESPACE = "http://www.ituran.com/ituranWebService3";
 
 export function isIturanConfigured(): boolean {
   return !!(env.ITURAN_USER && env.ITURAN_PASSWORD);
@@ -94,35 +101,65 @@ export async function obtenerPosicionVehiculo(patente: string): Promise<Posicion
 // SOAP Web Service (Service3.asmx)
 // ============================================================
 
-async function obtenerPosicionesSOAP(): Promise<PosicionVehiculo[]> {
-  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+/**
+ * Helper para llamar SOAP con el namespace correcto de Ituran.
+ */
+async function callIturanSOAP(action: string, bodyXml: string): Promise<string> {
+  const envelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-               xmlns:tns="http://tempuri.org/">
-  <soap:Body>
-    <tns:GetFullReport>
-      <tns:UserName>${env.ITURAN_USER}</tns:UserName>
-      <tns:Password>${env.ITURAN_PASSWORD}</tns:Password>
-    </tns:GetFullReport>
-  </soap:Body>
+               xmlns:tns="${ITURAN_NAMESPACE}">
+  <soap:Body>${bodyXml}</soap:Body>
 </soap:Envelope>`;
 
-  try {
-    const response = await fetch(ITURAN_SOAP_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": "http://tempuri.org/GetFullReport",
-      },
-      body: soapEnvelope,
-    });
+  const response = await fetch(ITURAN_SOAP_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/xml; charset=utf-8",
+      "SOAPAction": `${ITURAN_NAMESPACE}/${action}`,
+    },
+    body: envelope,
+  });
 
-    if (!response.ok) {
-      logger.error(`Ituran SOAP error: HTTP ${response.status}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Ituran HTTP ${response.status}: ${text.substring(0, 200)}`);
+  }
+
+  return response.text();
+}
+
+/**
+ * Obtiene posiciones actuales usando GetAllPlatformsData_JSON.
+ * Retorna JSON directamente (más fácil de parsear que XML).
+ */
+async function obtenerPosicionesSOAP(): Promise<PosicionVehiculo[]> {
+  try {
+    const xml = await callIturanSOAP("GetAllPlatformsData_JSON", `
+    <tns:GetAllPlatformsData_JSON>
+      <tns:UserName>${env.ITURAN_USER}</tns:UserName>
+      <tns:Password>${env.ITURAN_PASSWORD}</tns:Password>
+      <tns:ShowAreas>false</tns:ShowAreas>
+      <tns:ShowStatuses>true</tns:ShowStatuses>
+      <tns:ShowMileageInMeters>true</tns:ShowMileageInMeters>
+      <tns:ShowDriver>true</tns:ShowDriver>
+    </tns:GetAllPlatformsData_JSON>`);
+
+    // Extraer el JSON del wrapper XML
+    const jsonMatch = xml.match(/<GetAllPlatformsData_JSONResult>([^<]+)/);
+    if (!jsonMatch) {
+      logger.error("Ituran: no se pudo extraer JSON de la respuesta");
       return obtenerPosicionesSimuladas();
     }
 
-    const xml = await response.text();
-    return parsearRespuestaSOAP(xml);
+    const data = JSON.parse(jsonMatch[1]);
+
+    // Verificar permisos
+    if (data.ReturnCode && data.ReturnCode !== "OK" && data.ReturnCode !== "") {
+      logger.error(`Ituran ReturnCode: ${data.ReturnCode}`);
+      return obtenerPosicionesSimuladas();
+    }
+
+    return parsearVehiculosJSON(data.VehList || []);
   } catch (error) {
     logger.error({ error }, "Error conectando a Ituran SOAP");
     return obtenerPosicionesSimuladas();
@@ -130,44 +167,85 @@ async function obtenerPosicionesSOAP(): Promise<PosicionVehiculo[]> {
 }
 
 /**
- * Parsea la respuesta XML del GetFullReport de Ituran.
- * Extrae los campos de cada vehículo usando regex (sin dependencia de xml parser).
+ * Obtiene historial de posiciones usando GetFullReport_JSON.
  */
-function parsearRespuestaSOAP(xml: string): PosicionVehiculo[] {
+export async function obtenerHistorial(
+  patente: string,
+  desde: Date,
+  hasta: Date,
+  maxRegistros: number = 500,
+): Promise<PosicionVehiculo[]> {
+  if (!isIturanConfigured()) {
+    logger.warn("Ituran no configurado - no hay historial disponible");
+    return [];
+  }
+
+  const fmtDate = (d: Date) => d.toISOString().replace("T", " ").substring(0, 19);
+
+  try {
+    const xml = await callIturanSOAP("GetFullReport_JSON", `
+    <tns:GetFullReport_JSON>
+      <tns:UserName>${env.ITURAN_USER}</tns:UserName>
+      <tns:Password>${env.ITURAN_PASSWORD}</tns:Password>
+      <tns:Plate>${patente}</tns:Plate>
+      <tns:Start>${fmtDate(desde)}</tns:Start>
+      <tns:End>${fmtDate(hasta)}</tns:End>
+      <tns:UAID>0</tns:UAID>
+      <tns:MaxNumberOfRecords>${maxRegistros}</tns:MaxNumberOfRecords>
+    </tns:GetFullReport_JSON>`);
+
+    const jsonMatch = xml.match(/<GetFullReport_JSONResult>([^<]+)/);
+    if (!jsonMatch) return [];
+
+    const data = JSON.parse(jsonMatch[1]);
+    if (data.ReturnCode && data.ReturnCode !== "OK" && data.ReturnCode !== "") {
+      logger.error(`Ituran historial ReturnCode: ${data.ReturnCode}`);
+      return [];
+    }
+
+    return (data.Records || []).map((r: any) => ({
+      patente: r.Plate || patente,
+      lat: r.Latitude || r.Lat || 0,
+      lon: r.Longitude || r.Lon || r.Lng || 0,
+      velocidad: r.Speed || 0,
+      rumbo: r.Heading || r.Direction || 0,
+      kilometraje: r.Mileage || r.Odometer || 0,
+      direccionTexto: r.Address || r.Street || "",
+      choferNombre: r.DriverIdentification || r.DriverName || null,
+      timestamp: r.DateTimeUTC ? new Date(r.DateTimeUTC) : new Date(r.DateTime || Date.now()),
+    }));
+  } catch (error) {
+    logger.error({ error }, "Error obteniendo historial de Ituran");
+    return [];
+  }
+}
+
+/**
+ * Parsea la lista de vehículos del JSON de GetAllPlatformsData.
+ */
+function parsearVehiculosJSON(vehList: any[]): PosicionVehiculo[] {
   const vehiculos: PosicionVehiculo[] = [];
 
-  // Cada vehículo viene en un bloque <Vehicle> o <VehicleReport>
-  // Probamos ambos patrones porque Ituran puede usar distintos schemas
-  const vehicleBlocks = xml.match(/<(?:Vehicle|VehicleReport)[^>]*>[\s\S]*?<\/(?:Vehicle|VehicleReport)>/gi) || [];
+  for (const v of vehList) {
+    const lat = v.Latitude || v.Lat || 0;
+    const lon = v.Longitude || v.Lon || v.Lng || 0;
 
-  for (const block of vehicleBlocks) {
-    const get = (tag: string): string => {
-      const match = block.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i"));
-      return match?.[1]?.trim() || "";
-    };
-
-    const lat = parseFloat(get("Latitude") || get("Lat") || "0");
-    const lon = parseFloat(get("Longitude") || get("Lon") || get("Lng") || "0");
-
-    // Ignorar vehículos sin coordenadas válidas
     if (lat === 0 && lon === 0) continue;
 
     vehiculos.push({
-      patente: get("Plate") || get("LicensePlate") || get("VehicleName") || "N/A",
+      patente: v.Plate || v.LicensePlate || v.VehicleName || "N/A",
       lat,
       lon,
-      velocidad: parseFloat(get("Speed") || "0"),
-      rumbo: parseFloat(get("Heading") || get("Direction") || "0"),
-      kilometraje: parseFloat(get("Mileage") || get("Odometer") || "0"),
-      direccionTexto: get("Address") || get("Street") || "",
-      choferNombre: get("DriverIdentification") || get("DriverName") || null,
-      timestamp: get("DateTimeUTC") || get("DateTime")
-        ? new Date(get("DateTimeUTC") || get("DateTime"))
-        : new Date(),
+      velocidad: v.Speed || 0,
+      rumbo: v.Heading || v.Direction || 0,
+      kilometraje: v.Mileage || v.MileageInMeters ? (v.MileageInMeters || 0) / 1000 : v.Mileage || 0,
+      direccionTexto: v.Address || v.Street || "",
+      choferNombre: v.DriverIdentification || v.DriverName || null,
+      timestamp: v.DateTimeUTC ? new Date(v.DateTimeUTC) : new Date(v.DateTime || Date.now()),
     });
   }
 
-  logger.info(`Ituran: ${vehiculos.length} vehículos obtenidos vía SOAP`);
+  logger.info(`Ituran: ${vehiculos.length} vehículos obtenidos vía API`);
   return vehiculos;
 }
 
