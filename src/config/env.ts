@@ -41,6 +41,10 @@ const envSchema = z.object({
   GALPON_DIRECCION: z.string().default("Murature 3820, Villa Lynch, Provincia de Buenos Aires"),
   GALPON_LAT: z.coerce.number().default(-34.5944),
   GALPON_LON: z.coerce.number().default(-58.5339),
+
+  // Ituran GPS tracking (SOAP Web Service)
+  ITURAN_USER: z.string().default(""),
+  ITURAN_PASSWORD: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

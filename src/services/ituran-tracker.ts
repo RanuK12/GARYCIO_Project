@@ -5,15 +5,9 @@
  * GetFullReport que devuelve posición GPS, velocidad, rumbo, kilometraje,
  * patente, chofer, y geofencing de cada vehículo.
  *
- * Opciones de integración (en orden de preferencia):
- * 1. SOAP Web Service directo (usuario/contraseña de Ituran)
- * 2. pyituran via subprocess (librería Python open-source, MIT)
- * 3. flespi como middleware (REST + MQTT)
- *
- * PENDIENTE: credenciales de Ituran Argentina (0810-44-ITURAN).
- *
- * Este módulo está preparado con la interfaz lista; cuando tengamos
- * las credenciales, se conecta y funciona.
+ * Credenciales obtenidas 2026-03-20. Configurar en .env:
+ *   ITURAN_USER=garycio
+ *   ITURAN_PASSWORD=***
  */
 
 import { db } from "../database";
@@ -62,28 +56,13 @@ export interface ComparacionRuta {
 }
 
 // ============================================================
-// Configuración (se llena cuando tengamos credenciales)
+// Configuración
 // ============================================================
 
-interface IturanConfig {
-  // SOAP Web Service
-  soapUrl?: string;        // ej: "https://web2.ituran.com.ar/ituranwebservice3/Service3.asmx"
-  username?: string;
-  password?: string;
-  // O vía flespi
-  flespiToken?: string;
-  flespiChannelId?: string;
-}
-
-let config: IturanConfig = {};
-
-export function configurarIturan(cfg: IturanConfig): void {
-  config = cfg;
-  logger.info("Ituran configurado");
-}
+const ITURAN_SOAP_URL = "https://web2.ituran.com.ar/ituranwebservice3/Service3.asmx";
 
 export function isIturanConfigured(): boolean {
-  return !!(config.soapUrl && config.username) || !!config.flespiToken;
+  return !!(env.ITURAN_USER && env.ITURAN_PASSWORD);
 }
 
 // ============================================================
@@ -96,19 +75,11 @@ export function isIturanConfigured(): boolean {
  */
 export async function obtenerPosiciones(): Promise<PosicionVehiculo[]> {
   if (!isIturanConfigured()) {
-    logger.warn("Ituran no configurado - usando datos simulados");
+    logger.warn("Ituran no configurado (ITURAN_USER/ITURAN_PASSWORD vacíos) - usando datos simulados");
     return obtenerPosicionesSimuladas();
   }
 
-  if (config.soapUrl && config.username) {
-    return obtenerPosicionesSOAP();
-  }
-
-  if (config.flespiToken) {
-    return obtenerPosicionesFlespi();
-  }
-
-  return [];
+  return obtenerPosicionesSOAP();
 }
 
 /**
@@ -124,40 +95,80 @@ export async function obtenerPosicionVehiculo(patente: string): Promise<Posicion
 // ============================================================
 
 async function obtenerPosicionesSOAP(): Promise<PosicionVehiculo[]> {
-  // TODO: Implementar cuando tengamos credenciales
-  // El SOAP envelope para GetFullReport es:
-  //
-  // <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-  //                xmlns:tns="http://tempuri.org/">
-  //   <soap:Body>
-  //     <tns:GetFullReport>
-  //       <tns:UserName>{username}</tns:UserName>
-  //       <tns:Password>{password}</tns:Password>
-  //     </tns:GetFullReport>
-  //   </soap:Body>
-  // </soap:Envelope>
-  //
-  // Respuesta incluye: Plate, Latitude, Longitude, Speed, Heading,
-  // Mileage, Address, DateTimeUTC, DriverIdentification, GeoAreas
-  //
-  logger.info("SOAP GetFullReport llamado (pendiente implementación real)");
-  return obtenerPosicionesSimuladas();
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:tns="http://tempuri.org/">
+  <soap:Body>
+    <tns:GetFullReport>
+      <tns:UserName>${env.ITURAN_USER}</tns:UserName>
+      <tns:Password>${env.ITURAN_PASSWORD}</tns:Password>
+    </tns:GetFullReport>
+  </soap:Body>
+</soap:Envelope>`;
+
+  try {
+    const response = await fetch(ITURAN_SOAP_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/xml; charset=utf-8",
+        "SOAPAction": "http://tempuri.org/GetFullReport",
+      },
+      body: soapEnvelope,
+    });
+
+    if (!response.ok) {
+      logger.error(`Ituran SOAP error: HTTP ${response.status}`);
+      return obtenerPosicionesSimuladas();
+    }
+
+    const xml = await response.text();
+    return parsearRespuestaSOAP(xml);
+  } catch (error) {
+    logger.error({ error }, "Error conectando a Ituran SOAP");
+    return obtenerPosicionesSimuladas();
+  }
 }
 
-// ============================================================
-// flespi como alternativa
-// ============================================================
+/**
+ * Parsea la respuesta XML del GetFullReport de Ituran.
+ * Extrae los campos de cada vehículo usando regex (sin dependencia de xml parser).
+ */
+function parsearRespuestaSOAP(xml: string): PosicionVehiculo[] {
+  const vehiculos: PosicionVehiculo[] = [];
 
-async function obtenerPosicionesFlespi(): Promise<PosicionVehiculo[]> {
-  // TODO: Implementar con flespi REST API
-  // GET https://flespi.io/gw/devices/{device_id}/telemetry/all
-  // Headers: Authorization: FlespiToken {token}
-  //
-  // Campos parseados: position.latitude, position.longitude,
-  // position.speed, position.direction, vehicle.mileage
-  //
-  logger.info("flespi telemetry llamado (pendiente implementación real)");
-  return obtenerPosicionesSimuladas();
+  // Cada vehículo viene en un bloque <Vehicle> o <VehicleReport>
+  // Probamos ambos patrones porque Ituran puede usar distintos schemas
+  const vehicleBlocks = xml.match(/<(?:Vehicle|VehicleReport)[^>]*>[\s\S]*?<\/(?:Vehicle|VehicleReport)>/gi) || [];
+
+  for (const block of vehicleBlocks) {
+    const get = (tag: string): string => {
+      const match = block.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i"));
+      return match?.[1]?.trim() || "";
+    };
+
+    const lat = parseFloat(get("Latitude") || get("Lat") || "0");
+    const lon = parseFloat(get("Longitude") || get("Lon") || get("Lng") || "0");
+
+    // Ignorar vehículos sin coordenadas válidas
+    if (lat === 0 && lon === 0) continue;
+
+    vehiculos.push({
+      patente: get("Plate") || get("LicensePlate") || get("VehicleName") || "N/A",
+      lat,
+      lon,
+      velocidad: parseFloat(get("Speed") || "0"),
+      rumbo: parseFloat(get("Heading") || get("Direction") || "0"),
+      kilometraje: parseFloat(get("Mileage") || get("Odometer") || "0"),
+      direccionTexto: get("Address") || get("Street") || "",
+      choferNombre: get("DriverIdentification") || get("DriverName") || null,
+      timestamp: get("DateTimeUTC") || get("DateTime")
+        ? new Date(get("DateTimeUTC") || get("DateTime"))
+        : new Date(),
+    });
+  }
+
+  logger.info(`Ituran: ${vehiculos.length} vehículos obtenidos vía SOAP`);
+  return vehiculos;
 }
 
 // ============================================================

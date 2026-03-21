@@ -241,6 +241,13 @@ async function main(): Promise<void> {
   initScheduler();
   initReporteDiario();
 
+  // ── Estado de integraciones ───────────────────────
+  if (isIturanConfigured()) {
+    logger.info("Ituran GPS tracking: CONECTADO");
+  } else {
+    logger.warn("Ituran GPS tracking: NO CONFIGURADO (ITURAN_USER/ITURAN_PASSWORD vacíos)");
+  }
+
   logger.info({ port: env.PORT }, "GARYCIO System iniciado correctamente");
 
   // ── Graceful shutdown ───────────────────────────────
