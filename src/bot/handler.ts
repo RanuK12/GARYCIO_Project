@@ -1,44 +1,247 @@
-import { WASocket, proto } from "@whiskeysockets/baileys";
 import { handleIncomingMessage } from "./conversation-manager";
-import { sendMessage } from "./client";
+import { sendMessage, markAsRead } from "./client";
+import { withUserLock } from "./queue";
+import { db } from "../database";
+import {
+  donantes,
+  choferes,
+  visitadoras,
+  zonaChoferes,
+  reclamos,
+  mensajesLog,
+} from "../database/schema";
+import { eq, and, isNotNull, desc } from "drizzle-orm";
+import { env } from "../config/env";
 import { logger } from "../config/logger";
+import type { FlowResponse } from "./flows";
+import { addToDeadLetterQueue } from "../services/dead-letter-queue";
+import { guardarReclamo, guardarIncidente } from "../services/reportes-ceo";
+import type { MediaInfo } from "./webhook";
 
-export function registerMessageHandler(sock: WASocket): void {
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
+/**
+ * Procesa un mensaje entrante de principio a fin:
+ * 1. Adquiere lock por usuario (evita race conditions)
+ * 2. Procesa el mensaje con el conversation manager
+ * 3. Envía la respuesta
+ * 4. Procesa notificaciones (chofer, admin, visitadora)
+ * 5. Loguea en DB
+ */
+export async function processIncomingMessage(
+  phone: string,
+  text: string,
+  messageId?: string,
+  mediaInfo?: MediaInfo,
+): Promise<void> {
+  await withUserLock(phone, async () => {
+    // Marcar como leído
+    if (messageId) {
+      markAsRead(messageId).catch(() => {});
+    }
 
-    for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe) continue;
+    // Log del mensaje entrante
+    logMessage(phone, "entrante", text, true).catch(() => {});
 
-      const phone = msg.key.remoteJid?.replace("@s.whatsapp.net", "") || "";
-      if (!phone || phone.includes("@g.us")) continue;
+    // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
+    const result = await handleIncomingMessage(phone, text, mediaInfo);
 
-      const text = extractText(msg);
-      if (!text) continue;
+    // Enviar respuesta
+    try {
+      await sendMessage(phone, result.reply);
+      logMessage(phone, "saliente", result.reply, true).catch(() => {});
+    } catch (err) {
+      logger.error({ phone, err }, "Error al enviar respuesta");
+      logMessage(phone, "saliente", result.reply, false).catch(() => {});
+      addToDeadLetterQueue({
+        telefono: phone,
+        tipo: "texto",
+        contenido: result.reply,
+        errorMessage: (err as Error).message,
+      }).catch(() => {});
+    }
 
-      logger.info({ phone, text: text.slice(0, 80) }, "Mensaje recibido");
+    // Procesar notificaciones
+    if (result.notify) {
+      await processNotification(phone, result.notify);
+    }
 
-      try {
-        const reply = await handleIncomingMessage(phone, text);
-        await sendMessage(phone, reply);
-      } catch (err) {
-        logger.error({ phone, err }, "Error al responder mensaje");
-      }
+    // Persistir datos de flujo completado (reclamos, incidentes)
+    if (result.flowData) {
+      await saveFlowData(phone, result.flowData).catch((err) => {
+        logger.error({ phone, err }, "Error guardando datos de flujo");
+      });
     }
   });
-
-  logger.info("Handler de mensajes registrado");
 }
 
-function extractText(msg: proto.IWebMessageInfo): string | null {
-  const m = msg.message;
-  if (!m) return null;
+// ── Notificaciones ──────────────────────────────────────
+async function processNotification(
+  senderPhone: string,
+  notify: NonNullable<FlowResponse["notify"]>,
+): Promise<void> {
+  try {
+    switch (notify.target) {
+      case "admin":
+        await sendMessage(env.CEO_PHONE, notify.message);
+        break;
 
-  return (
-    m.conversation ||
-    m.extendedTextMessage?.text ||
-    m.buttonsResponseMessage?.selectedDisplayText ||
-    m.listResponseMessage?.singleSelectReply?.selectedRowId ||
-    null
-  );
+      case "chofer": {
+        const chofer = await findChoferForDonante(senderPhone);
+        if (chofer) {
+          await sendMessage(chofer.telefono, notify.message);
+          logger.info(
+            { donante: senderPhone, chofer: chofer.nombre },
+            "Notificación enviada al chofer",
+          );
+        } else {
+          // Fallback: enviar al admin si no hay chofer asignado
+          await sendMessage(
+            env.CEO_PHONE,
+            `⚠️ Sin chofer asignado para ${senderPhone}\n\n${notify.message}`,
+          );
+        }
+        break;
+      }
+
+      case "visitadora": {
+        const visitadora = await findVisitadoraForDonante(senderPhone);
+        if (visitadora) {
+          await sendMessage(visitadora.telefono, notify.message);
+          logger.info(
+            { donante: senderPhone, visitadora: visitadora.nombre },
+            "Notificación enviada a visitadora",
+          );
+        } else {
+          await sendMessage(
+            env.CEO_PHONE,
+            `⚠️ Sin visitadora asignada para ${senderPhone}\n\n${notify.message}`,
+          );
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    logger.error({ senderPhone, target: notify.target, err }, "Error procesando notificación");
+  }
+}
+
+async function findChoferForDonante(
+  phone: string,
+): Promise<{ nombre: string; telefono: string } | null> {
+  // Buscar la zona del donante
+  const donanteResult = await db
+    .select({ zonaId: donantes.zonaId })
+    .from(donantes)
+    .where(eq(donantes.telefono, phone))
+    .limit(1);
+
+  if (donanteResult.length === 0 || !donanteResult[0].zonaId) return null;
+
+  // Buscar el chofer de esa zona
+  const choferResult = await db
+    .select({
+      nombre: choferes.nombre,
+      telefono: choferes.telefono,
+    })
+    .from(zonaChoferes)
+    .innerJoin(choferes, eq(zonaChoferes.choferId, choferes.id))
+    .where(
+      and(
+        eq(zonaChoferes.zonaId, donanteResult[0].zonaId),
+        eq(zonaChoferes.activo, true),
+      ),
+    )
+    .limit(1);
+
+  return choferResult.length > 0 ? choferResult[0] : null;
+}
+
+async function findVisitadoraForDonante(
+  phone: string,
+): Promise<{ nombre: string; telefono: string } | null> {
+  // Buscar si hay un reclamo escalado a visitadora para este donante
+  const donanteResult = await db
+    .select({ id: donantes.id, zonaId: donantes.zonaId })
+    .from(donantes)
+    .where(eq(donantes.telefono, phone))
+    .limit(1);
+
+  if (donanteResult.length === 0) return null;
+
+  // Buscar visitadora asignada al reclamo más reciente
+  const reclamoResult = await db
+    .select({ visitadoraId: reclamos.visitadoraId })
+    .from(reclamos)
+    .where(
+      and(
+        eq(reclamos.donanteId, donanteResult[0].id),
+        isNotNull(reclamos.visitadoraId),
+      ),
+    )
+    .orderBy(desc(reclamos.fechaCreacion))
+    .limit(1);
+
+  const visitadoraId = reclamoResult.length > 0 ? reclamoResult[0].visitadoraId : null;
+
+  if (visitadoraId) {
+    const result = await db
+      .select({ nombre: visitadoras.nombre, telefono: visitadoras.telefono })
+      .from(visitadoras)
+      .where(and(eq(visitadoras.id, visitadoraId), eq(visitadoras.activa, true)))
+      .limit(1);
+    if (result.length > 0) return result[0];
+  }
+
+  // Fallback: buscar cualquier visitadora activa
+  const anyVisitadora = await db
+    .select({ nombre: visitadoras.nombre, telefono: visitadoras.telefono })
+    .from(visitadoras)
+    .where(eq(visitadoras.activa, true))
+    .limit(1);
+
+  return anyVisitadora.length > 0 ? anyVisitadora[0] : null;
+}
+
+// ── Persistencia de datos de flujo ──────────────────────
+async function saveFlowData(
+  phone: string,
+  flowData: { flowName: string; data: Record<string, any> },
+): Promise<void> {
+  const { flowName, data } = flowData;
+
+  if (flowName === "reclamo" && data.tipoReclamo) {
+    await guardarReclamo({
+      donantePhone: phone,
+      tipo: data.tipoReclamo,
+      descripcion: data.detalleReclamo || null,
+    });
+  }
+
+  if (flowName === "chofer" && data.incidenteReportado) {
+    await guardarIncidente({
+      choferId: data.choferId || 0,
+      tipo: data.tipoIncidente || "otro",
+      descripcion: data.descripcionIncidente || "Sin descripción",
+      gravedad: data.gravedadIncidente || "media",
+    });
+  }
+}
+
+// ── Logging de mensajes ─────────────────────────────────
+async function logMessage(
+  phone: string,
+  direction: string,
+  content: string,
+  success: boolean,
+): Promise<void> {
+  try {
+    await db.insert(mensajesLog).values({
+      telefono: phone,
+      tipo: "conversacion",
+      contenido: content.slice(0, 500),
+      direccion: direction,
+      exitoso: success,
+    });
+  } catch (err) {
+    logger.error({ phone, err }, "Error al loguear mensaje");
+  }
 }

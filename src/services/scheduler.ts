@@ -10,6 +10,7 @@ import {
 import { eq, and, lte, isNull } from "drizzle-orm";
 import { sendMessage } from "../bot/client";
 import { logger } from "../config/logger";
+import { retryDeadLetterQueue } from "./dead-letter-queue";
 
 /**
  * Tareas programadas del sistema.
@@ -31,6 +32,14 @@ export function initScheduler(): void {
   cron.schedule("0 10 */2 * *", async () => {
     logger.info("Ejecutando: notificación nuevas donantes");
     await notificarNuevasDonantes();
+  });
+
+  // Reintentar mensajes fallidos de la DLQ cada 2 horas
+  cron.schedule("0 */2 * * *", async () => {
+    logger.info("Ejecutando: reintento de Dead Letter Queue");
+    await retryDeadLetterQueue({ maxItems: 50, delayMs: 200 }).catch((err) => {
+      logger.error({ err }, "Error al reintentar DLQ");
+    });
   });
 
   logger.info("Scheduler inicializado con tareas programadas");
