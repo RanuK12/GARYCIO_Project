@@ -11,6 +11,7 @@ import { eq, and, lte, isNull } from "drizzle-orm";
 import { sendMessage } from "../bot/client";
 import { logger } from "../config/logger";
 import { retryDeadLetterQueue } from "./dead-letter-queue";
+import { verificarProgresoRutas } from "./progreso-ruta";
 
 /**
  * Tareas programadas del sistema.
@@ -40,6 +41,18 @@ export function initScheduler(): void {
     await retryDeadLetterQueue({ maxItems: 50, delayMs: 200 }).catch((err) => {
       logger.error({ err }, "Error al reintentar DLQ");
     });
+  });
+
+  // Verificar progreso de rutas cada 20 minutos (horario laboral: 6am-18pm)
+  cron.schedule("*/20 6-18 * * 1-6", async () => {
+    logger.info("Ejecutando: verificación de progreso de rutas");
+    const resultado = await verificarProgresoRutas().catch((err) => {
+      logger.error({ err }, "Error verificando progreso de rutas");
+      return null;
+    });
+    if (resultado) {
+      logger.info(resultado, "Progreso de rutas verificado");
+    }
   });
 
   logger.info("Scheduler inicializado con tareas programadas");

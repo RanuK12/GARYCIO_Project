@@ -22,6 +22,7 @@ import {
 } from "./services/ituran-tracker";
 import { notificarAdmins } from "./services/reportes-ceo";
 import { enviarEncuestaMensual } from "./services/encuesta-regalo";
+import { verificarProgresoRutas, obtenerResumenProgreso } from "./services/progreso-ruta";
 import { db } from "./database";
 import { donantes, reclamos, avisos, reportesBaja } from "./database/schema";
 import { eq, and, gte, lte, or, ilike, sql } from "drizzle-orm";
@@ -341,6 +342,25 @@ async function main(): Promise<void> {
     const cantidad = parseInt(req.query.cantidad as string) || 1000;
     try {
       const result = await enviarEncuestaMensual(cantidad);
+      res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Progreso de rutas ─────────────────────────────
+  app.get("/admin/rutas/progreso", async (_req, res) => {
+    try {
+      const resumen = obtenerResumenProgreso();
+      res.json({ status: "ok", vehiculos: resumen });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/rutas/verificar-progreso", async (_req, res) => {
+    try {
+      const result = await verificarProgresoRutas();
       res.json({ status: "ok", ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });

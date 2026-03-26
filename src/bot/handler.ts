@@ -16,6 +16,8 @@ import { logger } from "../config/logger";
 import type { FlowResponse } from "./flows";
 import { addToDeadLetterQueue } from "../services/dead-letter-queue";
 import { guardarReclamo, guardarIncidente } from "../services/reportes-ceo";
+import { procesarRespuestaEncuesta } from "../services/encuesta-regalo";
+import { registrarContactoDonante } from "../services/contacto-donante";
 import type { MediaInfo } from "./webhook";
 
 /**
@@ -40,6 +42,19 @@ export async function processIncomingMessage(
 
     // Log del mensaje entrante
     logMessage(phone, "entrante", text, true).catch(() => {});
+
+    // Auto-registrar contacto del donante (actualiza updatedAt o crea registro nuevo)
+    registrarContactoDonante(phone, text).catch((err) => {
+      logger.error({ phone, err }, "Error registrando contacto de donante");
+    });
+
+    // Verificar si es respuesta a encuesta (SI/NO)
+    const esEncuesta = await procesarRespuestaEncuesta(phone, text).catch(() => false);
+    if (esEncuesta) {
+      await sendMessage(phone, "✅ ¡Gracias por tu respuesta! Fue registrada correctamente.").catch(() => {});
+      logMessage(phone, "saliente", "Respuesta de encuesta registrada", true).catch(() => {});
+      return;
+    }
 
     // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
     const result = await handleIncomingMessage(phone, text, mediaInfo);
