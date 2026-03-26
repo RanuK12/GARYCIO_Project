@@ -250,6 +250,92 @@ function parsearVehiculosJSON(vehList: any[]): PosicionVehiculo[] {
 }
 
 // ============================================================
+// REST API (viajes/trips) — GARYCIO_API
+// ============================================================
+
+export interface ViajeIturan {
+  carNum: string;
+  startDriveAddress: string;
+  startDriveDate: string;
+  startDriveTime: string;
+  endDriveAddress: string;
+  endDriveDate: string;
+  endDriveTime: string;
+  totalDriveKm: number;
+  totalStandTime: string;
+  fastestDriveSpeed: number;
+  driveGrade: number;
+  driverCode: string;
+  isNightDrive: boolean;
+}
+
+export function isIturanRESTConfigured(): boolean {
+  return !!(env.ITURAN_API_USER && env.ITURAN_API_PASSWORD);
+}
+
+/**
+ * Obtiene los viajes/trips de Ituran vía REST API.
+ */
+export async function obtenerViajes(fecha: string): Promise<ViajeIturan[]> {
+  if (!isIturanRESTConfigured()) {
+    logger.warn("Ituran REST API no configurada");
+    return [];
+  }
+
+  try {
+    const response = await fetch(env.ITURAN_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userName: env.ITURAN_API_USER,
+        password: env.ITURAN_API_PASSWORD,
+        fromDate: fecha,
+        toDate: fecha,
+      }),
+    });
+
+    if (!response.ok) {
+      logger.error(`Ituran REST error: HTTP ${response.status}`);
+      return [];
+    }
+
+    const data: any = await response.json();
+    const trips: ViajeIturan[] = Array.isArray(data) ? data : data.trips || data.TripDataDTO || [];
+    logger.info(`Ituran REST: ${trips.length} viajes obtenidos para ${fecha}`);
+    return trips;
+  } catch (error) {
+    logger.error({ error }, "Error conectando a Ituran REST API");
+    return [];
+  }
+}
+
+/**
+ * Detecta excesos de velocidad en los viajes del día.
+ */
+export function detectarExcesoVelocidad(
+  viajes: ViajeIturan[],
+  limiteKmh: number = env.SPEED_LIMIT_KMH,
+): ViajeIturan[] {
+  return viajes.filter((v) => v.fastestDriveSpeed > limiteKmh);
+}
+
+/**
+ * Genera alerta de velocidad formateada para WhatsApp.
+ */
+export function formatearAlertaVelocidad(viaje: ViajeIturan): string {
+  return (
+    `🚨 *ALERTA DE VELOCIDAD*\n\n` +
+    `🚛 Patente: *${viaje.carNum}*\n` +
+    `⚡ Velocidad máx: *${viaje.fastestDriveSpeed} km/h*\n` +
+    `📍 Desde: ${viaje.startDriveAddress}\n` +
+    `📍 Hasta: ${viaje.endDriveAddress}\n` +
+    `🕐 Hora: ${viaje.startDriveTime} - ${viaje.endDriveTime}\n` +
+    `📏 Distancia: ${viaje.totalDriveKm} km\n` +
+    `📊 Calificación: ${viaje.driveGrade}/10`
+  );
+}
+
+// ============================================================
 // Datos simulados (para desarrollo y demos)
 // ============================================================
 

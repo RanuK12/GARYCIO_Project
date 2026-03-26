@@ -47,6 +47,9 @@ export const choferFlow: FlowHandler = {
       case 30: return handleTipoComprobante(respuesta);
       case 31: return handleRecibirFoto(respuesta, state, mediaInfo);
       case 32: return handleConfirmarDatosFoto(respuesta, state);
+      case 40: return handleBajaDonante(respuesta);
+      case 41: return handleBajaMotivo(respuesta, state);
+      case 42: return handleBajaConfirmar(respuesta, state);
       default:
         return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
     }
@@ -77,7 +80,8 @@ function handleIdentificacion(respuesta: string): FlowResponse {
       "*2* - Carga de combustible\n" +
       "*3* - Reportar incidente\n" +
       "*4* - Enviar foto/comprobante 📸\n" +
-      "*5* - Finalizar jornada\n\n" +
+      "*5* - Reportar donante de baja\n" +
+      "*6* - Finalizar jornada\n\n" +
       "Respondé con el número.",
     nextStep: 1,
     data: { codigoChofer, choferId: parseInt(match[1], 10) },
@@ -137,7 +141,16 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
     };
   }
 
-  if (lower === "5" || lower.includes("finalizar")) {
+  if (lower === "5" || lower.includes("baja")) {
+    return {
+      reply:
+        "⚠️ *Reportar donante de baja*\n\n" +
+        "Ingresá el *nombre y/o dirección* de la donante:",
+      nextStep: 40,
+    };
+  }
+
+  if (lower === "6" || lower.includes("finalizar")) {
     return {
       reply:
         `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
@@ -161,7 +174,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
       "*2* - Combustible\n" +
       "*3* - Reportar incidente\n" +
       "*4* - Enviar foto/comprobante 📸\n" +
-      "*5* - Finalizar jornada",
+      "*5* - Reportar donante de baja\n" +
+      "*6* - Finalizar jornada",
     nextStep: 1,
   };
 }
@@ -496,5 +510,81 @@ function handleConfirmarDatosFoto(respuesta: string, state: ConversationState): 
   return {
     reply: "Comprobante cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
     nextStep: 1,
+  };
+}
+
+// ── Donante de baja (steps 40-42) ──────────────────────────────────
+
+function handleBajaDonante(respuesta: string): FlowResponse {
+  if (respuesta.length < 3) {
+    return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 40 };
+  }
+  return {
+    reply:
+      `⚠️ Donante: *${respuesta}*\n\n` +
+      "¿Cuál es el motivo de la baja?\n\n" +
+      "*1* - No dona más\n" +
+      "*2* - Se mudó\n" +
+      "*3* - Falleció\n" +
+      "*4* - Dona muy poco\n" +
+      "*5* - Otro motivo\n\n" +
+      "Elegí una opción:",
+    nextStep: 41,
+    data: { bajaDonante: respuesta },
+  };
+}
+
+function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResponse {
+  const motivos: Record<string, string> = {
+    "1": "No dona más",
+    "2": "Se mudó",
+    "3": "Falleció",
+    "4": "Dona muy poco",
+    "5": "Otro",
+  };
+  const motivo = motivos[respuesta];
+  if (!motivo) {
+    return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 41 };
+  }
+  return {
+    reply:
+      `📋 *Confirmar reporte de baja*\n\n` +
+      `📍 Donante: ${state.data.bajaDonante}\n` +
+      `📝 Motivo: ${motivo}\n\n` +
+      "⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores.\n\n" +
+      "*1* - Confirmar\n" +
+      "*2* - Cancelar",
+    nextStep: 42,
+    data: { bajaMotivo: motivo },
+  };
+}
+
+function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "2") {
+    return {
+      reply: "Cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
+      nextStep: 1,
+    };
+  }
+  if (respuesta !== "1") {
+    return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 42 };
+  }
+
+  return {
+    reply:
+      "✅ *Reporte de baja enviado a los administradores*\n\n" +
+      "Ellos van a contactar a la donante para confirmar.\n\n" +
+      "¿Querés registrar algo más?\n*1* - Sí | *2* - Finalizar jornada",
+    nextStep: 1,
+    data: { bajaReportada: true },
+    notify: {
+      target: "admin",
+      message:
+        `🔴 *Reporte de baja de donante*\n\n` +
+        `📍 Donante: ${state.data.bajaDonante}\n` +
+        `📝 Motivo: ${state.data.bajaMotivo}\n` +
+        `🚛 Reportado por: Chofer #${state.data.codigoChofer}\n\n` +
+        `¿Contactar a la donante para confirmar?`,
+    },
   };
 }

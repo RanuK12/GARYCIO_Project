@@ -16,6 +16,7 @@ export type FlowType =
   | "consulta_general"
   | "nueva_donante"
   | "chofer"
+  | "peon"
   | "reporte";
 
 export interface FlowHandler {
@@ -30,7 +31,7 @@ export interface FlowResponse {
   endFlow?: boolean;
   data?: Record<string, any>;
   notify?: {
-    target: "chofer" | "visitadora" | "admin";
+    target: "chofer" | "visitadora" | "admin" | "peon";
     targetId?: number;
     message: string;
   };

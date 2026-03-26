@@ -15,7 +15,16 @@ import {
   obtenerPosicionVehiculo,
   detectarDesvio,
   isIturanConfigured,
+  isIturanRESTConfigured,
+  obtenerViajes,
+  detectarExcesoVelocidad,
+  formatearAlertaVelocidad,
 } from "./services/ituran-tracker";
+import { notificarAdmins } from "./services/reportes-ceo";
+import { enviarEncuestaMensual } from "./services/encuesta-regalo";
+import { db } from "./database";
+import { donantes, reclamos, avisos, reportesBaja } from "./database/schema";
+import { eq, and, gte, lte, or, ilike, sql } from "drizzle-orm";
 
 const startTime = new Date();
 let requestCount = 0;
@@ -233,6 +242,111 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Consulta de donantes ─────────────────────────────
+  app.get("/admin/donantes/buscar", async (req, res) => {
+    const q = (req.query.q as string || "").trim();
+    if (q.length < 2) {
+      res.status(400).json({ error: "Búsqueda muy corta (mínimo 2 caracteres)" });
+      return;
+    }
+    try {
+      const resultados = await db
+        .select()
+        .from(donantes)
+        .where(
+          or(
+            ilike(donantes.nombre, `%${q}%`),
+            ilike(donantes.telefono, `%${q}%`),
+            ilike(donantes.direccion, `%${q}%`),
+          ),
+        )
+        .limit(50);
+      res.json({ status: "ok", total: resultados.length, donantes: resultados });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/donantes/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    try {
+      const [donante] = await db.select().from(donantes).where(eq(donantes.id, id)).limit(1);
+      if (!donante) {
+        res.status(404).json({ error: "Donante no encontrada" });
+        return;
+      }
+      const histReclamos = await db.select().from(reclamos).where(eq(reclamos.donanteId, id));
+      const histAvisos = await db.select().from(avisos).where(eq(avisos.donanteId, id));
+      const histBajas = await db.select().from(reportesBaja).where(eq(reportesBaja.donanteId, id));
+      res.json({ status: "ok", donante, reclamos: histReclamos, avisos: histAvisos, reportesBaja: histBajas });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/donantes/altas-bajas", async (req, res) => {
+    const desde = req.query.desde as string || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
+    try {
+      const altas = await db.select().from(donantes).where(
+        and(gte(donantes.fechaAlta, desde), lte(donantes.fechaAlta, hasta)),
+      );
+      const bajas = await db.select().from(reportesBaja).where(
+        and(gte(sql`${reportesBaja.fecha}::date`, desde), lte(sql`${reportesBaja.fecha}::date`, hasta)),
+      );
+      res.json({ status: "ok", periodo: { desde, hasta }, altas: altas.length, bajas: bajas.length, detalleAltas: altas, detalleBajas: bajas });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Ituran REST API (viajes) ──────────────────────────
+  app.get("/admin/ituran/viajes", async (req, res) => {
+    const fecha = req.query.fecha as string || new Date().toISOString().split("T")[0];
+    try {
+      const viajes = await obtenerViajes(fecha);
+      res.json({ status: "ok", fecha, total: viajes.length, viajes });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/ituran/velocidad", async (req, res) => {
+    const fecha = req.query.fecha as string || new Date().toISOString().split("T")[0];
+    try {
+      const viajes = await obtenerViajes(fecha);
+      const excesos = detectarExcesoVelocidad(viajes);
+      res.json({
+        status: "ok",
+        fecha,
+        limiteKmh: env.SPEED_LIMIT_KMH,
+        totalViajes: viajes.length,
+        excesos: excesos.length,
+        detalle: excesos.map((v) => ({
+          patente: v.carNum,
+          velocidadMax: v.fastestDriveSpeed,
+          desde: v.startDriveAddress,
+          hasta: v.endDriveAddress,
+          hora: `${v.startDriveTime} - ${v.endDriveTime}`,
+          km: v.totalDriveKm,
+        })),
+      });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Encuesta mensual ────────────────────────────────
+  app.post("/admin/encuesta/enviar", async (req, res) => {
+    const cantidad = parseInt(req.query.cantidad as string) || 1000;
+    try {
+      const result = await enviarEncuestaMensual(cantidad);
+      res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   app.listen(env.PORT, () => {
     logger.info({ port: env.PORT }, "Servidor HTTP iniciado");
   });
@@ -243,9 +357,14 @@ async function main(): Promise<void> {
 
   // ── Estado de integraciones ───────────────────────
   if (isIturanConfigured()) {
-    logger.info("Ituran GPS tracking: CONECTADO");
+    logger.info("Ituran SOAP (real-time): CONECTADO");
   } else {
-    logger.warn("Ituran GPS tracking: NO CONFIGURADO (ITURAN_USER/ITURAN_PASSWORD vacíos)");
+    logger.warn("Ituran SOAP: NO CONFIGURADO");
+  }
+  if (isIturanRESTConfigured()) {
+    logger.info("Ituran REST API (viajes): CONECTADO");
+  } else {
+    logger.warn("Ituran REST API: NO CONFIGURADO");
   }
 
   logger.info({ port: env.PORT }, "GARYCIO System iniciado correctamente");

@@ -5,6 +5,7 @@ import { avisoFlow } from "./aviso";
 import { nuevaDonanteFlow } from "./nueva-donante";
 import { consultaGeneralFlow } from "./consulta-general";
 import { choferFlow } from "./chofer";
+import { peonFlow } from "./peon";
 import { reporteFlow } from "./reporte";
 
 export { contactoInicialFlow } from "./contacto-inicial";
@@ -13,12 +14,14 @@ export { avisoFlow } from "./aviso";
 export { nuevaDonanteFlow } from "./nueva-donante";
 export { consultaGeneralFlow } from "./consulta-general";
 export { choferFlow } from "./chofer";
+export { peonFlow } from "./peon";
 export { reporteFlow } from "./reporte";
 export type { ConversationState, FlowType, FlowHandler, FlowResponse } from "./types";
 
 const flows: FlowHandler[] = [
   reporteFlow,
   choferFlow,
+  peonFlow,
   reclamoFlow,
   avisoFlow,
   nuevaDonanteFlow,
@@ -45,6 +48,7 @@ export function getFlowByName(name: FlowType): FlowHandler | null {
     consulta_general: consultaGeneralFlow,
     nueva_donante: nuevaDonanteFlow,
     chofer: choferFlow,
+    peon: peonFlow,
     reporte: reporteFlow,
   };
   return map[name] || null;

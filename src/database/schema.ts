@@ -346,6 +346,57 @@ export const rutasOptimizadas = pgTable("rutas_optimizadas", {
 });
 
 // ============================================================
+// Entregas de regalos
+// ============================================================
+
+export const entregasRegalo = pgTable("entregas_regalo", {
+  id: serial("id").primaryKey(),
+  donanteId: integer("donante_id").references(() => donantes.id),
+  donanteNombre: varchar("donante_nombre", { length: 150 }),
+  donanteDireccion: text("donante_direccion"),
+  peonId: integer("peon_id").references(() => peones.id),
+  choferId: integer("chofer_id").references(() => choferes.id),
+  entregado: boolean("entregado").default(true),
+  fecha: timestamp("fecha").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Reportes de baja (pendientes de confirmación admin)
+// ============================================================
+
+export const reportesBaja = pgTable("reportes_baja", {
+  id: serial("id").primaryKey(),
+  donanteId: integer("donante_id").references(() => donantes.id),
+  donanteNombre: varchar("donante_nombre", { length: 150 }),
+  donanteDireccion: text("donante_direccion"),
+  reportadoPor: varchar("reportado_por", { length: 20 }).notNull(),
+  reportadoPorId: integer("reportado_por_id"),
+  reportadoPorNombre: varchar("reportado_por_nombre", { length: 150 }),
+  motivo: text("motivo"),
+  confirmado: boolean("confirmado").default(false),
+  contactadaDonante: boolean("contactada_donante").default(false),
+  notaAdmin: text("nota_admin"),
+  fecha: timestamp("fecha").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Encuestas de regalo
+// ============================================================
+
+export const encuestasRegalo = pgTable("encuestas_regalo", {
+  id: serial("id").primaryKey(),
+  donanteId: integer("donante_id").references(() => donantes.id).notNull(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  pregunta: text("pregunta").notNull(),
+  respuesta: text("respuesta"),
+  respondida: boolean("respondida").default(false),
+  fecha: timestamp("fecha").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
 // Dead Letter Queue (mensajes fallidos para reintentar/auditar)
 // ============================================================
 

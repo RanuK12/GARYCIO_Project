@@ -42,9 +42,20 @@ const envSchema = z.object({
   GALPON_LAT: z.coerce.number().default(-34.5944),
   GALPON_LON: z.coerce.number().default(-58.5339),
 
-  // Ituran GPS tracking (SOAP Web Service)
+  // Ituran GPS tracking (SOAP Web Service - posiciones real-time)
   ITURAN_USER: z.string().default(""),
   ITURAN_PASSWORD: z.string().default(""),
+
+  // Ituran REST API (viajes/trips)
+  ITURAN_API_USER: z.string().default(""),
+  ITURAN_API_PASSWORD: z.string().default(""),
+  ITURAN_API_URL: z.string().default("https://web2.ituran.com.ar/ibi2_services/tripsData.svc/GetTripsByDateDriverNVehicleNTripID"),
+
+  // Admin phones para alertas CEO (comma-separated)
+  ADMIN_PHONES: z.string().default("5491130128112,5491151042517"),
+
+  // Límite de velocidad para alertas (km/h)
+  SPEED_LIMIT_KMH: z.coerce.number().default(80),
 });
 
 export type Env = z.infer<typeof envSchema>;

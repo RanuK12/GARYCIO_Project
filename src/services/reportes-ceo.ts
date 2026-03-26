@@ -12,6 +12,44 @@ import { logger } from "../config/logger";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
 
 // ============================================================
+// Enviar a todos los admin phones
+// ============================================================
+
+/**
+ * Envía un mensaje a todos los teléfonos admin (CEO + hermano + padre).
+ * Usa ADMIN_PHONES (comma-separated) + CEO_PHONE.
+ */
+export async function notificarAdmins(mensaje: string): Promise<void> {
+  const phones = new Set<string>();
+
+  // Agregar CEO_PHONE
+  if (env.CEO_PHONE) phones.add(env.CEO_PHONE);
+
+  // Agregar ADMIN_PHONES
+  const adminPhones = (env as any).ADMIN_PHONES as string | undefined;
+  if (adminPhones) {
+    for (const phone of adminPhones.split(",")) {
+      const trimmed = phone.trim();
+      if (trimmed) phones.add(trimmed);
+    }
+  }
+
+  for (const phone of phones) {
+    try {
+      await sendMessage(phone, mensaje);
+    } catch (err) {
+      logger.error({ err, phone }, "Error enviando alerta a admin");
+      await addToDeadLetterQueue({
+        telefono: phone,
+        tipo: "alerta_ceo",
+        contenido: mensaje,
+        errorMessage: (err as Error).message,
+      }).catch(() => {});
+    }
+  }
+}
+
+// ============================================================
 // Clasificación automática de gravedad
 // ============================================================
 
@@ -98,18 +136,8 @@ export async function guardarReclamo(params: SaveReclamoParams): Promise<{
       `_Este reclamo requiere atención inmediata._\n` +
       `_Notificación automática de GARYCIO_`;
 
-    try {
-      await sendMessage(env.CEO_PHONE, mensaje);
-      logger.info({ reclamoId: inserted.id, gravedad }, "Reclamo escalado al CEO");
-    } catch (err) {
-      logger.error({ err }, "Error notificando reclamo grave al CEO");
-      await addToDeadLetterQueue({
-        telefono: env.CEO_PHONE,
-        tipo: "alerta_ceo",
-        contenido: mensaje,
-        errorMessage: (err as Error).message,
-      }).catch(() => {});
-    }
+    await notificarAdmins(mensaje);
+    logger.info({ reclamoId: inserted.id, gravedad }, "Reclamo escalado a admins");
   }
 
   logger.info(
