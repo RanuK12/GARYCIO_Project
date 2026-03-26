@@ -30,7 +30,7 @@
 | Item | Responsable | Estado |
 |------|-------------|--------|
 | Hosting / servidor | Stefano | Pendiente |
-| Token WhatsApp Business API | Stefano | En proceso |
+| Token WhatsApp Business API | Stefano | Token temporal obtenido - faltan Phone ID y WABA ID |
 | Asignación chofer → zona | Stefano | Pendiente |
 | 73 donantes sin teléfono | Stefano | Pendiente |
 | Días de recolección por zona | Stefano | Pendiente |
