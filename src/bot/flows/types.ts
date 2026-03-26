@@ -17,7 +17,8 @@ export type FlowType =
   | "nueva_donante"
   | "chofer"
   | "peon"
-  | "reporte";
+  | "reporte"
+  | "admin";
 
 export interface FlowHandler {
   name: FlowType;

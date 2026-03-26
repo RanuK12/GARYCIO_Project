@@ -301,6 +301,21 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Contactos nuevos (auto-registrados) ──────────────
+  app.get("/admin/donantes/nuevos", async (_req, res) => {
+    try {
+      const nuevos = await db
+        .select()
+        .from(donantes)
+        .where(and(eq(donantes.estado, "nueva"), eq(donantes.donandoActualmente, false)))
+        .orderBy(sql`${donantes.createdAt} DESC`)
+        .limit(50);
+      res.json({ status: "ok", total: nuevos.length, contactos: nuevos });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   // ── Ituran REST API (viajes) ──────────────────────────
   app.get("/admin/ituran/viajes", async (req, res) => {
     const fecha = req.query.fecha as string || new Date().toISOString().split("T")[0];

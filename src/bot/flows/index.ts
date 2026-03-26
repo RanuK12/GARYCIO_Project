@@ -7,6 +7,7 @@ import { consultaGeneralFlow } from "./consulta-general";
 import { choferFlow } from "./chofer";
 import { peonFlow } from "./peon";
 import { reporteFlow } from "./reporte";
+import { adminFlow } from "./admin";
 
 export { contactoInicialFlow } from "./contacto-inicial";
 export { reclamoFlow } from "./reclamo";
@@ -16,9 +17,11 @@ export { consultaGeneralFlow } from "./consulta-general";
 export { choferFlow } from "./chofer";
 export { peonFlow } from "./peon";
 export { reporteFlow } from "./reporte";
+export { adminFlow } from "./admin";
 export type { ConversationState, FlowType, FlowHandler, FlowResponse } from "./types";
 
 const flows: FlowHandler[] = [
+  adminFlow,
   reporteFlow,
   choferFlow,
   peonFlow,
@@ -50,6 +53,7 @@ export function getFlowByName(name: FlowType): FlowHandler | null {
     chofer: choferFlow,
     peon: peonFlow,
     reporte: reporteFlow,
+    admin: adminFlow,
   };
   return map[name] || null;
 }
