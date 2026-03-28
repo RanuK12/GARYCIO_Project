@@ -217,6 +217,110 @@ const migrations = [
     fecha TIMESTAMP DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT NOW()
   )`,
+
+  // ── Columnas agregadas post-inicial ──────────────────
+  `ALTER TABLE donantes ADD COLUMN IF NOT EXISTS sub_zona VARCHAR(10)`,
+  `ALTER TABLE donantes ADD COLUMN IF NOT EXISTS latitud DECIMAL(10,7)`,
+  `ALTER TABLE donantes ADD COLUMN IF NOT EXISTS longitud DECIMAL(10,7)`,
+  `ALTER TABLE donantes ADD COLUMN IF NOT EXISTS geocodificado BOOLEAN DEFAULT false`,
+
+  // ── Tablas agregadas en Fase 1 ───────────────────────
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_ruta') THEN
+      CREATE TYPE estado_ruta AS ENUM ('borrador', 'activa', 'completada', 'cancelada');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_dlq') THEN
+      CREATE TYPE estado_dlq AS ENUM ('pendiente', 'reintentado', 'descartado', 'exitoso');
+    END IF;
+  END $$`,
+
+  `CREATE TABLE IF NOT EXISTS conversation_states (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL UNIQUE,
+    current_flow VARCHAR(50),
+    step INTEGER DEFAULT 0,
+    data JSONB DEFAULT '{}',
+    last_interaction TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sub_zonas (
+    id SERIAL PRIMARY KEY,
+    zona_id INTEGER NOT NULL REFERENCES zonas(id),
+    codigo VARCHAR(10) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    dias_recoleccion VARCHAR(50) NOT NULL,
+    activa BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS rutas_optimizadas (
+    id SERIAL PRIMARY KEY,
+    sub_zona_id INTEGER REFERENCES sub_zonas(id),
+    chofer_id INTEGER REFERENCES choferes(id),
+    fecha DATE NOT NULL,
+    estado estado_ruta DEFAULT 'borrador',
+    distancia_estimada_km DECIMAL(8,2),
+    tiempo_estimado_min INTEGER,
+    paradas JSONB DEFAULT '[]',
+    generado_por VARCHAR(50) DEFAULT 'manual',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS entregas_regalo (
+    id SERIAL PRIMARY KEY,
+    donante_id INTEGER REFERENCES donantes(id),
+    donante_nombre VARCHAR(150),
+    donante_direccion TEXT,
+    peon_id INTEGER REFERENCES peones(id),
+    chofer_id INTEGER REFERENCES choferes(id),
+    entregado BOOLEAN DEFAULT true,
+    fecha TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS reportes_baja (
+    id SERIAL PRIMARY KEY,
+    donante_id INTEGER REFERENCES donantes(id),
+    donante_nombre VARCHAR(150),
+    donante_direccion TEXT,
+    reportado_por VARCHAR(20) NOT NULL,
+    reportado_por_id INTEGER,
+    reportado_por_nombre VARCHAR(150),
+    motivo TEXT,
+    confirmado BOOLEAN DEFAULT false,
+    contactada_donante BOOLEAN DEFAULT false,
+    nota_admin TEXT,
+    fecha TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS encuestas_regalo (
+    id SERIAL PRIMARY KEY,
+    donante_id INTEGER NOT NULL REFERENCES donantes(id),
+    telefono VARCHAR(20) NOT NULL,
+    pregunta TEXT NOT NULL,
+    respuesta TEXT,
+    respondida BOOLEAN DEFAULT false,
+    fecha TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS dead_letter_queue (
+    id SERIAL PRIMARY KEY,
+    telefono VARCHAR(20) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    contenido TEXT,
+    template_name VARCHAR(100),
+    template_params JSONB,
+    error_message TEXT,
+    error_code INTEGER,
+    intentos INTEGER DEFAULT 0,
+    estado estado_dlq DEFAULT 'pendiente',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`,
 ];
 
 async function migrate(): Promise<void> {

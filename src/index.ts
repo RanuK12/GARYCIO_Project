@@ -268,23 +268,6 @@ async function main(): Promise<void> {
     }
   });
 
-  app.get("/admin/donantes/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    try {
-      const [donante] = await db.select().from(donantes).where(eq(donantes.id, id)).limit(1);
-      if (!donante) {
-        res.status(404).json({ error: "Donante no encontrada" });
-        return;
-      }
-      const histReclamos = await db.select().from(reclamos).where(eq(reclamos.donanteId, id));
-      const histAvisos = await db.select().from(avisos).where(eq(avisos.donanteId, id));
-      const histBajas = await db.select().from(reportesBaja).where(eq(reportesBaja.donanteId, id));
-      res.json({ status: "ok", donante, reclamos: histReclamos, avisos: histAvisos, reportesBaja: histBajas });
-    } catch (err) {
-      res.status(500).json({ status: "error", error: (err as Error).message });
-    }
-  });
-
   app.get("/admin/donantes/altas-bajas", async (req, res) => {
     const desde = req.query.desde as string || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const hasta = req.query.hasta as string || new Date().toISOString().split("T")[0];
@@ -311,6 +294,28 @@ async function main(): Promise<void> {
         .orderBy(sql`${donantes.createdAt} DESC`)
         .limit(50);
       res.json({ status: "ok", total: nuevos.length, contactos: nuevos });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // IMPORTANTE: rutas parametrizadas DESPUES de las estaticas
+  app.get("/admin/donantes/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID debe ser un numero" });
+      return;
+    }
+    try {
+      const [donante] = await db.select().from(donantes).where(eq(donantes.id, id)).limit(1);
+      if (!donante) {
+        res.status(404).json({ error: "Donante no encontrada" });
+        return;
+      }
+      const histReclamos = await db.select().from(reclamos).where(eq(reclamos.donanteId, id));
+      const histAvisos = await db.select().from(avisos).where(eq(avisos.donanteId, id));
+      const histBajas = await db.select().from(reportesBaja).where(eq(reportesBaja.donanteId, id));
+      res.json({ status: "ok", donante, reclamos: histReclamos, avisos: histAvisos, reportesBaja: histBajas });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }
@@ -400,6 +405,13 @@ async function main(): Promise<void> {
     logger.info("Ituran REST API (viajes): CONECTADO");
   } else {
     logger.warn("Ituran REST API: NO CONFIGURADO");
+  }
+
+  if (env.TEST_MODE) {
+    logger.warn(
+      { whitelist: env.TEST_PHONES },
+      "TEST_MODE ACTIVO: solo se envían mensajes a números en whitelist",
+    );
   }
 
   logger.info({ port: env.PORT }, "GARYCIO System iniciado correctamente");

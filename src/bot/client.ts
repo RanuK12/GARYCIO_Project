@@ -4,6 +4,22 @@ import fs from "fs";
 
 const API_BASE = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
 
+// ── Test mode whitelist ─────────────────────────────────
+const TEST_WHITELIST: ReadonlySet<string> = new Set(
+  env.TEST_PHONES ? env.TEST_PHONES.split(",").map((p) => p.trim()).filter(Boolean) : [],
+);
+
+function assertTestWhitelist(phone: string): void {
+  if (!env.TEST_MODE) return;
+
+  const cleaned = phone.replace(/[\s\-\+\(\)]/g, "");
+  if (!TEST_WHITELIST.has(cleaned)) {
+    const msg = `TEST_MODE: bloqueado envío a ${cleaned} (no está en whitelist: ${[...TEST_WHITELIST].join(", ")})`;
+    logger.warn(msg);
+    throw new Error(msg);
+  }
+}
+
 // ── Rate limiter simple ─────────────────────────────────
 let lastSendTime = 0;
 const MIN_SEND_INTERVAL = Math.ceil(1000 / env.SEND_RATE_PER_SECOND);
@@ -70,9 +86,9 @@ export async function sendMessage(
   message: string,
   retries = 0,
 ): Promise<any> {
-  await rateLimitWait();
-
   const to = formatPhone(phone);
+  assertTestWhitelist(to);
+  await rateLimitWait();
 
   try {
     const result = await callWhatsAppAPI("/messages", {
@@ -117,9 +133,10 @@ export async function sendTemplate(
     parameters: Array<{ type: "text"; text: string }>;
   }>,
 ): Promise<any> {
+  const to = formatPhone(phone);
+  assertTestWhitelist(to);
   await rateLimitWait();
 
-  const to = formatPhone(phone);
   const template: Record<string, any> = {
     name: templateName,
     language: { code: languageCode },
@@ -153,6 +170,7 @@ export async function sendDocument(
   caption?: string,
 ): Promise<any> {
   const to = formatPhone(phone);
+  assertTestWhitelist(to);
 
   try {
     // Paso 1: subir el archivo a la API de Media
@@ -299,7 +317,17 @@ export async function sendBulkMessages(
 }
 
 // ── Utilidades ──────────────────────────────────────────
+/**
+ * Formatea un número de teléfono para la API de WhatsApp.
+ * Si ya tiene código de país (>10 dígitos o empieza con código conocido), lo deja.
+ * Si parece argentino sin prefijo, agrega 54.
+ */
 function formatPhone(phone: string): string {
   const cleaned = phone.replace(/[\s\-\+\(\)]/g, "");
-  return cleaned.startsWith("54") ? cleaned : `54${cleaned}`;
+
+  // Ya tiene código de país (Argentina 54, Italia 39, etc.)
+  if (cleaned.length > 10) return cleaned;
+
+  // Número argentino sin prefijo internacional
+  return `54${cleaned}`;
 }

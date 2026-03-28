@@ -56,6 +56,10 @@ const envSchema = z.object({
 
   // Límite de velocidad para alertas (km/h)
   SPEED_LIMIT_KMH: z.coerce.number().default(80),
+
+  // Test mode: solo permite envíos a números en la whitelist
+  TEST_MODE: z.coerce.boolean().default(false),
+  TEST_PHONES: z.string().default(""),  // comma-separated, ej: "393445721753,5491126330388"
 });
 
 export type Env = z.infer<typeof envSchema>;
