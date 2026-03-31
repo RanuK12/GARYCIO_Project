@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GARYCIO WhatsApp Bot - Simulador</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0b141a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .phone-frame {
+    width: 390px;
+    height: 780px;
+    background: #0b141a;
+    border-radius: 40px;
+    border: 3px solid #2a2a2a;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    position: relative;
+  }
+
+  /* Status bar */
+  .status-bar {
+    background: #1f2c34;
+    padding: 8px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #aebac1;
+  }
+
+  /* WhatsApp header */
+  .wa-header {
+    background: #1f2c34;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #222d34;
+  }
+
+  .wa-header .back-arrow {
+    color: #00a884;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .wa-header .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #00a884;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  .wa-header .contact-info {
+    flex: 1;
+  }
+
+  .wa-header .contact-name {
+    color: #e9edef;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .wa-header .contact-status {
+    color: #8696a0;
+    font-size: 12px;
+  }
+
+  .wa-header .header-icons {
+    display: flex;
+    gap: 20px;
+    color: #aebac1;
+    font-size: 18px;
+  }
+
+  /* Chat area */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px;
+    background: #0b141a;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23111b21' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-thumb { background: #374045; border-radius: 4px; }
+
+  /* Messages */
+  .message {
+    max-width: 85%;
+    padding: 6px 8px 2px;
+    border-radius: 8px;
+    font-size: 14.2px;
+    line-height: 1.35;
+    position: relative;
+    margin-bottom: 2px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .message .time {
+    font-size: 11px;
+    color: #8696a0;
+    float: right;
+    margin-left: 8px;
+    margin-top: 4px;
+  }
+
+  .message.sent {
+    background: #005c4b;
+    color: #e9edef;
+    align-self: flex-end;
+    border-top-right-radius: 0;
+  }
+
+  .message.sent .time {
+    color: rgba(255,255,255,0.55);
+  }
+
+  .message.sent .check {
+    color: #53bdeb;
+    font-size: 13px;
+    margin-left: 2px;
+  }
+
+  .message.received {
+    background: #1f2c34;
+    color: #e9edef;
+    align-self: flex-start;
+    border-top-left-radius: 0;
+  }
+
+  /* Date separator */
+  .date-separator {
+    text-align: center;
+    margin: 8px 0;
+  }
+
+  .date-separator span {
+    background: #182229;
+    color: #8696a0;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 8px;
+  }
+
+  /* Bold text in messages */
+  .message b { font-weight: 600; }
+  .message i { font-style: italic; }
+
+  /* Input area */
+  .input-area {
+    background: #1f2c34;
+    padding: 8px 10px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .input-area .emoji-btn {
+    color: #8696a0;
+    font-size: 22px;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding-bottom: 6px;
+  }
+
+  .input-area .msg-input {
+    flex: 1;
+    background: #2a3942;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: #e9edef;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+    resize: none;
+    max-height: 100px;
+    min-height: 38px;
+  }
+
+  .input-area .msg-input::placeholder { color: #8696a0; }
+
+  .input-area .send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #00a884;
+    border: none;
+    color: #111b21;
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .input-area .send-btn:hover { background: #06cf9c; }
+
+  /* Role selector */
+  .role-selector {
+    position: absolute;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #182229;
+    border: 1px solid #2a3942;
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 10;
+    width: 320px;
+    text-align: center;
+  }
+
+  .role-selector h3 {
+    color: #e9edef;
+    margin-bottom: 16px;
+    font-size: 16px;
+  }
+
+  .role-selector .role-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #2a3942;
+    border: 1px solid #374045;
+    border-radius: 8px;
+    color: #e9edef;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .role-selector .role-btn:hover { background: #005c4b; }
+  .role-selector .role-btn .role-icon { margin-right: 8px; }
+
+  /* Typing indicator */
+  .typing-indicator {
+    align-self: flex-start;
+    background: #1f2c34;
+    border-radius: 8px;
+    border-top-left-radius: 0;
+    padding: 10px 14px;
+    display: none;
+  }
+
+  .typing-indicator span {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8696a0;
+    margin: 0 1px;
+    animation: typing 1.2s infinite;
+  }
+
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typing {
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-3px); }
+  }
+
+  /* Notification banner */
+  .notification-banner {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #182229;
+    border: 1px solid #005c4b;
+    border-radius: 12px;
+    padding: 12px 16px;
+    max-width: 350px;
+    color: #e9edef;
+    font-size: 13px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    animation: slideIn 0.3s ease;
+    display: none;
+  }
+
+  .notification-banner .notif-title {
+    color: #00a884;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Side panel - for role info */
+  .side-info {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #182229;
+    border: 1px solid #2a3942;
+    border-radius: 12px;
+    padding: 20px;
+    width: 280px;
+    color: #8696a0;
+    font-size: 13px;
+  }
+
+  .side-info h4 {
+    color: #00a884;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+
+  .side-info .info-item {
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .side-info .info-label {
+    color: #aebac1;
+    font-weight: 500;
+  }
+
+  .side-info .reset-btn {
+    margin-top: 16px;
+    width: 100%;
+    padding: 8px;
+    background: #2a3942;
+    border: 1px solid #374045;
+    border-radius: 6px;
+    color: #e9edef;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .side-info .reset-btn:hover { background: #374045; }
+
+  @media (max-width: 900px) {
+    .side-info { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="side-info" id="sideInfo">
+  <h4>GARYCIO Bot Simulator</h4>
+  <div class="info-item"><span class="info-label">Rol:</span> <span id="infoRole">-</span></div>
+  <div class="info-item"><span class="info-label">Flow:</span> <span id="infoFlow">-</span></div>
+  <div class="info-item"><span class="info-label">Step:</span> <span id="infoStep">-</span></div>
+  <div class="info-item"><span class="info-label">Teléfono:</span> <span id="infoPhone">-</span></div>
+  <hr style="border-color:#2a3942;margin:12px 0">
+  <div style="color:#8696a0;font-size:12px;line-height:1.5">
+    Simulador local del bot de WhatsApp. Los mensajes no se envían realmente — todo es local.
+  </div>
+  <button class="reset-btn" onclick="resetChat()">Reiniciar conversación</button>
+  <button class="reset-btn" style="margin-top:6px" onclick="changeRole()">Cambiar rol</button>
+</div>
+
+<div class="phone-frame">
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span id="currentTime">12:00</span>
+    <span>📶 WiFi 🔋</span>
+  </div>
+
+  <!-- Header -->
+  <div class="wa-header">
+    <span class="back-arrow">←</span>
+    <div class="avatar">G</div>
+    <div class="contact-info">
+      <div class="contact-name">GARYCIO Bot</div>
+      <div class="contact-status" id="headerStatus">en línea</div>
+    </div>
+    <div class="header-icons">
+      <span>📞</span>
+      <span>⋮</span>
+    </div>
+  </div>
+
+  <!-- Role selector overlay -->
+  <div class="role-selector" id="roleSelector">
+    <h3>¿Cómo querés probar el bot?</h3>
+    <button class="role-btn" onclick="selectRole('donante')">
+      <span class="role-icon">👩</span> Donante (persona que dona aceite)
+    </button>
+    <button class="role-btn" onclick="selectRole('chofer')">
+      <span class="role-icon">🚛</span> Chofer (recolector)
+    </button>
+    <button class="role-btn" onclick="selectRole('peon')">
+      <span class="role-icon">👷</span> Peón (acompañante del chofer)
+    </button>
+    <button class="role-btn" onclick="selectRole('admin')">
+      <span class="role-icon">🔐</span> Administrador
+    </button>
+  </div>
+
+  <!-- Chat area -->
+  <div class="chat-area" id="chatArea">
+    <div class="date-separator"><span>Hoy</span></div>
+  </div>
+
+  <!-- Typing indicator -->
+  <div class="typing-indicator" id="typingIndicator">
+    <span></span><span></span><span></span>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area">
+    <span class="emoji-btn">😊</span>
+    <textarea class="msg-input" id="msgInput" placeholder="Mensaje" rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+    <button class="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<!-- Admin notification banner -->
+<div class="notification-banner" id="notifBanner">
+  <div class="notif-title">📲 Notificación Admin</div>
+  <div id="notifText"></div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────
+let currentRole = null;
+let conversationState = { flow: null, step: 0, data: {} };
+
+function getTime() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// Update clock
+setInterval(() => {
+  document.getElementById('currentTime').textContent = getTime();
+}, 30000);
+document.getElementById('currentTime').textContent = getTime();
+
+// ── Role selection ──────────────────────────
+function selectRole(role) {
+  currentRole = role;
+  document.getElementById('roleSelector').style.display = 'none';
+  document.getElementById('infoRole').textContent = role;
+  document.getElementById('infoPhone').textContent =
+    role === 'admin' ? '+5491126330388' :
+    role === 'chofer' ? '+5491155001234' :
+    role === 'peon' ? '+5491155005678' : '+393445721753';
+
+  // Auto-start with role keyword
+  if (role === 'donante') {
+    addMessage('Hola', 'sent');
+    setTimeout(() => processBot('hola'), 800);
+  } else if (role === 'chofer') {
+    addMessage('chofer', 'sent');
+    setTimeout(() => processBot('chofer'), 800);
+  } else if (role === 'peon') {
+    addMessage('peón', 'sent');
+    setTimeout(() => processBot('peón'), 800);
+  } else if (role === 'admin') {
+    addMessage('admin', 'sent');
+    setTimeout(() => processBot('admin'), 800);
+  }
+}
+
+function changeRole() {
+  resetChat();
+  document.getElementById('roleSelector').style.display = 'block';
+}
+
+function resetChat() {
+  conversationState = { flow: null, step: 0, data: {} };
+  const chatArea = document.getElementById('chatArea');
+  chatArea.innerHTML = '<div class="date-separator"><span>Hoy</span></div>';
+  document.getElementById('infoFlow').textContent = '-';
+  document.getElementById('infoStep').textContent = '-';
+}
+
+// ── Message rendering ──────────────────────
+function formatWhatsApp(text) {
+  // Bold: *text*
+  text = text.replace(/\*([^*]+)\*/g, '<b>$1</b>');
+  // Italic: _text_
+  text = text.replace(/_([^_]+)_/g, '<i>$1</i>');
+  return text;
+}
+
+function addMessage(text, type) {
+  const chatArea = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.className = `message ${type}`;
+
+  const timeStr = getTime();
+  const checkMark = type === 'sent' ? '<span class="check">✓✓</span>' : '';
+  div.innerHTML = formatWhatsApp(text) + `<span class="time">${timeStr} ${checkMark}</span>`;
+
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function showTyping() {
+  const indicator = document.getElementById('typingIndicator');
+  indicator.style.display = 'block';
+  document.getElementById('headerStatus').textContent = 'escribiendo...';
+}
+
+function hideTyping() {
+  document.getElementById('typingIndicator').style.display = 'none';
+  document.getElementById('headerStatus').textContent = 'en línea';
+}
+
+function showNotification(text) {
+  const banner = document.getElementById('notifBanner');
+  document.getElementById('notifText').innerHTML = formatWhatsApp(text);
+  banner.style.display = 'block';
+  setTimeout(() => { banner.style.display = 'none'; }, 6000);
+}
+
+// ── Send message ──────────────────────────
+function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMessage(text, 'sent');
+  showTyping();
+  const delay = 600 + Math.random() * 800;
+  setTimeout(() => {
+    hideTyping();
+    processBot(text);
+  }, delay);
+}
+
+// ── Bot logic ──────────────────────────────
+function processBot(message) {
+  const msg = message.trim();
+  const lower = msg.toLowerCase();
+  let response = null;
+
+  // If no active flow, detect
+  if (!conversationState.flow) {
+    if (['chofer', 'recolector', 'registro', 'litros'].some(k => lower.includes(k))) {
+      conversationState.flow = 'chofer';
+      conversationState.step = 0;
+    } else if (['peon', 'peón', 'acompañante'].some(k => lower.includes(k))) {
+      conversationState.flow = 'peon';
+      conversationState.step = 0;
+    } else if (['admin', 'administrador', 'gestión', 'gestion'].some(k => lower.includes(k))) {
+      conversationState.flow = 'admin';
+      conversationState.step = 0;
+    } else if (['reclamo', 'queja', 'problema'].some(k => lower.includes(k))) {
+      conversationState.flow = 'reclamo';
+      conversationState.step = 0;
+    } else {
+      // Default donante greeting
+      response = {
+        reply: "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso (vacaciones/enfermedad)\n*3* - Tengo una consulta\n\nRespondé con el número o escribí directamente tu consulta.",
+        nextStep: 'menu'
+      };
+      conversationState.flow = 'donante_menu';
+      conversationState.step = 'menu';
+    }
+  }
+
+  // Handle donante_menu numeric selection
+  if (conversationState.flow === 'donante_menu') {
+    if (lower === '1') {
+      conversationState.flow = 'reclamo';
+      conversationState.step = 0;
+    } else if (lower === '2') {
+      response = { reply: "📋 *Aviso registrado*\n\n¿Cuántos días no vas a estar disponible?\nResponde con el número de días o indicá las fechas." };
+      conversationState.flow = null;
+    } else if (lower === '3') {
+      response = { reply: "¿Cuál es tu consulta? Te vamos a responder a la brevedad." };
+      conversationState.flow = null;
+    }
+  }
+
+  // If response already set (greeting), show it
+  if (response && !conversationState.flow) {
+    addMessage(response.reply, 'received');
+    updateInfo();
+    return;
+  }
+
+  if (response) {
+    addMessage(response.reply, 'received');
+    updateInfo();
+    return;
+  }
+
+  // Route to flow handlers
+  const result = handleFlow(conversationState.flow, conversationState.step, msg, lower);
+
+  if (result.reply) {
+    addMessage(result.reply, 'received');
+  }
+
+  if (result.data) {
+    conversationState.data = { ...conversationState.data, ...result.data };
+  }
+
+  if (result.endFlow) {
+    conversationState.flow = null;
+    conversationState.step = 0;
+    conversationState.data = {};
+  } else if (result.nextStep !== undefined) {
+    conversationState.step = result.nextStep;
+  }
+
+  if (result.notify) {
+    showNotification(result.notify);
+  }
+
+  updateInfo();
+}
+
+function updateInfo() {
+  document.getElementById('infoFlow').textContent = conversationState.flow || '-';
+  document.getElementById('infoStep').textContent = conversationState.step ?? '-';
+}
+
+// ── Flow handlers ──────────────────────────
+function handleFlow(flow, step, msg, lower) {
+  switch (flow) {
+    case 'chofer': return handleChofer(step, msg, lower);
+    case 'peon': return handlePeon(step, msg, lower);
+    case 'admin': return handleAdmin(step, msg, lower);
+    case 'reclamo': return handleReclamo(step, msg, lower);
+    default: return { reply: "No entendí. Escribí *hola* para empezar.", endFlow: true };
+  }
+}
+
+// ── CHOFER ──────────────────────────────────
+function handleChofer(step, msg, lower) {
+  switch (step) {
+    case 0: {
+      const m = msg.match(/(\d+)/);
+      if (!m) {
+        return {
+          reply: "🚛 *Registro de Chofer*\n\nIngresá tu *número de chofer* para identificarte.\n(ej: *1*, *2*, *CH01*, etc.)",
+          nextStep: 0
+        };
+      }
+      const code = m[1].padStart(2, '0');
+      return {
+        reply: `✅ Identificado como *Chofer #${code}*\n\n¿Qué querés registrar?\n\n*1* - Litros y bidones recolectados\n*2* - Carga de combustible\n*3* - Reportar incidente\n*4* - Enviar foto/comprobante 📸\n*5* - Reportar donante de baja\n*6* - Finalizar jornada\n\nRespondé con el número.`,
+        nextStep: 1,
+        data: { codigoChofer: code }
+      };
+    }
+    case 1: {
+      if (lower === '1') return { reply: "🥛 *Registro de recolección*\n\n¿Cuántos *litros* recolectaste en total hoy?\n(ej: *850*, *1200.5*)", nextStep: 2 };
+      if (lower === '2') return { reply: "⛽ *Carga de combustible*\n\nIngresá los litros y el monto separados por coma:\n(ej: *45, 12500*)", nextStep: 10 };
+      if (lower === '3') return { reply: "🚨 *Reportar Incidente*\n\n¿Qué tipo de incidente?\n\n*1* - Accidente de tránsito\n*2* - Retraso significativo\n*3* - Avería del camión\n*4* - Robo o intento de robo\n*5* - Problema climático\n*6* - Otro\n\nRespondé con el número.", nextStep: 20 };
+      if (lower === '4') return { reply: "📸 *Enviar Comprobante / Foto*\n\n¿Qué tipo de comprobante querés enviar?\n\n*1* - Foto de bidones recolectados\n*2* - Ticket de combustible\n*3* - Foto de lavado de camión\n\nRespondé con el número.", nextStep: 30 };
+      if (lower === '5') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y/o dirección* de la donante:", nextStep: 40 };
+      if (lower === '6') return {
+        reply: `✅ *Jornada finalizada - Chofer #${conversationState.data.codigoChofer}*\n\n¡Buen trabajo hoy! 💪 Los datos quedaron cargados.\nMañana no te olvides de cargar los litros.`,
+        endFlow: true,
+        notify: `📋 Chofer #${conversationState.data.codigoChofer} finalizó su jornada.`
+      };
+      return { reply: "No entendí. Respondé con un número:\n\n*1* - Litros y bidones\n*2* - Combustible\n*3* - Reportar incidente\n*4* - Enviar foto/comprobante 📸\n*5* - Reportar donante de baja\n*6* - Finalizar jornada", nextStep: 1 };
+    }
+    case 2: {
+      const litros = parseFloat(msg.replace(',','.'));
+      if (isNaN(litros) || litros <= 0) return { reply: "Ingresá un número válido de litros. (ej: *850*, *1200.5*)", nextStep: 2 };
+      return { reply: `Registrado: *${litros} litros*.\n\n¿Cuántos *bidones* recolectaste? (ej: *17*, *25*)`, nextStep: 3, data: { litros } };
+    }
+    case 3: {
+      const bidones = parseInt(msg, 10);
+      if (isNaN(bidones) || bidones <= 0) return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)", nextStep: 3 };
+      const prom = (conversationState.data.litros / bidones).toFixed(1);
+      return {
+        reply: `📋 *Resumen de recolección*\n\nChofer: *#${conversationState.data.codigoChofer}*\nLitros: *${conversationState.data.litros}*\nBidones: *${bidones}*\nPromedio/bidón: *${prom} L*\n\n*1* - Confirmar | *2* - Corregir`,
+        nextStep: 4, data: { bidones }
+      };
+    }
+    case 4: {
+      if (['1','si','sí','ok','dale'].some(a => lower.includes(a))) {
+        return {
+          reply: "✅ *Datos guardados*\n\n¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada",
+          nextStep: 1,
+          notify: `🥛 *Recolección registrada*\n\nChofer: #${conversationState.data.codigoChofer}\nLitros: ${conversationState.data.litros}\nBidones: ${conversationState.data.bidones}`
+        };
+      }
+      return { reply: "¿Cuántos *litros* recolectaste? Empecemos de nuevo.", nextStep: 2 };
+    }
+    case 10: {
+      const parts = msg.split(/[,;]/);
+      if (parts.length < 2) return { reply: "Formato: *litros, monto* (ej: *45, 12500*)", nextStep: 10 };
+      const l = parseFloat(parts[0].trim().replace(',','.'));
+      const m = parseFloat(parts[1].trim().replace(',','.'));
+      if (isNaN(l) || isNaN(m)) return { reply: "Datos no válidos. Formato: *litros, monto* (ej: *45, 12500*)", nextStep: 10 };
+      return {
+        reply: `⛽ *Carga de combustible*\n\nLitros: *${l}*\nMonto: *$${m.toLocaleString('es-AR')}*\n\n*1* - Confirmar | *2* - Corregir`,
+        nextStep: 11, data: { litrosComb: l, montoComb: m }
+      };
+    }
+    case 11: {
+      if (['1','si','sí'].some(a => lower.includes(a))) {
+        return {
+          reply: "✅ *Combustible registrado*\n\n¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar",
+          nextStep: 1,
+          notify: `⛽ *Combustible registrado*\nChofer: #${conversationState.data.codigoChofer}\nLitros: ${conversationState.data.litrosComb}\nMonto: $${conversationState.data.montoComb}`
+        };
+      }
+      return { reply: "Ingresá de nuevo: *litros, monto*", nextStep: 10 };
+    }
+    case 20: {
+      const tipos = { '1': 'Accidente de tránsito', '2': 'Retraso significativo', '3': 'Avería del camión', '4': 'Robo o intento de robo', '5': 'Problema climático', '6': 'Otro' };
+      const t = tipos[msg.trim()];
+      if (!t) return { reply: "Respondé con el número del tipo de incidente (1-6):", nextStep: 20 };
+      return { reply: `Tipo: *${t}*\n\nDescribí brevemente qué pasó:`, nextStep: 21, data: { tipoIncidente: t } };
+    }
+    case 21: {
+      if (msg.length < 5) return { reply: "Necesitamos más detalle. ¿Qué pasó?", nextStep: 21 };
+      return {
+        reply: "¿Qué tan grave es la situación?\n\n*1* - Baja (informativo)\n*2* - Media (afecta parcialmente)\n*3* - Alta (no se puede continuar)\n*4* - Crítica (emergencia)",
+        nextStep: 22, data: { descIncidente: msg }
+      };
+    }
+    case 22: {
+      const gravs = { '1': 'baja', '2': 'media', '3': 'alta', '4': 'critica' };
+      const emojis = { baja: '🟢', media: '🟡', alta: '🟠', critica: '🔴' };
+      const g = gravs[msg.trim()] || 'media';
+      const e = emojis[g];
+      return {
+        reply: `${e} *Incidente registrado*\n\nSe notificó a la dirección de forma inmediata.\nTipo: *${conversationState.data.tipoIncidente}*\nGravedad: *${g}*\n\n¿Necesitás registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada`,
+        nextStep: 1,
+        notify: `${e} *INCIDENTE REPORTADO*\n\nChofer: *#${conversationState.data.codigoChofer}*\nTipo: *${conversationState.data.tipoIncidente}*\nGravedad: *${g.toUpperCase()}*\nDescripción: ${conversationState.data.descIncidente}`
+      };
+    }
+    case 30: {
+      const tipos = { '1': 'Bidones recolectados', '2': 'Ticket de combustible', '3': 'Lavado de camión' };
+      const t = tipos[msg.trim()];
+      if (!t) return { reply: "Respondé con el número (1-3):", nextStep: 30 };
+      return { reply: `📸 *${t}*\n\nEnviá la foto ahora.\nPodés adjuntar una imagen directamente en el chat.\n\n_El sistema va a leer automáticamente los datos de la foto._`, nextStep: 31, data: { tipoComprobante: t } };
+    }
+    case 31: {
+      return { reply: "📸 No recibí una imagen. En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría.\n\n¿Querés hacer otra cosa?\n\n*1* - Sí, volver al menú\n*2* - Finalizar jornada", nextStep: 1 };
+    }
+    case 40: {
+      if (msg.length < 3) return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 40 };
+      return {
+        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\nElegí una opción:`,
+        nextStep: 41, data: { bajaDonante: msg }
+      };
+    }
+    case 41: {
+      const motivos = { '1': 'No dona más', '2': 'Se mudó', '3': 'Falleció', '4': 'Dona muy poco', '5': 'Otro' };
+      const m = motivos[msg];
+      if (!m) return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 41 };
+      return {
+        reply: `📋 *Confirmar reporte de baja*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${m}\n\n⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores.\n\n*1* - Confirmar\n*2* - Cancelar`,
+        nextStep: 42, data: { bajaMotivo: m }
+      };
+    }
+    case 42: {
+      if (msg === '2') return { reply: "Cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada", nextStep: 1 };
+      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 42 };
+      return {
+        reply: "✅ *Reporte de baja enviado a los administradores*\n\nEllos van a contactar a la donante para confirmar.\n\n¿Querés registrar algo más?\n*1* - Sí | *2* - Finalizar jornada",
+        nextStep: 1,
+        notify: `🔴 *Reporte de baja de donante*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${conversationState.data.bajaMotivo}\n🚛 Reportado por: Chofer #${conversationState.data.codigoChofer}`
+      };
+    }
+    default:
+      return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
+  }
+}
+
+// ── PEÓN ──────────────────────────────────
+function handlePeon(step, msg, lower) {
+  switch (step) {
+    case 0: {
+      const m = msg.match(/(\d+)/);
+      if (!m) {
+        return {
+          reply: "👷 *Registro de Peón*\n\nIngresá tu *número de peón* para identificarte.\n(ej: *1*, *2*, *P01*, etc.)",
+          nextStep: 0
+        };
+      }
+      const code = m[1].padStart(2, '0');
+      return {
+        reply: `✅ Identificado como *Peón #${code}*\n\n¿Qué querés hacer?\n\n*1* - Reportar reclamo de donante\n*2* - Marcar entrega de regalo 🎁\n*3* - Reportar donante de baja\n*4* - Enviar foto/comprobante 📸\n*5* - Finalizar\n\nElegí una opción:`,
+        nextStep: 1, data: { codigoPeon: code }
+      };
+    }
+    case 1: {
+      if (msg === '1') return { reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:", nextStep: 10 };
+      if (msg === '2') return { reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante a quien le entregaste el regalo:", nextStep: 20 };
+      if (msg === '3') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y/o dirección* de la donante:", nextStep: 30 };
+      if (msg === '4') return { reply: "📸 *Enviar comprobante*\n\n¿Qué tipo de comprobante vas a enviar?\n\n*1* - Foto de recolección\n*2* - Combustible\n*3* - Lavado de camión\n\nElegí una opción:", nextStep: 40 };
+      if (msg === '5') return { reply: "✅ ¡Jornada registrada! Buen trabajo. 💪", endFlow: true };
+      return { reply: "Opción no válida. Elegí *1*, *2*, *3*, *4* o *5*:", nextStep: 1 };
+    }
+    case 10: {
+      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 10 };
+      return {
+        reply: `📍 Donante: *${msg}*\n\n¿Qué tipo de reclamo?\n\n*1* - No le dejaron regalo\n*2* - Falta bidón\n*3* - Nueva pelela\n*4* - Otro\n\nElegí una opción:`,
+        nextStep: 11, data: { reclamoDonante: msg }
+      };
+    }
+    case 11: {
+      const tipos = { '1': 'regalo', '2': 'falta_bidon', '3': 'nueva_pelela', '4': 'otro' };
+      const t = tipos[msg];
+      if (!t) return { reply: "Opción no válida. Elegí *1*, *2*, *3* o *4*:", nextStep: 11 };
+      return { reply: "Describí brevemente el reclamo (o escribí *-* si no hay más detalle):", nextStep: 12, data: { reclamoTipo: t } };
+    }
+    case 12: {
+      const desc = msg === '-' ? 'Sin detalle' : msg;
+      return {
+        reply: `✅ *Reclamo registrado*\n\n📍 Donante: ${conversationState.data.reclamoDonante}\n📋 Tipo: ${conversationState.data.reclamoTipo}\n📝 Detalle: ${desc}\n\nSe notificará a los administradores.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar`,
+        nextStep: 99,
+        notify: `⚠️ *Reclamo reportado por peón #${conversationState.data.codigoPeon}*\n\n📍 Donante: ${conversationState.data.reclamoDonante}\n📋 Tipo: ${conversationState.data.reclamoTipo}\n📝 Detalle: ${desc}`
+      };
+    }
+    case 20: {
+      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 20 };
+      return {
+        reply: `🎁 Donante: *${msg}*\n\n¿Confirmás que se entregó el regalo?\n\n*1* - Sí, entregado\n*2* - No, cancelar`,
+        nextStep: 21, data: { regaloDonante: msg }
+      };
+    }
+    case 21: {
+      if (msg === '2') return { reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No", nextStep: 99 };
+      if (msg !== '1') return { reply: "Elegí *1* (sí) o *2* (no):", nextStep: 21 };
+      return {
+        reply: `✅ *Regalo entregado* a ${conversationState.data.regaloDonante}\n\n¿Querés registrar otro?\n*1* - Sí, volver al menú\n*2* - No, finalizar`,
+        nextStep: 99
+      };
+    }
+    case 30: {
+      if (msg.length < 3) return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
+      return {
+        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\nElegí una opción:`,
+        nextStep: 31, data: { bajaDonante: msg }
+      };
+    }
+    case 31: {
+      const motivos = { '1': 'No dona más', '2': 'Se mudó', '3': 'Falleció', '4': 'Dona muy poco', '5': 'Otro' };
+      const m = motivos[msg];
+      if (!m) return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
+      return {
+        reply: `📋 *Confirmar reporte de baja*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${m}\n\n⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores para que contacten a la donante.\n\n*1* - Confirmar\n*2* - Cancelar`,
+        nextStep: 32, data: { bajaMotivo: m }
+      };
+    }
+    case 32: {
+      if (msg === '2') return { reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No", nextStep: 99 };
+      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 32 };
+      return {
+        reply: "✅ *Reporte de baja enviado a los administradores*\n\nEllos van a contactar a la donante para confirmar.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99,
+        notify: `🔴 *Reporte de baja de donante*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${conversationState.data.bajaMotivo}\n👷 Reportado por: Peón #${conversationState.data.codigoPeon}`
+      };
+    }
+    case 40: {
+      const tipos = { '1': 'Foto de recolección', '2': 'Combustible', '3': 'Lavado de camión' };
+      const t = tipos[msg];
+      if (!t) return { reply: "Opción no válida. Elegí *1*, *2* o *3*:", nextStep: 40 };
+      return { reply: "📸 Enviá la foto del comprobante:", nextStep: 41 };
+    }
+    case 41: {
+      return { reply: "📸 En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar", nextStep: 99 };
+    }
+    case 99: {
+      if (msg === '1') return {
+        reply: `¿Qué querés hacer?\n\n*1* - Reportar reclamo de donante\n*2* - Marcar entrega de regalo 🎁\n*3* - Reportar donante de baja\n*4* - Enviar foto/comprobante 📸\n*5* - Finalizar\n\nElegí una opción:`,
+        nextStep: 1
+      };
+      return { reply: "✅ ¡Jornada registrada! Buen trabajo. 💪", endFlow: true };
+    }
+    default:
+      return { reply: "Sesión finalizada. Escribí *peón* para volver al menú.", endFlow: true };
+  }
+}
+
+// ── ADMIN ──────────────────────────────────
+function handleAdmin(step, msg, lower) {
+  switch (step) {
+    case 0:
+      return {
+        reply: "🔐 *Panel de Administración GARYCIO*\n\n¿Qué querés hacer?\n\n*1* - 📋 Ver contactos nuevos (pendientes)\n*2* - 🔍 Buscar donante\n*3* - ⚠️ Ver reclamos pendientes\n*4* - 🔴 Ver reportes de baja\n*5* - 🚛 Progreso de rutas del día\n*6* - 📊 Resultados de encuesta\n*7* - 📖 Ver lista de comandos\n*8* - Finalizar\n\nElegí una opción:",
+        nextStep: 1
+      };
+    case 1: {
+      if (msg === '1') return {
+        reply: "📋 *Contactos nuevos pendientes*\n\n1. María González - +5491155001234\n   _Zona Norte - Pendiente desde 28/03_\n2. Laura Pérez - +5491155005678\n   _Zona Oeste - Pendiente desde 29/03_\n3. Ana Rodríguez - +5491155009012\n   _Zona Sur - Pendiente desde 30/03_\n\nTotal: *3 contactos nuevos*\n\n¿Querés ver el detalle de alguno? Respondé con el número.\nO escribí *0* para volver al menú.",
+        nextStep: 10
+      };
+      if (msg === '2') return { reply: "🔍 *Buscar donante*\n\nIngresá el nombre, teléfono o dirección a buscar:", nextStep: 20 };
+      if (msg === '3') return {
+        reply: "⚠️ *Reclamos pendientes*\n\n1. 🟡 Regalo no entregado - Av. San Martín 456\n   _Reportado: 29/03 - Chofer #03_\n2. 🟠 Falta bidón - Murature 1200\n   _Reportado: 30/03 - Peón #01_\n3. 🔴 Pelela nueva - Av. Libertador 890\n   _Reportado: 31/03 - Donante directa_\n\nTotal: *3 reclamos pendientes*\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99
+      };
+      if (msg === '4') return {
+        reply: "🔴 *Reportes de baja pendientes*\n\n1. Carmen Díaz - Se mudó\n   _Reportado por Chofer #02 el 30/03_\n2. Susana López - No dona más\n   _Reportado por Peón #01 el 31/03_\n\nTotal: *2 reportes de baja*\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99
+      };
+      if (msg === '5') return {
+        reply: "🚛 *Progreso de rutas - 01/04/2026*\n\n*Chofer #01* - Zona Norte\n  ████████░░ 80% (16/20 donantes)\n  Última parada: Av. Cabildo 2300 - 10:45\n\n*Chofer #02* - Zona Oeste\n  █████░░░░░ 50% (10/20 donantes)\n  Última parada: Av. Rivadavia 8900 - 11:20\n\n*Chofer #03* - Zona Sur\n  ███░░░░░░░ 30% (6/20 donantes)\n  Última parada: Av. Mitre 1500 - 11:05\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99
+      };
+      if (msg === '6') return {
+        reply: "📊 *Resultados de encuesta de regalos*\n\nÚltima semana:\n✅ Recibieron regalo: *45* donantes\n❌ No recibieron: *3* donantes\n⏳ Sin responder: *12* donantes\n\nSatisfacción: *93%*\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99
+      };
+      if (msg === '7') return {
+        reply: "📖 *Lista de comandos disponibles*\n\n*Desde WhatsApp:*\n• Escribí *admin* → Panel de administración\n• Escribí *chofer* → Registro de chofer\n• Escribí *peón* → Registro de peón\n• Escribí *reclamo* → Flow de reclamos\n• Escribí *hola* → Menú donante\n\n*Desde el panel web:*\n• /admin/donantes → Lista de donantes\n• /admin/donantes/nuevos → Contactos nuevos\n• /admin/donantes/altas-bajas → Altas y bajas\n• /admin/reclamos → Reclamos\n• /health → Estado del servidor\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        nextStep: 99
+      };
+      if (msg === '8') return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+      return { reply: "Opción no válida. Elegí del *1* al *8*:", nextStep: 1 };
+    }
+    case 10: {
+      if (msg === '0') return {
+        reply: "🔐 *Panel de Administración GARYCIO*\n\n¿Qué querés hacer?\n\n*1* - 📋 Ver contactos nuevos\n*2* - 🔍 Buscar donante\n*3* - ⚠️ Ver reclamos pendientes\n*4* - 🔴 Ver reportes de baja\n*5* - 🚛 Progreso de rutas del día\n*6* - 📊 Resultados de encuesta\n*7* - 📖 Ver lista de comandos\n*8* - Finalizar\n\nElegí una opción:",
+        nextStep: 1
+      };
+      const contacts = {
+        '1': { nombre: 'María González', tel: '+5491155001234', zona: 'Norte', dir: 'Av. Cabildo 1234, Belgrano', dias: 'Lunes y Jueves', notas: 'Dona 3 bidones semanales' },
+        '2': { nombre: 'Laura Pérez', tel: '+5491155005678', zona: 'Oeste', dir: 'Av. Rivadavia 5600, Caballito', dias: 'Martes y Viernes', notas: 'Restaurante, dona aceite usado de cocina' },
+        '3': { nombre: 'Ana Rodríguez', tel: '+5491155009012', zona: 'Sur', dir: 'Av. Mitre 890, Lanús', dias: 'Miércoles', notas: 'Nueva donante, contactada por recomendación' }
+      };
+      const c = contacts[msg];
+      if (!c) return { reply: "Respondé con *1*, *2* o *3* para ver el detalle, o *0* para volver:", nextStep: 10 };
+      return {
+        reply: `📋 *Detalle del contacto*\n\n👤 Nombre: *${c.nombre}*\n📱 Tel: ${c.tel}\n📍 Dirección: ${c.dir}\n🗺️ Zona: ${c.zona}\n🗓️ Días: ${c.dias}\n📝 Notas: ${c.notas}\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar`,
+        nextStep: 99
+      };
+    }
+    case 20: {
+      if (msg.length < 2) return { reply: "Ingresá al menos 2 caracteres para buscar:", nextStep: 20 };
+      return {
+        reply: `🔍 *Resultados para "${msg}"*\n\n1. María González - Av. Cabildo 1234\n   Estado: *Activa* | Zona: Norte\n2. ${msg.charAt(0).toUpperCase() + msg.slice(1)} Martínez - Calle Falsa 123\n   Estado: *Activa* | Zona: Oeste\n\nSe encontraron *2 resultados*.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar`,
+        nextStep: 99
+      };
+    }
+    case 99: {
+      if (msg === '1') return {
+        reply: "🔐 *Panel de Administración GARYCIO*\n\n¿Qué querés hacer?\n\n*1* - 📋 Ver contactos nuevos (pendientes)\n*2* - 🔍 Buscar donante\n*3* - ⚠️ Ver reclamos pendientes\n*4* - 🔴 Ver reportes de baja\n*5* - 🚛 Progreso de rutas del día\n*6* - 📊 Resultados de encuesta\n*7* - 📖 Ver lista de comandos\n*8* - Finalizar\n\nElegí una opción:",
+        nextStep: 1
+      };
+      return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+    }
+    default:
+      return { reply: "Sesión finalizada. Escribí *admin* para volver.", endFlow: true };
+  }
+}
+
+// ── RECLAMO (donante) ──────────────────────
+function handleReclamo(step, msg, lower) {
+  switch (step) {
+    case 0: {
+      const tipos = { '1': 'regalo', '2': 'falta_bidon', '3': 'nueva_pelela', '4': 'otro', 'regalo': 'regalo', 'bidon': 'falta_bidon', 'bidón': 'falta_bidon', 'pelela': 'nueva_pelela' };
+      const t = tipos[lower];
+      if (!t) return {
+        reply: "¿Qué tipo de reclamo querés hacer?\n\n*1* - No me dejaron el regalo\n*2* - Me falta un bidón\n*3* - Necesito una pelela nueva\n*4* - Otro reclamo\n\nRespondé con el número correspondiente.",
+        nextStep: 0
+      };
+      const labels = { regalo: 'regalo no entregado', falta_bidon: 'falta de bidón', nueva_pelela: 'pelela nueva', otro: 'otro' };
+      return {
+        reply: `Registramos un reclamo por: *${labels[t]}*.\n\n${t === 'otro' ? 'Contanos brevemente cuál es el problema:' : '¿Querés agregar algún detalle? Si no, respondé *no*.'}`,
+        nextStep: 1, data: { tipoReclamo: t }
+      };
+    }
+    case 1: {
+      const sinDetalle = ['no','nop','na','nada'].some(n => lower === n);
+      return {
+        reply: "Tu reclamo quedó registrado. ✅\n\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.\n\n¿Hay algo más en lo que te podamos ayudar?",
+        nextStep: 2,
+        notify: `📋 *Nuevo reclamo*\n\nDonante: +393445721753\nTipo: ${conversationState.data.tipoReclamo}\nDetalle: ${sinDetalle ? 'Sin detalle' : msg}`
+      };
+    }
+    case 2: {
+      const yes = ['si','sí','sep'].some(a => lower.includes(a));
+      if (yes) return {
+        reply: "¿En qué más te podemos ayudar?\n\n*1* - Tengo otro reclamo\n*2* - Quiero dar un aviso (vacaciones/enfermedad)\n*3* - Tengo una consulta",
+        endFlow: true
+      };
+      return { reply: "¡Perfecto! Cualquier cosa estamos por acá. ¡Buen día! 😊", endFlow: true };
+    }
+    default:
+      return { reply: "Gracias por reportar. ¡Lo vamos a resolver!", endFlow: true };
+  }
+}
+</script>
+</body>
+</html>
