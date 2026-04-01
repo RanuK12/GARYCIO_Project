@@ -9,6 +9,7 @@ import { logger } from "../../config/logger";
  * - Marcar entrega de regalo a donante
  * - Reportar donante de baja (NO auto-desactiva, notifica admin)
  * - Enviar fotos/comprobantes
+ * - Al finalizar: informar conteo de regalos (inicio, entregados, sobrantes)
  *
  * Steps:
  * 0  - Identificación
@@ -24,6 +25,9 @@ import { logger } from "../../config/logger";
  * 40 - Foto: tipo comprobante
  * 41 - Foto: esperando foto
  * 42 - Foto: confirmar datos
+ * 60 - Cierre de jornada: regalos al inicio
+ * 61 - Cierre de jornada: regalos sobrantes
+ * 62 - Cierre de jornada: confirmar resumen
  */
 export const peonFlow: FlowHandler = {
   name: "peon",
@@ -46,6 +50,9 @@ export const peonFlow: FlowHandler = {
       case 40: return handleTipoComprobante(respuesta);
       case 41: return handleRecibirFoto(respuesta, state, mediaInfo);
       case 42: return handleConfirmarFoto(respuesta, state);
+      case 60: return handleCierreRegalosInicio(respuesta, state);
+      case 61: return handleCierreRegalosRestantes(respuesta, state);
+      case 62: return handleCierreConfirmar(respuesta, state);
       case 99: return handleVolverOFinalizar(respuesta);
       default:
         return { reply: "Sesión finalizada. Escribí *peón* para volver al menú.", endFlow: true };
@@ -125,9 +132,12 @@ function handleMenu(respuesta: string): FlowResponse {
       };
     case "5":
       return {
-        reply: "✅ ¡Jornada registrada! Buen trabajo. 💪",
-        endFlow: true,
-        data: { jornadaFinalizada: true },
+        reply:
+          "📦 *Cierre de jornada*\n\n" +
+          "Antes de cerrar, necesitamos el conteo de regalos.\n\n" +
+          "¿Cuántos regalos tenías al *inicio* del día?\n" +
+          "(ej: *30*)",
+        nextStep: 60,
       };
     default:
       return {
@@ -310,6 +320,90 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
         `📝 Motivo: ${motivo}\n` +
         `👷 Reportado por: Peón #${state.data.codigoPeon}\n\n` +
         `¿Contactar a la donante para confirmar?`,
+    },
+  };
+}
+
+// ── Cierre de jornada: conteo de regalos (steps 60-62) ───────────
+
+function handleCierreRegalosInicio(respuesta: string, _state: ConversationState): FlowResponse {
+  const n = parseInt(respuesta, 10);
+  if (isNaN(n) || n < 0) {
+    return {
+      reply: "Ingresá un número válido (ej: *30*, *0*):",
+      nextStep: 60,
+    };
+  }
+  return {
+    reply:
+      `Tenías *${n} regalos* al inicio.\n\n` +
+      "¿Cuántos regalos te *sobraron* (no entregaste)?\n" +
+      "(ej: *5*, *0* si entregaste todos)",
+    nextStep: 61,
+    data: { regalosAlInicio: n },
+  };
+}
+
+function handleCierreRegalosRestantes(respuesta: string, state: ConversationState): FlowResponse {
+  const sobraron = parseInt(respuesta, 10);
+  if (isNaN(sobraron) || sobraron < 0) {
+    return {
+      reply: "Ingresá un número válido (ej: *5*, *0*):",
+      nextStep: 61,
+    };
+  }
+
+  const inicio = state.data.regalosAlInicio ?? 0;
+  const entregados = inicio - sobraron;
+
+  if (sobraron > inicio) {
+    return {
+      reply:
+        `No puede sobrar más de lo que tenías. Tenías *${inicio}*, ingresá cuántos te sobraron:`,
+      nextStep: 61,
+    };
+  }
+
+  return {
+    reply:
+      `📦 *Resumen de regalos - Peón #${state.data.codigoPeon}*\n\n` +
+      `• Regalos al inicio: *${inicio}*\n` +
+      `• Regalos entregados: *${entregados}*\n` +
+      `• Regalos sobrantes: *${sobraron}*\n\n` +
+      "*1* - Confirmar y cerrar | *2* - Corregir",
+    nextStep: 62,
+    data: { regalosEntregados: entregados, regalsobrantes: sobraron },
+  };
+}
+
+function handleCierreConfirmar(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "2") {
+    return {
+      reply: "¿Cuántos regalos tenías al inicio del día?",
+      nextStep: 60,
+      data: { regalosAlInicio: undefined, regalosEntregados: undefined, regalsobrantes: undefined },
+    };
+  }
+
+  const inicio = state.data.regalosAlInicio ?? 0;
+  const entregados = state.data.regalosEntregados ?? 0;
+  const sobraron = state.data.regalsobrantes ?? 0;
+
+  return {
+    reply:
+      `✅ *Jornada cerrada - Peón #${state.data.codigoPeon}*\n\n` +
+      `📦 Regalos: ${entregados} entregados, ${sobraron} sobrantes.\n\n` +
+      "¡Buen trabajo hoy! 💪",
+    endFlow: true,
+    data: { jornadaFinalizada: true },
+    notify: {
+      target: "admin",
+      message:
+        `📦 *Cierre de jornada - Peón #${state.data.codigoPeon}*\n\n` +
+        `Regalos al inicio: ${inicio}\n` +
+        `Regalos entregados: ${entregados}\n` +
+        `Regalos sobrantes: ${sobraron}\n` +
+        `Hora: ${new Date().toLocaleTimeString("es-AR")}`,
     },
   };
 }

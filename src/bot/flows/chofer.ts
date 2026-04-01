@@ -9,7 +9,8 @@ import { logger } from "../../config/logger";
  * - Registrar carga de combustible
  * - Reportar incidentes (notificación INMEDIATA al CEO)
  * - Enviar fotos de comprobantes (recolección, combustible, lavado)
- * - Finalizar jornada
+ * - Reportar donante de baja
+ * - Registrar regalos entregados a peones
  *
  * Steps:
  * 0  - Identificación
@@ -25,6 +26,12 @@ import { logger } from "../../config/logger";
  * 30 - Tipo de comprobante (foto)
  * 31 - Esperando foto
  * 32 - Confirmar datos extraídos de la foto
+ * 40 - Baja donante: nombre/dirección
+ * 41 - Baja donante: motivo
+ * 42 - Baja donante: confirmar
+ * 50 - Regalos: cantidad de peones
+ * 51 - Regalos: datos por peón (iterativo via data.regalosStep)
+ * 52 - Regalos: confirmar resumen
  */
 export const choferFlow: FlowHandler = {
   name: "chofer",
@@ -50,6 +57,9 @@ export const choferFlow: FlowHandler = {
       case 40: return handleBajaDonante(respuesta);
       case 41: return handleBajaMotivo(respuesta, state);
       case 42: return handleBajaConfirmar(respuesta, state);
+      case 50: return handleRegalosInicio(respuesta, state);
+      case 51: return handleRegalosRegistro(respuesta, state);
+      case 52: return handleRegalosConfirmar(respuesta, state);
       case 99: return handleVolverOFinalizar(respuesta, state);
       default:
         return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
@@ -92,7 +102,7 @@ const MENU_CHOFER =
   "*3* - Reportar incidente\n" +
   "*4* - Enviar foto/comprobante 📸\n" +
   "*5* - Reportar donante de baja\n" +
-  "*6* - Finalizar jornada\n" +
+  "*6* - Regalos entregados a peones 🎁\n" +
   "*0* - Volver al menú principal";
 
 function handleMenuChofer(respuesta: string, state: ConversationState): FlowResponse {
@@ -163,20 +173,13 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
     };
   }
 
-  if (lower === "6" || lower.includes("finalizar")) {
+  if (lower === "6" || lower.includes("regalo")) {
     return {
       reply:
-        `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
-        "¡Buen trabajo hoy! 💪 Los datos quedaron cargados.\n" +
-        "Mañana no te olvides de cargar los litros.",
-      endFlow: true,
-      notify: {
-        target: "admin",
-        message:
-          `📋 Chofer #${state.data.codigoChofer} finalizó su jornada.\n` +
-          `Litros: ${state.data.litros || "No registrado"}\n` +
-          `Bidones: ${state.data.bidones || "No registrado"}`,
-      },
+        "🎁 *Regalos entregados a peones*\n\n" +
+        "¿A cuántos peones les entregaste regalos hoy?\n" +
+        "(ej: *1*, *2*, *3*)",
+      nextStep: 50,
     };
   }
 
@@ -566,6 +569,121 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
   };
 }
 
+// ── Regalos entregados a peones (steps 50-52) ───────────────────────
+
+function handleRegalosInicio(respuesta: string, _state: ConversationState): FlowResponse {
+  const n = parseInt(respuesta, 10);
+  if (isNaN(n) || n <= 0 || n > 10) {
+    return {
+      reply: "Ingresá el número de peones (entre 1 y 10):",
+      nextStep: 50,
+    };
+  }
+  return {
+    reply:
+      `Vamos a registrar los regalos entregados a *${n} peón${n > 1 ? "es" : ""}*.\n\n` +
+      "Para el *Peón #1*: ingresá el número de peón y la cantidad de regalos separados por coma.\n" +
+      "(ej: *01, 15* → Peón 01 recibió 15 regalos)",
+    nextStep: 51,
+    data: {
+      regalosTotal: n,
+      regalosStep: 1,
+      regalosLista: [] as Array<{ peon: string; cantidad: number }>,
+    },
+  };
+}
+
+function handleRegalosRegistro(respuesta: string, state: ConversationState): FlowResponse {
+  const partes = respuesta.split(/[,;]/);
+  if (partes.length < 2) {
+    const step = state.data.regalosStep || 1;
+    return {
+      reply: `Formato incorrecto. Para el *Peón #${step}*: ingresá *número_de_peón, cantidad* (ej: *01, 15*):`,
+      nextStep: 51,
+    };
+  }
+
+  const peon = partes[0].trim().padStart(2, "0");
+  const cantidad = parseInt(partes[1].trim(), 10);
+
+  if (isNaN(cantidad) || cantidad < 0) {
+    return {
+      reply: "La cantidad debe ser un número válido (ej: *15*, *0*):",
+      nextStep: 51,
+    };
+  }
+
+  const lista: Array<{ peon: string; cantidad: number }> = [...(state.data.regalosLista || []), { peon, cantidad }];
+  const currentStep = state.data.regalosStep || 1;
+  const totalPeones = state.data.regalosTotal || 1;
+
+  if (currentStep < totalPeones) {
+    return {
+      reply:
+        `✅ Peón #${peon}: *${cantidad} regalos*\n\n` +
+        `Para el *Peón #${currentStep + 1}*: ingresá *número_de_peón, cantidad*:`,
+      nextStep: 51,
+      data: {
+        regalosStep: currentStep + 1,
+        regalosLista: lista,
+      },
+    };
+  }
+
+  // Último peón → mostrar resumen para confirmar
+  const resumen = lista
+    .map((r) => `  • Peón #${r.peon}: *${r.cantidad} regalos*`)
+    .join("\n");
+  const totalRegalos = lista.reduce((sum, r) => sum + r.cantidad, 0);
+
+  return {
+    reply:
+      `📋 *Resumen de regalos entregados*\n\n` +
+      `${resumen}\n\n` +
+      `📦 *Total entregado: ${totalRegalos} regalos*\n\n` +
+      "*1* - Confirmar | *2* - Corregir",
+    nextStep: 52,
+    data: {
+      regalosLista: lista,
+      regalosEntregadosTotal: totalRegalos,
+    },
+  };
+}
+
+function handleRegalosConfirmar(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "2") {
+    return {
+      reply:
+        "Empecemos de nuevo. ¿A cuántos peones les entregaste regalos hoy?",
+      nextStep: 50,
+      data: { regalosLista: [], regalosStep: 1, regalosEntregadosTotal: 0 },
+    };
+  }
+
+  const lista: Array<{ peon: string; cantidad: number }> = state.data.regalosLista || [];
+  const total = state.data.regalosEntregadosTotal || 0;
+  const resumenAdmin = lista
+    .map((r) => `  Peón #${r.peon}: ${r.cantidad} regalos`)
+    .join("\n");
+
+  return {
+    reply:
+      `✅ *Regalos registrados*\n\n` +
+      `📦 Total: *${total} regalos* distribuidos entre ${lista.length} peón${lista.length > 1 ? "es" : ""}.\n\n` +
+      "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
+    data: { regalosGuardados: true },
+    notify: {
+      target: "admin",
+      message:
+        `🎁 *Regalos entregados por Chofer #${state.data.codigoChofer}*\n\n` +
+        `${resumenAdmin}\n` +
+        `📦 Total: ${total} regalos\n` +
+        `Hora: ${new Date().toLocaleTimeString("es-AR")}`,
+    },
+  };
+}
+
 // ── Volver al menú o finalizar (step 99) ──────────────────────────
 function handleVolverOFinalizar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "1") {
@@ -586,6 +704,10 @@ function handleVolverOFinalizar(respuesta: string, state: ConversationState): Fl
   }
 
   // Cualquier otra respuesta (incluyendo "2") = finalizar jornada
+  const regalosTexto = state.data.regalosGuardados
+    ? `\nRegalos entregados: ${state.data.regalosEntregadosTotal || 0}`
+    : "";
+
   return {
     reply:
       `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
@@ -597,7 +719,8 @@ function handleVolverOFinalizar(respuesta: string, state: ConversationState): Fl
       message:
         `📋 Chofer #${state.data.codigoChofer} finalizó su jornada.\n` +
         `Litros: ${state.data.litros || "No registrado"}\n` +
-        `Bidones: ${state.data.bidones || "No registrado"}`,
+        `Bidones: ${state.data.bidones || "No registrado"}` +
+        regalosTexto,
     },
   };
 }

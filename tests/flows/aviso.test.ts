@@ -6,7 +6,7 @@ describe("avisoFlow", () => {
         it("muestra menú cuando no coincide", async () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "hola");
-            expect(res.reply).toContain("¿Qué tipo de aviso");
+            expect(res.reply).toContain("¿Por qué motivo");
             expect(res.nextStep).toBe(0);
         });
 
@@ -32,16 +32,18 @@ describe("avisoFlow", () => {
             expect(res.nextStep).toBe(1);
         });
 
-        it("acepta keyword 'vacaciones'", async () => {
+        it("acepta opción '1' (vacaciones vía número)", async () => {
             const state = createState("aviso", 0);
-            const res = await avisoFlow.handle(state, "me voy de vacaciones");
+            const res = await avisoFlow.handle(state, "1");
             expect(res.data?.tipoAviso).toBe("vacaciones");
+            expect(res.nextStep).toBe(1);
         });
 
-        it("acepta keyword parcial 'enferm'", async () => {
+        it("acepta opción '4' (otro motivo)", async () => {
             const state = createState("aviso", 0);
-            const res = await avisoFlow.handle(state, "estoy enferma");
-            expect(res.data?.tipoAviso).toBe("enfermedad");
+            const res = await avisoFlow.handle(state, "4");
+            expect(res.data?.tipoAviso).toBe("otro");
+            expect(res.nextStep).toBe(1);
         });
     });
 
@@ -72,7 +74,7 @@ describe("avisoFlow", () => {
             const state = createState("aviso", 1, { tipoAviso: "enfermedad" });
             const res = await avisoFlow.handle(state, "no sé");
             expect(res.data?.fechaVuelta).toBeNull();
-            expect(res.reply).toContain("Cuando sepas la fecha");
+            expect(res.reply).toContain("Cuando sepas");
             expect(res.endFlow).toBe(true);
         });
 

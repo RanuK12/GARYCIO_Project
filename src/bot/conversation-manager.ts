@@ -119,6 +119,27 @@ export async function handleIncomingMessage(
   let state = await getConversation(phone);
 
   if (!state) {
+    // Detectar intención de darse de baja antes de mostrar menú
+    const bajaIntent = detectarIntenciónBaja(message);
+    if (bajaIntent) {
+      logger.info({ phone, message }, "Donante expresó intención de baja — derivando a atención personalizada");
+      return {
+        reply:
+          "Lamentamos que quieras dejar de participar. 💙\n\n" +
+          "Tu mensaje fue recibido y una persona de nuestro equipo se va a comunicar con vos a la brevedad para acompañarte.\n\n" +
+          "Si en algún momento querés retomar, siempre vas a poder escribirnos. ¡Gracias por haber donado!",
+        notify: {
+          target: "admin",
+          message:
+            `🚨 *ATENCIÓN PERSONALIZADA REQUERIDA*\n\n` +
+            `📱 Donante: ${phone}\n` +
+            `💬 Mensaje: "${message}"\n` +
+            `📋 Motivo detectado: Intención de baja/abandono\n\n` +
+            `⚠️ Requiere contacto manual a la brevedad.`,
+        },
+      };
+    }
+
     const detectedFlow = detectFlow(message, phone);
 
     if (!detectedFlow) {
@@ -199,4 +220,35 @@ export async function handleIncomingMessage(
     await endConversation(phone);
     return { reply: "Disculpá, hubo un error. ¿Podés intentar de nuevo?" };
   }
+}
+
+// ── Detección de intención de baja ──────────────────────
+/**
+ * Detecta si una donante está expresando intención de darse de baja
+ * o necesita atención personalizada urgente.
+ * Se llama ANTES de mostrar el menú principal para interceptar estos casos.
+ */
+function detectarIntenciónBaja(message: string): boolean {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const FRASES_BAJA = [
+    "me quiero bajar",
+    "quiero darme de baja",
+    "quiero dejar de donar",
+    "ya no quiero donar",
+    "no quiero donar mas",
+    "no voy a donar mas",
+    "deme de baja",
+    "dame de baja",
+    "quiero salir",
+    "quiero cancelar",
+    "no quiero participar",
+    "quiero que me den de baja",
+    "dejen de venir",
+    "no pasen mas",
+    "no pasen por mi casa",
+    "ya no participo",
+  ];
+
+  return FRASES_BAJA.some((frase) => lower.includes(frase));
 }

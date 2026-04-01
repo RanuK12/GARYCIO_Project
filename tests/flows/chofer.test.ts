@@ -114,11 +114,11 @@ describe("choferFlow", () => {
             expect(res.nextStep).toBe(40);
         });
 
-        it("opción 6 → finalizar jornada", async () => {
+        it("opción 6 → regalos entregados a peones", async () => {
             const state = createState("chofer", 1, baseData);
             const res = await choferFlow.handle(state, "6");
-            expect(res.reply).toContain("Jornada finalizada");
-            expect(res.endFlow).toBe(true);
+            expect(res.nextStep).toBe(50);
+            expect(res.reply).toContain("peones");
         });
 
         it("opción 0 → volver al menú principal (endFlow)", async () => {
@@ -299,7 +299,7 @@ describe("choferFlow", () => {
             expect(res.reply).toContain("Litros y bidones");
             expect(res.reply).toContain("combustible");
             expect(res.reply).toContain("Reportar incidente");
-            expect(res.reply).toContain("Finalizar jornada");
+            expect(res.reply).toContain("Regalos entregados");
             expect(res.reply).toContain("Volver al menú principal");
         });
 

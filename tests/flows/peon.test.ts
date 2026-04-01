@@ -77,10 +77,11 @@ describe("peonFlow", () => {
             expect(res.nextStep).toBe(10);
         });
 
-        it("opción 5 → finalizar jornada", async () => {
+        it("opción 5 → cierre de jornada (conteo de regalos)", async () => {
             const state = createState("peon", 1, baseData);
             const res = await peonFlow.handle(state, "5");
-            expect(res.endFlow).toBe(true);
+            expect(res.nextStep).toBe(60);
+            expect(res.reply).toContain("regalos");
         });
 
         it("opción 0 → volver al menú principal (endFlow)", async () => {

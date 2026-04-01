@@ -97,9 +97,18 @@ function handleDetalleReclamo(respuesta: string, state: ConversationState): Flow
 }
 
 function handleConfirmacionReclamo(respuesta: string, _state: ConversationState): FlowResponse {
-  const quiereMas = ["si", "sí", "sep"].some((a) => respuesta.includes(a));
+  const lower = respuesta.toLowerCase();
+  const esNegativo = ["no", "nop", "na", "nah", "gracias"].some((n) => lower === n || lower.startsWith(n + " "));
+  const esAfirmativo = ["si", "sí", "sep", "sip", "1"].some((a) => lower === a || lower.startsWith(a + ",") || lower.startsWith(a + " "));
 
-  if (quiereMas) {
+  if (esNegativo) {
+    return {
+      reply: "¡Perfecto! Cualquier cosa estamos por acá. ¡Buen día! 😊",
+      endFlow: true,
+    };
+  }
+
+  if (esAfirmativo) {
     return {
       reply:
         "¿En qué más te podemos ayudar?\n\n" +
@@ -107,6 +116,26 @@ function handleConfirmacionReclamo(respuesta: string, _state: ConversationState)
         "*2* - Quiero dar un aviso (vacaciones/enfermedad)\n" +
         "*3* - Tengo una consulta",
       endFlow: true,
+    };
+  }
+
+  // Texto libre con suficiente contexto → escalarla
+  if (respuesta.trim().length >= 8) {
+    return {
+      reply:
+        "Anotamos tu consulta y te respondemos a la brevedad. 📩\n\n" +
+        "Una persona de nuestro equipo va a revisar tu mensaje y te va a contestar personalmente.\n\n" +
+        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "*1* - Sí, tengo otra cosa\n" +
+        "*2* - No, gracias",
+      endFlow: true,
+      notify: {
+        target: "admin",
+        message:
+          `📩 *Consulta adicional post-reclamo*\n\n` +
+          `💬 Mensaje: "${respuesta}"\n\n` +
+          `⚠️ La donante tiene una duda adicional. Requiere respuesta manual.`,
+      },
     };
   }
 

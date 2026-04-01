@@ -59,27 +59,49 @@ export const consultaGeneralFlow: FlowHandler = {
 };
 
 function handleMenuConsulta(respuesta: string): FlowResponse {
-  const faq = FAQ[respuesta];
+  const faq = FAQ[respuesta.trim()];
 
-  if (!faq) {
+  if (faq) {
     return {
       reply:
-        "¿Sobre qué querés consultar?\n\n" +
-        "*1* - Días de recolección\n" +
-        "*2* - Regalos y beneficios\n" +
-        "*3* - Cambio de dirección\n" +
-        "*4* - Dejar de donar\n\n" +
-        "Respondé con el número o escribí tu consulta directamente.",
-      nextStep: 0,
+        `📌 *${faq.titulo}*\n\n${faq.respuesta}\n\n` +
+        "¿Te puedo ayudar en algo más? Respondé *sí* o *no*.",
+      nextStep: 1,
+      data: { consultaTipo: faq.titulo },
+    };
+  }
+
+  // Si escribió texto libre con suficiente contexto (no un número del catálogo): derivar a admin
+  if (respuesta.trim().length >= 8 && !["1","2","3","4"].includes(respuesta.trim())) {
+    return {
+      reply:
+        "Anotamos tu consulta y te respondemos a la brevedad. 📩\n\n" +
+        "Una persona de nuestro equipo va a revisar tu mensaje y te va a contestar personalmente.\n\n" +
+        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "*1* - Sí\n" +
+        "*2* - No, gracias",
+      nextStep: 1,
+      data: { consultaLibre: respuesta },
+      notify: {
+        target: "admin",
+        message:
+          `📩 *Consulta libre de donante*\n\n` +
+          `📱 Teléfono: (ver contexto)\n` +
+          `💬 Mensaje: "${respuesta}"\n\n` +
+          `⚠️ Requiere respuesta manual.`,
+      },
     };
   }
 
   return {
     reply:
-      `📌 *${faq.titulo}*\n\n${faq.respuesta}\n\n` +
-      "¿Te puedo ayudar en algo más? Respondé *sí* o *no*.",
-    nextStep: 1,
-    data: { consultaTipo: faq.titulo },
+      "¿Sobre qué querés consultar?\n\n" +
+      "*1* - Días de recolección\n" +
+      "*2* - Regalos y beneficios\n" +
+      "*3* - Cambio de dirección\n" +
+      "*4* - Dejar de donar\n\n" +
+      "Respondé con el número o escribí tu consulta directamente.",
+    nextStep: 0,
   };
 }
 
