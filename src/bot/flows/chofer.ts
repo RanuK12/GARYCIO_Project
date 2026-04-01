@@ -50,6 +50,7 @@ export const choferFlow: FlowHandler = {
       case 40: return handleBajaDonante(respuesta);
       case 41: return handleBajaMotivo(respuesta, state);
       case 42: return handleBajaConfirmar(respuesta, state);
+      case 99: return handleVolverOFinalizar(respuesta, state);
       default:
         return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
     }
@@ -76,12 +77,7 @@ function handleIdentificacion(respuesta: string): FlowResponse {
     reply:
       `✅ Identificado como *Chofer #${codigoChofer}*\n\n` +
       "¿Qué querés registrar?\n\n" +
-      "*1* - Litros y bidones recolectados\n" +
-      "*2* - Carga de combustible\n" +
-      "*3* - Reportar incidente\n" +
-      "*4* - Enviar foto/comprobante 📸\n" +
-      "*5* - Reportar donante de baja\n" +
-      "*6* - Finalizar jornada\n\n" +
+      MENU_CHOFER + "\n\n" +
       "Respondé con el número.",
     nextStep: 1,
     data: { codigoChofer, choferId: parseInt(match[1], 10) },
@@ -89,8 +85,25 @@ function handleIdentificacion(respuesta: string): FlowResponse {
 }
 
 // ── Menú principal ──────────────────────────────────
+
+const MENU_CHOFER =
+  "*1* - Litros y bidones recolectados\n" +
+  "*2* - Carga de combustible\n" +
+  "*3* - Reportar incidente\n" +
+  "*4* - Enviar foto/comprobante 📸\n" +
+  "*5* - Reportar donante de baja\n" +
+  "*6* - Finalizar jornada\n" +
+  "*0* - Volver al menú principal";
+
 function handleMenuChofer(respuesta: string, state: ConversationState): FlowResponse {
   const lower = respuesta.toLowerCase();
+
+  if (lower === "0" || lower.includes("volver") || lower.includes("salir") || lower.includes("menu principal")) {
+    return {
+      reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.",
+      endFlow: true,
+    };
+  }
 
   if (lower === "1" || lower.includes("litro") || lower.includes("bidon")) {
     return {
@@ -169,13 +182,7 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
 
   return {
     reply:
-      "No entendí. Respondé con un número:\n\n" +
-      "*1* - Litros y bidones\n" +
-      "*2* - Combustible\n" +
-      "*3* - Reportar incidente\n" +
-      "*4* - Enviar foto/comprobante 📸\n" +
-      "*5* - Reportar donante de baja\n" +
-      "*6* - Finalizar jornada",
+      "No entendí. Respondé con un número:\n\n" + MENU_CHOFER,
     nextStep: 1,
   };
 }
@@ -217,8 +224,8 @@ function handleConfirmacionRecoleccion(respuesta: string, state: ConversationSta
     return { reply: "¿Cuántos *litros* recolectaste? Empecemos de nuevo.", nextStep: 2, data: { litros: undefined, bidones: undefined } };
   }
   return {
-    reply: "✅ *Datos guardados*\n\n¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada",
-    nextStep: 1,
+    reply: "✅ *Datos guardados*\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
     data: { recoleccionGuardada: true },
     notify: {
       target: "admin",
@@ -252,8 +259,8 @@ function handleConfirmacionCombustible(respuesta: string, state: ConversationSta
     return { reply: "Ingresá de nuevo: *litros, monto*", nextStep: 10 };
   }
   return {
-    reply: "✅ *Combustible registrado*\n\n¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar",
-    nextStep: 1,
+    reply: "✅ *Combustible registrado*\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
     notify: {
       target: "admin",
       message:
@@ -333,8 +340,8 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
       `Se notificó a la dirección de forma inmediata.\n` +
       `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
       `Gravedad: *${gravedad}*\n\n` +
-      "¿Necesitás registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada",
-    nextStep: 1,
+      "¿Necesitás registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
     data: { gravedadIncidente: gravedad, incidenteReportado: true },
     notify: {
       target: "admin",
@@ -399,8 +406,8 @@ async function handleRecibirFoto(
     // Permitir cancelar
     if (["cancelar", "volver", "atras", "no"].some((w) => respuesta.toLowerCase().includes(w))) {
       return {
-        reply: "Cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
-        nextStep: 1,
+        reply: "Cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+        nextStep: 99,
       };
     }
 
@@ -480,8 +487,8 @@ function handleConfirmarDatosFoto(respuesta: string, state: ConversationState): 
         `✅ *Comprobante guardado*\n\n` +
         `Tipo: *${LABELS_COMPROBANTE[tipo]}*\n` +
         `La foto y los datos quedaron registrados en el sistema.\n\n` +
-        "¿Querés registrar algo más?\n\n*1* - Sí | *2* - Finalizar jornada",
-      nextStep: 1,
+        "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+      nextStep: 99,
       data: { comprobanteGuardado: true },
       notify: {
         target: "admin",
@@ -508,8 +515,8 @@ function handleConfirmarDatosFoto(respuesta: string, state: ConversationState): 
 
   // Cancelar
   return {
-    reply: "Comprobante cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
-    nextStep: 1,
+    reply: "Comprobante cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
   };
 }
 
@@ -559,11 +566,47 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
   };
 }
 
+// ── Volver al menú o finalizar (step 99) ──────────────────────────
+function handleVolverOFinalizar(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "1") {
+    return {
+      reply:
+        `¿Qué querés registrar?\n\n` +
+        MENU_CHOFER + "\n\n" +
+        "Respondé con el número.",
+      nextStep: 1,
+    };
+  }
+
+  if (respuesta === "0") {
+    return {
+      reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.",
+      endFlow: true,
+    };
+  }
+
+  // Cualquier otra respuesta (incluyendo "2") = finalizar jornada
+  return {
+    reply:
+      `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
+      "¡Buen trabajo hoy! 💪 Los datos quedaron cargados.\n" +
+      "Mañana no te olvides de cargar los litros.",
+    endFlow: true,
+    notify: {
+      target: "admin",
+      message:
+        `📋 Chofer #${state.data.codigoChofer} finalizó su jornada.\n` +
+        `Litros: ${state.data.litros || "No registrado"}\n` +
+        `Bidones: ${state.data.bidones || "No registrado"}`,
+    },
+  };
+}
+
 function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "2") {
     return {
-      reply: "Cancelado. ¿Qué más querés registrar?\n\n*1* - Sí | *2* - Finalizar jornada",
-      nextStep: 1,
+      reply: "Cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+      nextStep: 99,
     };
   }
   if (respuesta !== "1") {
@@ -574,8 +617,8 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
     reply:
       "✅ *Reporte de baja enviado a los administradores*\n\n" +
       "Ellos van a contactar a la donante para confirmar.\n\n" +
-      "¿Querés registrar algo más?\n*1* - Sí | *2* - Finalizar jornada",
-    nextStep: 1,
+      "¿Querés registrar algo más?\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+    nextStep: 99,
     data: { bajaReportada: true },
     notify: {
       target: "admin",

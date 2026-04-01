@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>GARYCIO - Instrucciones del Simulador</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f5f5f5;
+    color: #333;
+    line-height: 1.6;
+  }
+  h1 { color: #00a884; border-bottom: 2px solid #00a884; padding-bottom: 10px; }
+  h2 { color: #005c4b; margin-top: 30px; }
+  .step {
+    background: white;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .step-number {
+    background: #00a884;
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  .highlight {
+    background: #e8f5e9;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid #00a884;
+    margin: 16px 0;
+  }
+  .role-card {
+    background: white;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    border-left: 4px solid #005c4b;
+  }
+  .role-card b { color: #005c4b; }
+  a { color: #00a884; }
+  code {
+    background: #e8e8e8;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .warning {
+    background: #fff3e0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid #ff9800;
+    margin: 16px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>GARYCIO - Simulador de WhatsApp Bot</h1>
+
+<div class="highlight">
+  Este simulador permite probar todas las funciones del bot de WhatsApp de GARYCIO
+  sin necesidad de conexion a internet ni instalacion de programas.
+  Funciona directamente en el navegador.
+</div>
+
+<h2>Como abrir el simulador</h2>
+
+<div class="step">
+  <span class="step-number">1</span>
+  Busca el archivo <code>GARYCIO-Simulador.html</code> en esta misma carpeta
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  Hace doble clic sobre el archivo. Se va a abrir en tu navegador (Chrome, Firefox, Edge, Safari)
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  Elegi el rol que quieras probar tocando uno de los botones
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  Escribi mensajes en el campo de texto de abajo y toca el boton verde para enviar.
+  Tambien podes apretar <b>Enter</b> en el teclado.
+</div>
+
+<h2>Roles disponibles para probar</h2>
+
+<div class="role-card">
+  <b>Donante</b> - Simula ser una donante que contacta al bot.
+  Puede hacer reclamos (regalo no entregado, falta bidon, pelela nueva), dar avisos de vacaciones, o hacer consultas.
+</div>
+
+<div class="role-card">
+  <b>Chofer (recolector)</b> - Simula ser un chofer.
+  Puede cargar litros y bidones recolectados, registrar combustible, reportar incidentes, enviar comprobantes,
+  reportar donantes de baja, y finalizar la jornada.
+</div>
+
+<div class="role-card">
+  <b>Peon (acompaniante)</b> - Simula ser un peon.
+  Puede reportar reclamos de donantes, marcar entregas de regalos, reportar bajas,
+  enviar fotos y finalizar su jornada.
+</div>
+
+<div class="role-card">
+  <b>Administrador</b> - Simula el panel de administracion.
+  Puede ver contactos nuevos, buscar donantes, ver reclamos pendientes,
+  reportes de baja, progreso de rutas, resultados de encuestas, la lista de comandos,
+  y <b>generar el reporte diario PDF</b> (opcion 8).
+</div>
+
+<div class="highlight">
+  <b>Reporte PDF de ejemplo:</b> En esta misma carpeta encontras el archivo
+  <code>EJEMPLO_reporte-diario.pdf</code>. Abri ese archivo para ver como luce el
+  reporte diario que el bot genera automaticamente todos los dias a las 19:00 hs
+  y envia por WhatsApp. Incluye graficos, KPIs, incidentes y resumen operativo.
+</div>
+
+<h2>Funciones del panel lateral (izquierda)</h2>
+
+<p>En el panel de la izquierda podes ver:</p>
+<ul>
+  <li><b>Rol</b> - Que rol estas probando</li>
+  <li><b>Flow</b> - En que flujo de conversacion estas</li>
+  <li><b>Step</b> - En que paso del flujo estas</li>
+  <li><b>Telefono</b> - El numero de telefono simulado</li>
+</ul>
+
+<p>Tambien hay dos botones:</p>
+<ul>
+  <li><b>Reiniciar conversacion</b> - Borra los mensajes y empieza de nuevo con el mismo rol</li>
+  <li><b>Cambiar rol</b> - Vuelve al selector de roles para probar otro</li>
+</ul>
+
+<h2>Notificaciones</h2>
+
+<p>
+  Cuando el bot envia una notificacion al administrador (por ejemplo, cuando un chofer reporta un incidente),
+  aparece un banner verde arriba a la derecha de la pantalla durante unos segundos.
+</p>
+
+<div class="warning">
+  <b>Nota:</b> Este es un simulador local. Los mensajes no se envian realmente por WhatsApp.
+  Todo funciona dentro del navegador, sin conexion a internet.
+  Los datos que se ingresen no se guardan en ningun lado.
+</div>
+
+<h2>Sugerencias de prueba</h2>
+
+<p>Para probar el flujo completo de un chofer:</p>
+<ol>
+  <li>Elegi rol <b>Chofer</b></li>
+  <li>Ingresa un numero (ej: <code>1</code>)</li>
+  <li>Elegi opcion <code>1</code> (Litros)</li>
+  <li>Ingresa litros (ej: <code>850</code>)</li>
+  <li>Ingresa bidones (ej: <code>17</code>)</li>
+  <li>Confirma con <code>1</code></li>
+  <li>Elegi <code>1</code> para seguir registrando</li>
+  <li>Ahora proba cargar combustible con opcion <code>2</code></li>
+  <li>Cuando termines, elegi <code>2</code> para finalizar jornada, o <code>0</code> para volver al menu principal</li>
+</ol>
+
+<p>Para probar el reporte diario desde admin:</p>
+<ol>
+  <li>Elegi rol <b>Administrador</b></li>
+  <li>Elegi opcion <code>8</code> (Generar reporte diario)</li>
+  <li>El bot te muestra que contenido incluye el PDF</li>
+  <li>Abri el archivo <code>EJEMPLO_reporte-diario.pdf</code> de esta carpeta para ver el formato real</li>
+</ol>
+
+<p style="margin-top: 40px; color: #888; font-size: 13px; text-align: center;">
+  GARYCIO - Sistema de automatizacion logistica para recoleccion de aceite usado
+</p>
+
+</body>
+</html>

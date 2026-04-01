@@ -8,6 +8,7 @@ import { choferFlow } from "./chofer";
 import { peonFlow } from "./peon";
 import { reporteFlow } from "./reporte";
 import { adminFlow } from "./admin";
+import { env } from "../../config/env";
 
 export { contactoInicialFlow } from "./contacto-inicial";
 export { reclamoFlow } from "./reclamo";
@@ -31,11 +32,29 @@ const flows: FlowHandler[] = [
   consultaGeneralFlow,
 ];
 
-export function detectFlow(message: string): FlowHandler | null {
+/**
+ * Verifica si un número de teléfono es un admin autorizado.
+ */
+export function isAdminPhone(phone: string): boolean {
+  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => p.trim()).filter(Boolean);
+  return adminPhones.includes(phone) || phone === env.CEO_PHONE;
+}
+
+/**
+ * Detecta el flow basándose en el mensaje.
+ * El flow admin requiere verificación de teléfono, se hace en el conversation-manager.
+ */
+export function detectFlow(message: string, phone?: string): FlowHandler | null {
   const lower = message.toLowerCase();
 
   for (const flow of flows) {
     if (flow.keyword.some((kw) => lower.includes(kw))) {
+      // El flow admin solo se detecta si el phone es admin autorizado
+      if (flow.name === "admin") {
+        if (!phone || !isAdminPhone(phone)) {
+          continue; // Saltear admin, seguir buscando otros flows
+        }
+      }
       return flow;
     }
   }

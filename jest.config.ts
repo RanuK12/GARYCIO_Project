@@ -10,13 +10,14 @@ const config: Config = {
         "^@services/(.*)$": "<rootDir>/src/services/$1",
         "^@config/(.*)$": "<rootDir>/src/config/$1",
         "^@utils/(.*)$": "<rootDir>/src/utils/$1",
+        "^tesseract\\.js$": "<rootDir>/tests/__mocks__/tesseract.js",
     },
     transformIgnorePatterns: [
         "node_modules/(?!(@whiskeysockets/baileys|@hapi)/)",
     ],
     transform: {
-        "^.+\\.tsx?$": "ts-jest",
-        "^.+\\.jsx?$": ["ts-jest", { tsconfig: { allowJs: true } }],
+        "^.+\\.tsx?$": ["ts-jest", { diagnostics: false }],
+        "^.+\\.jsx?$": ["ts-jest", { tsconfig: { allowJs: true }, diagnostics: false }],
     },
     testMatch: ["**/*.test.ts"],
     verbose: true,

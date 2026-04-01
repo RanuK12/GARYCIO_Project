@@ -4,6 +4,7 @@ import { donantes, reclamos, reportesBaja, encuestasRegalo } from "../../databas
 import { eq, and, desc, sql, ilike } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
+import { enviarReportePDF, marcarReporteEnviado } from "../../services/reporte-diario";
 
 /**
  * Flujo para administradores.
@@ -20,6 +21,7 @@ import { obtenerResumenProgreso } from "../../services/progreso-ruta";
  * 40 - Ver reportes de baja pendientes
  * 50 - Ver progreso de rutas del día
  * 60 - Ver resultados de encuesta
+ * 70 - Generar reporte diario PDF
  * 99 - Volver al menú o finalizar
  */
 export const adminFlow: FlowHandler = {
@@ -40,6 +42,7 @@ export const adminFlow: FlowHandler = {
       case 40: return await handleBajasPendientes();
       case 50: return handleProgresoRutas();
       case 60: return await handleResultadosEncuesta();
+      case 70: return await handleGenerarReporte();
       case 99: return handleVolverOFinalizar(respuesta);
       default:
         return { reply: "Sesión finalizada. Escribí *admin* para volver.", endFlow: true };
@@ -48,19 +51,24 @@ export const adminFlow: FlowHandler = {
 };
 
 // ── Bienvenida ──────────────────────────────────
+
+const MENU_ADMIN =
+  "*1* - 📋 Ver contactos nuevos (pendientes)\n" +
+  "*2* - 🔍 Buscar donante\n" +
+  "*3* - ⚠️ Ver reclamos pendientes\n" +
+  "*4* - 🔴 Ver reportes de baja\n" +
+  "*5* - 🚛 Progreso de rutas del día\n" +
+  "*6* - 📊 Resultados de encuesta\n" +
+  "*7* - 📖 Ver lista de comandos\n" +
+  "*8* - 📄 Generar reporte diario (PDF)\n" +
+  "*9* - Finalizar";
+
 function handleBienvenida(): FlowResponse {
   return {
     reply:
       "🔐 *Panel de Administración GARYCIO*\n\n" +
       "¿Qué querés hacer?\n\n" +
-      "*1* - 📋 Ver contactos nuevos (pendientes)\n" +
-      "*2* - 🔍 Buscar donante\n" +
-      "*3* - ⚠️ Ver reclamos pendientes\n" +
-      "*4* - 🔴 Ver reportes de baja\n" +
-      "*5* - 🚛 Progreso de rutas del día\n" +
-      "*6* - 📊 Resultados de encuesta\n" +
-      "*7* - 📖 Ver lista de comandos\n" +
-      "*8* - Finalizar\n\n" +
+      MENU_ADMIN + "\n\n" +
       "Elegí una opción:",
     nextStep: 1,
   };
@@ -87,9 +95,11 @@ function handleMenu(respuesta: string): FlowResponse {
     case "7":
       return handleListaComandos();
     case "8":
+      return { reply: "📄 Generando reporte diario PDF...", nextStep: 70 };
+    case "9":
       return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
     default:
-      return { reply: "Opción no válida. Elegí del *1* al *8*:", nextStep: 1 };
+      return { reply: "Opción no válida. Elegí del *1* al *9*:", nextStep: 1 };
   }
 }
 
@@ -390,6 +400,41 @@ async function handleResultadosEncuesta(): Promise<FlowResponse> {
   };
 }
 
+// ── Generar reporte PDF ──────────────────────────────────
+async function handleGenerarReporte(): Promise<FlowResponse> {
+  try {
+    enviarReportePDF().then(() => {
+      marcarReporteEnviado();
+    }).catch((err) => {
+      logger.error({ err }, "Error al generar reporte desde admin");
+    });
+
+    return {
+      reply:
+        "📄 *Generando reporte diario...*\n\n" +
+        "El PDF se está generando con los datos de hoy:\n" +
+        "• KPIs de recolección (litros, bidones, promedio)\n" +
+        "• Gráfico de progreso mensual\n" +
+        "• Distribución de donantes\n" +
+        "• Litros por día del mes\n" +
+        "• Incidentes del día\n" +
+        "• Resumen operativo (reclamos, avisos, flota, mensajes)\n" +
+        "• Barra de progreso hacia los 260.000 litros\n\n" +
+        "⏳ Te lo envío como PDF en unos segundos.\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      nextStep: 99,
+    };
+  } catch (err) {
+    logger.error({ err }, "Error al iniciar reporte desde admin");
+    return {
+      reply:
+        "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      nextStep: 99,
+    };
+  }
+}
+
 // ── Lista de comandos ──────────────────────────────────
 function handleListaComandos(): FlowResponse {
   return {
@@ -411,6 +456,8 @@ function handleListaComandos(): FlowResponse {
       "  Estado actual de cada camión: salida, zona, descarga.\n\n" +
       "*6* - 📊 *Resultados encuesta*\n" +
       "  Estadísticas de la encuesta mensual de regalos.\n\n" +
+      "*8* - 📄 *Generar reporte diario (PDF)*\n" +
+      "  Genera y envía el reporte diario profesional con gráficos, KPIs, incidentes y resumen operativo.\n\n" +
       "━━━━━━━━━━━━━━━━━━━━━\n" +
       "*Palabras clave (escribir directamente):*\n" +
       "━━━━━━━━━━━━━━━━━━━━━\n\n" +

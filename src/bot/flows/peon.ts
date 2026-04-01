@@ -46,6 +46,7 @@ export const peonFlow: FlowHandler = {
       case 40: return handleTipoComprobante(respuesta);
       case 41: return handleRecibirFoto(respuesta, state, mediaInfo);
       case 42: return handleConfirmarFoto(respuesta, state);
+      case 99: return handleVolverOFinalizar(respuesta);
       default:
         return { reply: "Sesión finalizada. Escribí *peón* para volver al menú.", endFlow: true };
     }
@@ -72,11 +73,7 @@ function handleIdentificacion(respuesta: string): FlowResponse {
     reply:
       `✅ Identificado como *Peón #${codigoPeon}*\n\n` +
       "¿Qué querés hacer?\n\n" +
-      "*1* - Reportar reclamo de donante\n" +
-      "*2* - Marcar entrega de regalo 🎁\n" +
-      "*3* - Reportar donante de baja\n" +
-      "*4* - Enviar foto/comprobante 📸\n" +
-      "*5* - Finalizar\n\n" +
+      MENU_PEON + "\n\n" +
       "Elegí una opción:",
     nextStep: 1,
     data: { codigoPeon, rol: "peon" },
@@ -84,8 +81,22 @@ function handleIdentificacion(respuesta: string): FlowResponse {
 }
 
 // ── Menú ──────────────────────────────────
+
+const MENU_PEON =
+  "*1* - Reportar reclamo de donante\n" +
+  "*2* - Marcar entrega de regalo 🎁\n" +
+  "*3* - Reportar donante de baja\n" +
+  "*4* - Enviar foto/comprobante 📸\n" +
+  "*5* - Finalizar\n" +
+  "*0* - Volver al menú principal";
+
 function handleMenu(respuesta: string): FlowResponse {
   switch (respuesta) {
+    case "0":
+      return {
+        reply: "Saliste del registro de peón. Escribí cualquier cosa para volver al menú principal.",
+        endFlow: true,
+      };
     case "1":
       return {
         reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:",
@@ -120,7 +131,7 @@ function handleMenu(respuesta: string): FlowResponse {
       };
     default:
       return {
-        reply: "Opción no válida. Elegí *1*, *2*, *3*, *4* o *5*:",
+        reply: "Opción no válida. Elegí *1*, *2*, *3*, *4*, *5* o *0*:",
         nextStep: 1,
       };
   }
@@ -208,7 +219,7 @@ function handleRegaloDireccion(respuesta: string): FlowResponse {
 function handleRegaloConfirmar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "2") {
     return {
-      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No",
+      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
       nextStep: 99,
     };
   }
@@ -219,7 +230,7 @@ function handleRegaloConfirmar(respuesta: string, state: ConversationState): Flo
   return {
     reply:
       `✅ *Regalo entregado* a ${state.data.regaloDonante}\n\n` +
-      "¿Querés registrar otro?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      "¿Querés registrar otro?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
     nextStep: 99,
     data: { regaloEntregado: true, regaloFecha: new Date().toISOString() },
   };
@@ -273,7 +284,7 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
 function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "2") {
     return {
-      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No",
+      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
       nextStep: 99,
     };
   }
@@ -288,7 +299,7 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
     reply:
       "✅ *Reporte de baja enviado a los administradores*\n\n" +
       "Ellos van a contactar a la donante para confirmar.\n\n" +
-      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
     nextStep: 99,
     data: { bajaReportada: true },
     notify: {
@@ -304,7 +315,28 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
 }
 
 // ── Step 99: volver o finalizar ──────────────────────────────────
-// This is handled in the default case - if user says "1" go back to menu
+function handleVolverOFinalizar(respuesta: string): FlowResponse {
+  if (respuesta === "1") {
+    return {
+      reply:
+        "¿Qué querés hacer?\n\n" +
+        MENU_PEON + "\n\n" +
+        "Elegí una opción:",
+      nextStep: 1,
+    };
+  }
+  if (respuesta === "0") {
+    return {
+      reply: "Saliste del registro de peón. Escribí cualquier cosa para volver al menú principal.",
+      endFlow: true,
+    };
+  }
+  return {
+    reply: "✅ ¡Jornada registrada! Buen trabajo. 💪",
+    endFlow: true,
+    data: { jornadaFinalizada: true },
+  };
+}
 
 // ── Foto/comprobante (reutiliza lógica de chofer) ──────────────
 function handleTipoComprobante(respuesta: string): FlowResponse {
@@ -372,13 +404,13 @@ function handleConfirmarFoto(respuesta: string, state: ConversationState): FlowR
     return {
       reply:
         "✅ *Comprobante guardado*\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+        "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
       nextStep: 99,
       data: { fotoGuardada: true },
     };
   }
   return {
-    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+    reply: "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
     nextStep: 99,
   };
 }

@@ -1,4 +1,4 @@
-import { ConversationState, FlowType, FlowResponse, detectFlow, getFlowByName } from "./flows";
+import { ConversationState, FlowType, FlowResponse, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
 import { conversationStates } from "../database/schema";
@@ -119,9 +119,23 @@ export async function handleIncomingMessage(
   let state = await getConversation(phone);
 
   if (!state) {
-    const detectedFlow = detectFlow(message);
+    const detectedFlow = detectFlow(message, phone);
 
     if (!detectedFlow) {
+      // Si es admin, mostrar menú con opción de admin
+      if (isAdminPhone(phone)) {
+        return {
+          reply:
+            "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
+            "¿Qué querés hacer?\n\n" +
+            "*1* - Tengo un reclamo\n" +
+            "*2* - Quiero dar un aviso (vacaciones/enfermedad)\n" +
+            "*3* - Tengo una consulta\n" +
+            "*4* - Panel de administración\n\n" +
+            "Respondé con el número o escribí directamente tu consulta.",
+        };
+      }
+
       return {
         reply:
           "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
@@ -141,6 +155,8 @@ export async function handleIncomingMessage(
     const option = message.trim();
     if (option === "1") state.currentFlow = "reclamo";
     else if (option === "2") state.currentFlow = "aviso";
+    else if (option === "3") state.currentFlow = "consulta_general";
+    else if (option === "4" && isAdminPhone(phone)) state.currentFlow = "admin";
     else state.currentFlow = "consulta_general";
 
     state.step = 0;
