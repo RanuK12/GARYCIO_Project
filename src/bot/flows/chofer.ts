@@ -5,33 +5,35 @@ import { logger } from "../../config/logger";
 /**
  * Flow para choferes.
  * El chofer se identifica con su código/número y puede:
- * - Registrar litros y bidones recolectados
- * - Registrar carga de combustible
+ * - Registrar bidones recolectados (+ foto obligatoria)
+ * - Registrar carga de combustible (+ foto)
  * - Reportar incidentes (notificación INMEDIATA al CEO)
- * - Enviar fotos de comprobantes (recolección, combustible, lavado)
- * - Reportar donante de baja
- * - Registrar regalos entregados a peones
+ * - Reportar donante de baja (auto-contacta a la donante)
+ * - Registrar regalos (camión / peón 1-3 → entregados/faltantes/sobrantes/cambios)
  *
  * Steps:
  * 0  - Identificación
  * 1  - Menú principal
- * 2  - Litros
- * 3  - Bidones
- * 4  - Confirmar recolección
+ * 2  - Bidones recolectados
+ * 3  - Confirmar bidones
+ * 4  - Foto de bidones (post-confirmación)
+ * 5  - Confirmar foto bidones
  * 10 - Combustible (litros, monto)
  * 11 - Confirmar combustible
+ * 12 - Foto de combustible
+ * 13 - Confirmar foto combustible
  * 20 - Tipo de incidente
- * 21 - Descripción del incidente
+ * 21 - Detalle del incidente (descripción/tiempo/etc)
  * 22 - Gravedad del incidente
- * 30 - Tipo de comprobante (foto)
- * 31 - Esperando foto
- * 32 - Confirmar datos extraídos de la foto
- * 40 - Baja donante: nombre/dirección
- * 41 - Baja donante: motivo
- * 42 - Baja donante: confirmar
- * 50 - Regalos: cantidad de peones
- * 51 - Regalos: datos por peón (iterativo via data.regalosStep)
- * 52 - Regalos: confirmar resumen
+ * 30 - Baja donante: nombre/dirección
+ * 31 - Baja donante: motivo
+ * 32 - Baja donante: confirmar → auto-contacta donante
+ * 50 - Regalos: elegir vehículo/persona (camión / peón 1/2/3)
+ * 51 - Regalos: nombre del peón (si es peón)
+ * 52 - Regalos: tipo (entregados/faltantes/sobrantes/cambios)
+ * 53 - Regalos: cantidad
+ * 54 - Regalos: ¿registrar más?
+ * 99 - Volver al menú o finalizar
  */
 export const choferFlow: FlowHandler = {
   name: "chofer",
@@ -43,23 +45,25 @@ export const choferFlow: FlowHandler = {
     switch (state.step) {
       case 0: return handleIdentificacion(respuesta);
       case 1: return handleMenuChofer(respuesta, state);
-      case 2: return handleLitros(respuesta);
-      case 3: return handleBidones(respuesta, state);
-      case 4: return handleConfirmacionRecoleccion(respuesta, state);
+      case 2: return handleBidones(respuesta);
+      case 3: return handleConfirmacionBidones(respuesta, state);
+      case 4: return handleFotoBidones(respuesta, state, mediaInfo);
+      case 5: return handleConfirmarFotoBidones(respuesta, state);
       case 10: return handleCombustible(respuesta, state);
       case 11: return handleConfirmacionCombustible(respuesta, state);
+      case 12: return handleFotoCombustible(respuesta, state, mediaInfo);
+      case 13: return handleConfirmarFotoCombustible(respuesta, state);
       case 20: return handleTipoIncidente(respuesta);
-      case 21: return handleDescripcionIncidente(respuesta, state);
+      case 21: return handleDetalleIncidente(respuesta, state);
       case 22: return handleGravedadIncidente(respuesta, state);
-      case 30: return handleTipoComprobante(respuesta);
-      case 31: return handleRecibirFoto(respuesta, state, mediaInfo);
-      case 32: return handleConfirmarDatosFoto(respuesta, state);
-      case 40: return handleBajaDonante(respuesta);
-      case 41: return handleBajaMotivo(respuesta, state);
-      case 42: return handleBajaConfirmar(respuesta, state);
-      case 50: return handleRegalosInicio(respuesta, state);
-      case 51: return handleRegalosRegistro(respuesta, state);
-      case 52: return handleRegalosConfirmar(respuesta, state);
+      case 30: return handleBajaDonante(respuesta);
+      case 31: return handleBajaMotivo(respuesta, state);
+      case 32: return handleBajaConfirmar(respuesta, state);
+      case 50: return handleRegalosVehiculo(respuesta, state);
+      case 51: return handleRegalosNombrePeon(respuesta, state);
+      case 52: return handleRegalosSubTipo(respuesta, state);
+      case 53: return handleRegalosCantidad(respuesta, state);
+      case 54: return handleRegalosOtroMas(respuesta, state);
       case 99: return handleVolverOFinalizar(respuesta, state);
       default:
         return { reply: "Sesión finalizada. Escribí *chofer* para volver al menú.", endFlow: true };
@@ -97,12 +101,11 @@ function handleIdentificacion(respuesta: string): FlowResponse {
 // ── Menú principal ──────────────────────────────────
 
 const MENU_CHOFER =
-  "*1* - Litros y bidones recolectados\n" +
+  "*1* - Bidones recolectados\n" +
   "*2* - Carga de combustible\n" +
   "*3* - Reportar incidente\n" +
-  "*4* - Enviar foto/comprobante 📸\n" +
-  "*5* - Reportar donante de baja\n" +
-  "*6* - Regalos entregados a peones 🎁\n" +
+  "*4* - Reportar donante de baja\n" +
+  "*5* - Regalos 🎁\n" +
   "*0* - Volver al menú principal";
 
 function handleMenuChofer(respuesta: string, state: ConversationState): FlowResponse {
@@ -115,12 +118,12 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
     };
   }
 
-  if (lower === "1" || lower.includes("litro") || lower.includes("bidon")) {
+  if (lower === "1" || lower.includes("bidon")) {
     return {
       reply:
-        "🥛 *Registro de recolección*\n\n" +
-        "¿Cuántos *litros* recolectaste en total hoy?\n" +
-        "(ej: *850*, *1200.5*)",
+        "🛢️ *Registro de recolección*\n\n" +
+        "¿Cuántos *bidones* recolectaste hoy?\n" +
+        "(ej: *17*, *25*)",
       nextStep: 2,
     };
   }
@@ -140,45 +143,36 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
       reply:
         "🚨 *Reportar Incidente*\n\n" +
         "¿Qué tipo de incidente?\n\n" +
-        "*1* - Accidente de tránsito\n" +
+        "*1* - Accidente en el tránsito\n" +
         "*2* - Retraso significativo\n" +
         "*3* - Avería del camión\n" +
-        "*4* - Robo o intento de robo\n" +
-        "*5* - Problema climático\n" +
-        "*6* - Otro\n\n" +
+        "*4* - Intento de robo o robo\n" +
+        "*5* - Otro\n\n" +
         "Respondé con el número.",
       nextStep: 20,
     };
   }
 
-  if (lower === "4" || lower.includes("foto") || lower.includes("comprobante") || lower.includes("imagen")) {
+  if (lower === "4" || lower.includes("baja")) {
     return {
       reply:
-        "📸 *Enviar Comprobante / Foto*\n\n" +
-        "¿Qué tipo de comprobante querés enviar?\n\n" +
-        "*1* - Foto de bidones recolectados\n" +
-        "*2* - Ticket de combustible\n" +
-        "*3* - Foto de lavado de camión\n\n" +
-        "Respondé con el número.",
+        "⚠️ *Reportar donante de baja*\n\n" +
+        "Ingresá el *nombre, dirección y motivo* de la donante:\n" +
+        "(podés escribirlo todo junto o primero el nombre)",
       nextStep: 30,
     };
   }
 
-  if (lower === "5" || lower.includes("baja")) {
+  if (lower === "5" || lower.includes("regalo")) {
     return {
       reply:
-        "⚠️ *Reportar donante de baja*\n\n" +
-        "Ingresá el *nombre y/o dirección* de la donante:",
-      nextStep: 40,
-    };
-  }
-
-  if (lower === "6" || lower.includes("regalo")) {
-    return {
-      reply:
-        "🎁 *Regalos entregados a peones*\n\n" +
-        "¿A cuántos peones les entregaste regalos hoy?\n" +
-        "(ej: *1*, *2*, *3*)",
+        "🎁 *Regalos*\n\n" +
+        "¿Para quién es el registro?\n\n" +
+        "*1* - Camión\n" +
+        "*2* - Peón 1\n" +
+        "*3* - Peón 2\n" +
+        "*4* - Peón 3\n\n" +
+        "Respondé con el número.",
       nextStep: 50,
     };
   }
@@ -190,51 +184,88 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
   };
 }
 
-// ── Recolección ─────────────────────────────────────
-function handleLitros(respuesta: string): FlowResponse {
-  const litros = parseFloat(respuesta.replace(",", "."));
-  if (isNaN(litros) || litros <= 0) {
-    return { reply: "Ingresá un número válido de litros. (ej: *850*, *1200.5*)", nextStep: 2 };
-  }
-  return {
-    reply: `Registrado: *${litros} litros*.\n\n¿Cuántos *bidones* recolectaste? (ej: *17*, *25*)`,
-    nextStep: 3,
-    data: { litros },
-  };
-}
+// ── Recolección (solo bidones) ─────────────────────────────────────
 
-function handleBidones(respuesta: string, state: ConversationState): FlowResponse {
+function handleBidones(respuesta: string): FlowResponse {
   const bidones = parseInt(respuesta, 10);
   if (isNaN(bidones) || bidones <= 0) {
-    return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)", nextStep: 3 };
+    return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)", nextStep: 2 };
   }
-  const promedio = (state.data.litros / bidones).toFixed(1);
   return {
     reply:
       `📋 *Resumen de recolección*\n\n` +
-      `Chofer: *#${state.data.codigoChofer}*\n` +
-      `Litros: *${state.data.litros}*\n` +
-      `Bidones: *${bidones}*\n` +
-      `Promedio/bidón: *${promedio} L*\n\n` +
+      `Chofer: *#(ver datos)*\n` +
+      `Bidones: *${bidones}*\n\n` +
       "*1* - Confirmar | *2* - Corregir",
-    nextStep: 4,
+    nextStep: 3,
     data: { bidones },
   };
 }
 
-function handleConfirmacionRecoleccion(respuesta: string, state: ConversationState): FlowResponse {
+function handleConfirmacionBidones(respuesta: string, state: ConversationState): FlowResponse {
   if (!["1", "si", "sí", "sep", "ok", "dale"].some((a) => respuesta.toLowerCase().includes(a))) {
-    return { reply: "¿Cuántos *litros* recolectaste? Empecemos de nuevo.", nextStep: 2, data: { litros: undefined, bidones: undefined } };
+    return { reply: "¿Cuántos *bidones* recolectaste? Empecemos de nuevo.", nextStep: 2, data: { bidones: undefined } };
   }
+
   return {
-    reply: "✅ *Datos guardados*\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-    nextStep: 99,
+    reply:
+      "✅ *Bidones registrados*\n\n" +
+      "Ahora enviá una *foto* de los bidones recolectados. 📸\n\n" +
+      "Si no tenés foto, escribí *omitir*.",
+    nextStep: 4,
     data: { recoleccionGuardada: true },
     notify: {
       target: "admin",
       message:
-        `🥛 *Recolección registrada*\n\nChofer: #${state.data.codigoChofer}\nLitros: ${state.data.litros}\nBidones: ${state.data.bidones}\nPromedio: ${(state.data.litros / state.data.bidones).toFixed(1)} L/bidón`,
+        `🛢️ *Recolección registrada*\n\nChofer: #${state.data.codigoChofer}\nBidones: ${state.data.bidones}`,
     },
+  };
+}
+
+async function handleFotoBidones(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (respuesta.toLowerCase().includes("omitir") || respuesta.toLowerCase().includes("no tengo")) {
+    return {
+      reply: "Foto omitida. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+    };
+  }
+
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* de los bidones, o escribí *omitir* para saltar.",
+      nextStep: 4,
+    };
+  }
+
+  try {
+    const resultado = await procesarComprobante(mediaInfo.mediaId, "recoleccion", state.data.choferId || 0, {
+      bidones: state.data.bidones ? parseInt(state.data.bidones, 10) : undefined,
+    });
+
+    return {
+      reply:
+        "📸 *Foto recibida y procesada*\n\n" +
+        "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+      data: { fotoPath: resultado.filePath, fotoGuardada: true },
+    };
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto de bidones");
+    return {
+      reply: "No pude procesar la foto, pero los bidones ya quedaron registrados.\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+    };
+  }
+}
+
+function handleConfirmarFotoBidones(respuesta: string, _state: ConversationState): FlowResponse {
+  return {
+    reply: "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+    nextStep: 99,
   };
 }
 
@@ -262,8 +293,11 @@ function handleConfirmacionCombustible(respuesta: string, state: ConversationSta
     return { reply: "Ingresá de nuevo: *litros, monto*", nextStep: 10 };
   }
   return {
-    reply: "✅ *Combustible registrado*\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-    nextStep: 99,
+    reply:
+      "✅ *Combustible registrado*\n\n" +
+      "Ahora enviá una *foto* del ticket de combustible. 📸\n\n" +
+      "Si no tenés foto, escribí *omitir*.",
+    nextStep: 12,
     notify: {
       target: "admin",
       message:
@@ -272,22 +306,67 @@ function handleConfirmacionCombustible(respuesta: string, state: ConversationSta
   };
 }
 
+async function handleFotoCombustible(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (respuesta.toLowerCase().includes("omitir") || respuesta.toLowerCase().includes("no tengo")) {
+    return {
+      reply: "Foto omitida. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+    };
+  }
+
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* del ticket, o escribí *omitir* para saltar.",
+      nextStep: 12,
+    };
+  }
+
+  try {
+    await procesarComprobante(mediaInfo.mediaId, "combustible", state.data.choferId || 0, {
+      monto: state.data.montoCombustible ? parseFloat(state.data.montoCombustible) : undefined,
+    });
+
+    return {
+      reply:
+        "📸 *Foto del ticket recibida*\n\n" +
+        "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+      data: { fotoTicketGuardada: true },
+    };
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto de combustible");
+    return {
+      reply: "No pude procesar la foto, pero el combustible ya quedó registrado.\n\n¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
+    };
+  }
+}
+
+function handleConfirmarFotoCombustible(respuesta: string, _state: ConversationState): FlowResponse {
+  return {
+    reply: "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+    nextStep: 99,
+  };
+}
+
 // ── Incidentes ──────────────────────────────────────
 const TIPOS_INCIDENTE: Record<string, string> = {
-  "1": "accidente",
+  "1": "accidente_transito",
   "2": "retraso",
   "3": "averia",
   "4": "robo",
-  "5": "clima",
-  "6": "otro",
+  "5": "otro",
 };
 
 const LABELS_INCIDENTE: Record<string, string> = {
-  accidente: "Accidente de tránsito",
+  accidente_transito: "Accidente en el tránsito",
   retraso: "Retraso significativo",
   averia: "Avería del camión",
-  robo: "Robo o intento de robo",
-  clima: "Problema climático",
+  robo: "Intento de robo o robo",
   otro: "Otro",
 };
 
@@ -295,10 +374,36 @@ function handleTipoIncidente(respuesta: string): FlowResponse {
   const tipo = TIPOS_INCIDENTE[respuesta.trim()];
   if (!tipo) {
     return {
-      reply: "Respondé con el número del tipo de incidente (1-6):",
+      reply: "Respondé con el número del tipo de incidente (1-5):",
       nextStep: 20,
     };
   }
+
+  // Cada tipo tiene su pregunta de seguimiento
+  if (tipo === "retraso") {
+    return {
+      reply: `Tipo: *${LABELS_INCIDENTE[tipo]}*\n\n¿De cuánto tiempo es la demora estimada?`,
+      nextStep: 21,
+      data: { tipoIncidente: tipo },
+    };
+  }
+
+  if (tipo === "averia") {
+    return {
+      reply: `Tipo: *${LABELS_INCIDENTE[tipo]}*\n\n¿Qué avería tiene el camión? Describilo brevemente:`,
+      nextStep: 21,
+      data: { tipoIncidente: tipo },
+    };
+  }
+
+  if (tipo === "robo") {
+    return {
+      reply: `Tipo: *${LABELS_INCIDENTE[tipo]}*\n\n¿Qué pasó y dónde fue? Contanos brevemente:`,
+      nextStep: 21,
+      data: { tipoIncidente: tipo },
+    };
+  }
+
   return {
     reply: `Tipo: *${LABELS_INCIDENTE[tipo]}*\n\nDescribí brevemente qué pasó:`,
     nextStep: 21,
@@ -306,8 +411,8 @@ function handleTipoIncidente(respuesta: string): FlowResponse {
   };
 }
 
-function handleDescripcionIncidente(respuesta: string, _state: ConversationState): FlowResponse {
-  if (respuesta.length < 5) {
+function handleDetalleIncidente(respuesta: string, _state: ConversationState): FlowResponse {
+  if (respuesta.length < 3) {
     return { reply: "Necesitamos más detalle. ¿Qué pasó?", nextStep: 21 };
   }
   return {
@@ -336,14 +441,13 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
   const desc = state.data.descripcionIncidente;
   const emoji = GRAVEDAD_EMOJI[gravedad];
 
-  // La notificación al CEO se maneja via el campo notify → handler.ts
   return {
     reply:
       `${emoji} *Incidente registrado*\n\n` +
       `Se notificó a la dirección de forma inmediata.\n` +
       `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
       `Gravedad: *${gravedad}*\n\n` +
-      "¿Necesitás registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+      "¿Necesitás registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
     nextStep: 99,
     data: { gravedadIncidente: gravedad, incidenteReportado: true },
     notify: {
@@ -360,174 +464,11 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
   };
 }
 
-// ── Comprobantes / Fotos ────────────────────────────────
-
-const TIPOS_COMPROBANTE: Record<string, TipoComprobante> = {
-  "1": "recoleccion",
-  "2": "combustible",
-  "3": "lavado",
-};
-
-const LABELS_COMPROBANTE: Record<string, string> = {
-  recoleccion: "Bidones recolectados",
-  combustible: "Ticket de combustible",
-  lavado: "Lavado de camión",
-};
-
-function handleTipoComprobante(respuesta: string): FlowResponse {
-  const tipo = TIPOS_COMPROBANTE[respuesta.trim()];
-
-  if (!tipo) {
-    return {
-      reply:
-        "Respondé con el número del tipo de comprobante:\n\n" +
-        "*1* - Foto de bidones recolectados\n" +
-        "*2* - Ticket de combustible\n" +
-        "*3* - Foto de lavado de camión",
-      nextStep: 30,
-    };
-  }
-
-  return {
-    reply:
-      `📸 *${LABELS_COMPROBANTE[tipo]}*\n\n` +
-      "Enviá la foto ahora.\n" +
-      "Podés adjuntar una imagen directamente en el chat.\n\n" +
-      "_El sistema va a leer automáticamente los datos de la foto._",
-    nextStep: 31,
-    data: { tipoComprobante: tipo },
-  };
-}
-
-async function handleRecibirFoto(
-  respuesta: string,
-  state: ConversationState,
-  mediaInfo?: MediaInfo,
-): Promise<FlowResponse> {
-  // Si no envió una imagen
-  if (!mediaInfo || mediaInfo.type !== "image") {
-    // Permitir cancelar
-    if (["cancelar", "volver", "atras", "no"].some((w) => respuesta.toLowerCase().includes(w))) {
-      return {
-        reply: "Cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-        nextStep: 99,
-      };
-    }
-
-    return {
-      reply:
-        "No recibí una imagen. Por favor *enviá una foto* desde la cámara o galería.\n\n" +
-        "Si querés cancelar, escribí *cancelar*.",
-      nextStep: 31,
-    };
-  }
-
-  // Procesar la imagen
-  const tipo = state.data.tipoComprobante as TipoComprobante;
-  const choferId = state.data.choferId || 0;
-
-  try {
-    const resultado = await procesarComprobante(mediaInfo.mediaId, tipo, choferId, {
-      litros: state.data.litros ? parseFloat(state.data.litros) : undefined,
-      bidones: state.data.bidones ? parseInt(state.data.bidones, 10) : undefined,
-      monto: state.data.montoCombustible ? parseFloat(state.data.montoCombustible) : undefined,
-    });
-
-    const datos = resultado.datosExtraidos;
-
-    // Construir resumen de lo que se detectó
-    let resumen = `📋 *Datos detectados en la foto:*\n\n`;
-
-    if (datos.litros) resumen += `  Litros: *${datos.litros}*\n`;
-    if (datos.bidones) resumen += `  Bidones: *${datos.bidones}*\n`;
-    if (datos.monto) resumen += `  Monto: *$${datos.monto.toLocaleString("es-AR")}*\n`;
-    if (datos.fecha) resumen += `  Fecha: *${datos.fecha}*\n`;
-    if (datos.patente) resumen += `  Patente: *${datos.patente}*\n`;
-
-    if (!datos.litros && !datos.bidones && !datos.monto && !datos.fecha) {
-      resumen += "  _No se pudo leer texto automáticamente de la imagen._\n";
-      resumen += "  _La foto quedó guardada igual como comprobante._\n";
-    }
-
-    resumen += `\n  Confianza: ${datos.confianza}%`;
-    resumen += `\n  Tipo: *${LABELS_COMPROBANTE[tipo]}*`;
-
-    resumen += "\n\n*1* - Confirmar y guardar";
-    resumen += "\n*2* - Enviar otra foto";
-    resumen += "\n*3* - Cancelar";
-
-    return {
-      reply: resumen,
-      nextStep: 32,
-      data: {
-        fotoPath: resultado.filePath,
-        fotoRegistroId: resultado.registroId,
-        fotoDatos: datos,
-        fotoGuardada: resultado.guardadoEnDB,
-      },
-    };
-  } catch (err) {
-    logger.error({ err, mediaId: mediaInfo.mediaId }, "Error procesando foto");
-
-    return {
-      reply:
-        "Hubo un error al procesar la foto. Podés intentar de nuevo:\n\n" +
-        "*1* - Enviar otra foto\n" +
-        "*2* - Volver al menú",
-      nextStep: 31,
-    };
-  }
-}
-
-function handleConfirmarDatosFoto(respuesta: string, state: ConversationState): FlowResponse {
-  const lower = respuesta.toLowerCase().trim();
-
-  if (lower === "1" || lower.includes("confirm") || lower.includes("si") || lower === "sí") {
-    const tipo = state.data.tipoComprobante as string;
-
-    return {
-      reply:
-        `✅ *Comprobante guardado*\n\n` +
-        `Tipo: *${LABELS_COMPROBANTE[tipo]}*\n` +
-        `La foto y los datos quedaron registrados en el sistema.\n\n` +
-        "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-      nextStep: 99,
-      data: { comprobanteGuardado: true },
-      notify: {
-        target: "admin",
-        message:
-          `📸 *Comprobante recibido*\n\n` +
-          `Chofer: *#${state.data.codigoChofer}*\n` +
-          `Tipo: *${LABELS_COMPROBANTE[tipo]}*\n` +
-          `Archivo: ${state.data.fotoPath || "guardado"}\n` +
-          (state.data.fotoDatos?.litros ? `Litros detectados: ${state.data.fotoDatos.litros}\n` : "") +
-          (state.data.fotoDatos?.monto ? `Monto detectado: $${state.data.fotoDatos.monto}\n` : "") +
-          (state.data.fotoDatos?.bidones ? `Bidones detectados: ${state.data.fotoDatos.bidones}\n` : "") +
-          `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
-          `_Notificación automática de GARYCIO_`,
-      },
-    };
-  }
-
-  if (lower === "2") {
-    return {
-      reply: "Enviá otra foto ahora:",
-      nextStep: 31,
-    };
-  }
-
-  // Cancelar
-  return {
-    reply: "Comprobante cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-    nextStep: 99,
-  };
-}
-
-// ── Donante de baja (steps 40-42) ──────────────────────────────────
+// ── Donante de baja (steps 30-32) ──────────────────────────────────
 
 function handleBajaDonante(respuesta: string): FlowResponse {
   if (respuesta.length < 3) {
-    return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 40 };
+    return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
   }
   return {
     reply:
@@ -539,7 +480,7 @@ function handleBajaDonante(respuesta: string): FlowResponse {
       "*4* - Dona muy poco\n" +
       "*5* - Otro motivo\n\n" +
       "Elegí una opción:",
-    nextStep: 41,
+    nextStep: 31,
     data: { bajaDonante: respuesta },
   };
 }
@@ -554,131 +495,206 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
   };
   const motivo = motivos[respuesta];
   if (!motivo) {
-    return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 41 };
+    return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
   }
   return {
     reply:
       `📋 *Confirmar reporte de baja*\n\n` +
       `📍 Donante: ${state.data.bajaDonante}\n` +
       `📝 Motivo: ${motivo}\n\n` +
-      "⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores.\n\n" +
+      "⚠️ Se notificará a los administradores y *se contactará automáticamente a la donante* para confirmar la situación.\n\n" +
       "*1* - Confirmar\n" +
       "*2* - Cancelar",
-    nextStep: 42,
+    nextStep: 32,
     data: { bajaMotivo: motivo },
   };
 }
 
-// ── Regalos entregados a peones (steps 50-52) ───────────────────────
-
-function handleRegalosInicio(respuesta: string, _state: ConversationState): FlowResponse {
-  const n = parseInt(respuesta, 10);
-  if (isNaN(n) || n <= 0 || n > 10) {
+function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "2") {
     return {
-      reply: "Ingresá el número de peones (entre 1 y 10):",
-      nextStep: 50,
+      reply: "Cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+      nextStep: 99,
     };
   }
+  if (respuesta !== "1") {
+    return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 32 };
+  }
+
   return {
     reply:
-      `Vamos a registrar los regalos entregados a *${n} peón${n > 1 ? "es" : ""}*.\n\n` +
-      "Para el *Peón #1*: ingresá el número de peón y la cantidad de regalos separados por coma.\n" +
-      "(ej: *01, 15* → Peón 01 recibió 15 regalos)",
-    nextStep: 51,
-    data: {
-      regalosTotal: n,
-      regalosStep: 1,
-      regalosLista: [] as Array<{ peon: string; cantidad: number }>,
+      "✅ *Reporte de baja enviado*\n\n" +
+      "Se notificó a los administradores y se contactará a la donante automáticamente para confirmar la situación.\n\n" +
+      "¿Querés registrar algo más?\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+    nextStep: 99,
+    data: { bajaReportada: true, bajaAutoContactar: true },
+    notify: {
+      target: "admin",
+      message:
+        `🔴 *Reporte de baja de donante*\n\n` +
+        `📍 Donante: ${state.data.bajaDonante}\n` +
+        `📝 Motivo: ${state.data.bajaMotivo}\n` +
+        `🚛 Reportado por: Chofer #${state.data.codigoChofer}\n\n` +
+        `⚠️ El bot contactará automáticamente a la donante para preguntar qué sucedió.\n` +
+        `Si la donante contradice la baja, se marcará como conflicto.`,
     },
   };
 }
 
-function handleRegalosRegistro(respuesta: string, state: ConversationState): FlowResponse {
-  const partes = respuesta.split(/[,;]/);
-  if (partes.length < 2) {
-    const step = state.data.regalosStep || 1;
-    return {
-      reply: `Formato incorrecto. Para el *Peón #${step}*: ingresá *número_de_peón, cantidad* (ej: *01, 15*):`,
-      nextStep: 51,
-    };
-  }
+// ── Regalos (steps 50-54) ─────────────────────────────────────────
 
-  const peon = partes[0].trim().padStart(2, "0");
-  const cantidad = parseInt(partes[1].trim(), 10);
+const LABELS_VEHICULO: Record<string, string> = {
+  "1": "Camión",
+  "2": "Peón 1",
+  "3": "Peón 2",
+  "4": "Peón 3",
+};
 
-  if (isNaN(cantidad) || cantidad < 0) {
-    return {
-      reply: "La cantidad debe ser un número válido (ej: *15*, *0*):",
-      nextStep: 51,
-    };
-  }
-
-  const lista: Array<{ peon: string; cantidad: number }> = [...(state.data.regalosLista || []), { peon, cantidad }];
-  const currentStep = state.data.regalosStep || 1;
-  const totalPeones = state.data.regalosTotal || 1;
-
-  if (currentStep < totalPeones) {
+function handleRegalosVehiculo(respuesta: string, _state: ConversationState): FlowResponse {
+  const label = LABELS_VEHICULO[respuesta.trim()];
+  if (!label) {
     return {
       reply:
-        `✅ Peón #${peon}: *${cantidad} regalos*\n\n` +
-        `Para el *Peón #${currentStep + 1}*: ingresá *número_de_peón, cantidad*:`,
-      nextStep: 51,
-      data: {
-        regalosStep: currentStep + 1,
-        regalosLista: lista,
-      },
+        "Opción no válida. ¿Para quién es el registro?\n\n" +
+        "*1* - Camión\n*2* - Peón 1\n*3* - Peón 2\n*4* - Peón 3",
+      nextStep: 50,
     };
   }
 
-  // Último peón → mostrar resumen para confirmar
-  const resumen = lista
-    .map((r) => `  • Peón #${r.peon}: *${r.cantidad} regalos*`)
+  const esPeon = respuesta.trim() !== "1";
+
+  if (esPeon) {
+    return {
+      reply: `Registrando regalos para *${label}*.\n\n¿Cuál es el *nombre* del peón?`,
+      nextStep: 51,
+      data: { regalosVehiculo: label, regalosEsPeon: true },
+    };
+  }
+
+  // Camión → directo al sub-tipo
+  return {
+    reply:
+      `Registrando regalos para *${label}*.\n\n` +
+      "¿Qué querés registrar?\n\n" +
+      "*1* - Entregados\n" +
+      "*2* - Faltantes\n" +
+      "*3* - Sobrantes\n" +
+      "*4* - Cambios\n\n" +
+      "Respondé con el número.",
+    nextStep: 52,
+    data: { regalosVehiculo: label, regalosEsPeon: false, regalosNombrePeon: null },
+  };
+}
+
+function handleRegalosNombrePeon(respuesta: string, _state: ConversationState): FlowResponse {
+  if (respuesta.length < 2) {
+    return { reply: "Ingresá el nombre del peón:", nextStep: 51 };
+  }
+
+  return {
+    reply:
+      `Peón: *${respuesta}*\n\n` +
+      "¿Qué querés registrar?\n\n" +
+      "*1* - Entregados\n" +
+      "*2* - Faltantes\n" +
+      "*3* - Sobrantes\n" +
+      "*4* - Cambios\n\n" +
+      "Respondé con el número.",
+    nextStep: 52,
+    data: { regalosNombrePeon: respuesta },
+  };
+}
+
+const LABELS_SUBTIPO_REGALO: Record<string, string> = {
+  "1": "Entregados",
+  "2": "Faltantes",
+  "3": "Sobrantes",
+  "4": "Cambios",
+};
+
+function handleRegalosSubTipo(respuesta: string, _state: ConversationState): FlowResponse {
+  const label = LABELS_SUBTIPO_REGALO[respuesta.trim()];
+  if (!label) {
+    return {
+      reply:
+        "Opción no válida.\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios",
+      nextStep: 52,
+    };
+  }
+
+  return {
+    reply: `¿Cuántos regalos *${label.toLowerCase()}*?`,
+    nextStep: 53,
+    data: { regalosSubTipo: label },
+  };
+}
+
+function handleRegalosCantidad(respuesta: string, state: ConversationState): FlowResponse {
+  const cantidad = parseInt(respuesta, 10);
+  if (isNaN(cantidad) || cantidad < 0) {
+    return { reply: "Ingresá un número válido (ej: *5*, *0*):", nextStep: 53 };
+  }
+
+  const vehiculo = state.data.regalosVehiculo || "?";
+  const nombre = state.data.regalosNombrePeon;
+  const subtipo = state.data.regalosSubTipo || "?";
+  const registro = { vehiculo, nombre, subtipo, cantidad };
+
+  const listaActual: Array<typeof registro> = [...(state.data.regalosLista || []), registro];
+
+  const resumen = listaActual
+    .map((r) => `  • ${r.vehiculo}${r.nombre ? ` (${r.nombre})` : ""}: ${r.cantidad} ${r.subtipo.toLowerCase()}`)
     .join("\n");
+
+  return {
+    reply:
+      `✅ Registrado: *${vehiculo}*${nombre ? ` (${nombre})` : ""} → *${cantidad} ${subtipo.toLowerCase()}*\n\n` +
+      `📋 *Resumen actual:*\n${resumen}\n\n` +
+      "¿Querés registrar más regalos?\n\n" +
+      "*1* - Sí, registrar otro\n" +
+      "*2* - No, confirmar y guardar",
+    nextStep: 54,
+    data: { regalosLista: listaActual, regalosUltimaCantidad: cantidad },
+  };
+}
+
+function handleRegalosOtroMas(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "1") {
+    return {
+      reply:
+        "🎁 ¿Para quién es el registro?\n\n" +
+        "*1* - Camión\n" +
+        "*2* - Peón 1\n" +
+        "*3* - Peón 2\n" +
+        "*4* - Peón 3\n\n" +
+        "Respondé con el número.",
+      nextStep: 50,
+    };
+  }
+
+  // Confirmar todo
+  const lista: Array<{ vehiculo: string; nombre: string | null; subtipo: string; cantidad: number }> =
+    state.data.regalosLista || [];
+
+  const resumenAdmin = lista
+    .map((r) => `  ${r.vehiculo}${r.nombre ? ` (${r.nombre})` : ""}: ${r.cantidad} ${r.subtipo.toLowerCase()}`)
+    .join("\n");
+
   const totalRegalos = lista.reduce((sum, r) => sum + r.cantidad, 0);
 
   return {
     reply:
-      `📋 *Resumen de regalos entregados*\n\n` +
-      `${resumen}\n\n` +
-      `📦 *Total entregado: ${totalRegalos} regalos*\n\n` +
-      "*1* - Confirmar | *2* - Corregir",
-    nextStep: 52,
-    data: {
-      regalosLista: lista,
-      regalosEntregadosTotal: totalRegalos,
-    },
-  };
-}
-
-function handleRegalosConfirmar(respuesta: string, state: ConversationState): FlowResponse {
-  if (respuesta === "2") {
-    return {
-      reply:
-        "Empecemos de nuevo. ¿A cuántos peones les entregaste regalos hoy?",
-      nextStep: 50,
-      data: { regalosLista: [], regalosStep: 1, regalosEntregadosTotal: 0 },
-    };
-  }
-
-  const lista: Array<{ peon: string; cantidad: number }> = state.data.regalosLista || [];
-  const total = state.data.regalosEntregadosTotal || 0;
-  const resumenAdmin = lista
-    .map((r) => `  Peón #${r.peon}: ${r.cantidad} regalos`)
-    .join("\n");
-
-  return {
-    reply:
       `✅ *Regalos registrados*\n\n` +
-      `📦 Total: *${total} regalos* distribuidos entre ${lista.length} peón${lista.length > 1 ? "es" : ""}.\n\n` +
-      "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+      `📦 Total registros: *${lista.length}*\n\n` +
+      "¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
     nextStep: 99,
     data: { regalosGuardados: true },
     notify: {
       target: "admin",
       message:
-        `🎁 *Regalos entregados por Chofer #${state.data.codigoChofer}*\n\n` +
-        `${resumenAdmin}\n` +
-        `📦 Total: ${total} regalos\n` +
+        `🎁 *Regalos registrados por Chofer #${state.data.codigoChofer}*\n\n` +
+        `${resumenAdmin}\n\n` +
+        `📦 Total: ${totalRegalos}\n` +
         `Hora: ${new Date().toLocaleTimeString("es-AR")}`,
     },
   };
@@ -703,54 +719,12 @@ function handleVolverOFinalizar(respuesta: string, state: ConversationState): Fl
     };
   }
 
-  // Cualquier otra respuesta (incluyendo "2") = finalizar jornada
-  const regalosTexto = state.data.regalosGuardados
-    ? `\nRegalos entregados: ${state.data.regalosEntregadosTotal || 0}`
-    : "";
-
+  // Cualquier otra respuesta no reconocida → re-preguntar
   return {
     reply:
-      `✅ *Jornada finalizada - Chofer #${state.data.codigoChofer}*\n\n` +
-      "¡Buen trabajo hoy! 💪 Los datos quedaron cargados.\n" +
-      "Mañana no te olvides de cargar los litros.",
-    endFlow: true,
-    notify: {
-      target: "admin",
-      message:
-        `📋 Chofer #${state.data.codigoChofer} finalizó su jornada.\n` +
-        `Litros: ${state.data.litros || "No registrado"}\n` +
-        `Bidones: ${state.data.bidones || "No registrado"}` +
-        regalosTexto,
-    },
-  };
-}
-
-function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
-  if (respuesta === "2") {
-    return {
-      reply: "Cancelado. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
-      nextStep: 99,
-    };
-  }
-  if (respuesta !== "1") {
-    return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 42 };
-  }
-
-  return {
-    reply:
-      "✅ *Reporte de baja enviado a los administradores*\n\n" +
-      "Ellos van a contactar a la donante para confirmar.\n\n" +
-      "¿Querés registrar algo más?\n*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal",
+      "No entendí. Respondé con:\n\n" +
+      "*1* - Sí, seguir registrando\n" +
+      "*0* - Volver al menú principal",
     nextStep: 99,
-    data: { bajaReportada: true },
-    notify: {
-      target: "admin",
-      message:
-        `🔴 *Reporte de baja de donante*\n\n` +
-        `📍 Donante: ${state.data.bajaDonante}\n` +
-        `📝 Motivo: ${state.data.bajaMotivo}\n` +
-        `🚛 Reportado por: Chofer #${state.data.codigoChofer}\n\n` +
-        `¿Contactar a la donante para confirmar?`,
-    },
   };
 }

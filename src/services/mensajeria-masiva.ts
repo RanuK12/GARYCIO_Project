@@ -1,7 +1,7 @@
 import { sendMessage, sendTemplate } from "../bot/client";
 import { sendBulkWithProgress } from "../bot/queue";
 import { db } from "../database";
-import { donantes, subZonas, mensajesLog } from "../database/schema";
+import { donantes, subZonas, mensajesLog, conversationStates } from "../database/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
@@ -199,12 +199,11 @@ export async function enviarAsignacionDias(subZonaCodigo: string): Promise<{
   const mensajes = donantesList.map((d) => ({
     phone: d.telefono,
     message:
-      `¡Hola ${d.nombre.split(" ")[0]}! 👋\n\n` +
-      `Te informamos que tu nuevo día de recolección es: *${dias}*.\n\n` +
-      `Nuestro recolector pasará por tu domicilio en esos días. ` +
-      `Por favor tené el bidón listo.\n\n` +
-      `Si tenés alguna duda o necesitás hacer un cambio, escribinos por acá.\n\n` +
-      `¡Gracias por tu colaboración! 🙌`,
+      `Buen día señora donante. Le hablamos de parte del laboratorio para informarle ` +
+      `que a partir del Lunes 13 de abril sus días de recolección van a ser: *${dias}* ` +
+      `entre las 8 y 9 de la mañana.\n\n` +
+      `Confirme recepción apretando el número *1*.\n` +
+      `De lo contrario, si tiene alguna otra consulta oprima *2*.`,
   }));
 
   logger.info(
@@ -236,12 +235,32 @@ export async function enviarAsignacionDias(subZonaCodigo: string): Promise<{
     },
   });
 
-  // Actualizar días de recolección en la DB para cada donante
+  // Actualizar días de recolección en la DB y preparar flow de difusión
   for (const d of donantesList) {
     await db
       .update(donantes)
       .set({ diasRecoleccion: dias, updatedAt: new Date() })
       .where(eq(donantes.id, d.id));
+
+    // Crear estado de conversación "difusion" para que al responder 1/2 se maneje correctamente
+    await db
+      .insert(conversationStates)
+      .values({
+        phone: d.telefono,
+        currentFlow: "difusion",
+        step: 0,
+        data: { diasAsignados: dias },
+        lastInteraction: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: conversationStates.phone,
+        set: {
+          currentFlow: "difusion",
+          step: 0,
+          data: { diasAsignados: dias },
+          lastInteraction: new Date(),
+        },
+      });
   }
 
   return {

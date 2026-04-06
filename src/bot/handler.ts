@@ -9,8 +9,9 @@ import {
   zonaChoferes,
   reclamos,
   mensajesLog,
+  reportesBaja,
 } from "../database/schema";
-import { eq, and, isNotNull, desc } from "drizzle-orm";
+import { eq, and, isNotNull, desc, ilike } from "drizzle-orm";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { FlowResponse } from "./flows";
@@ -239,6 +240,11 @@ async function saveFlowData(
       gravedad: data.gravedadIncidente || "media",
     });
   }
+
+  // Auto-contactar donante cuando el chofer reporta una baja
+  if (flowName === "chofer" && data.bajaAutoContactar && data.bajaDonante) {
+    await contactarDonanteParaBaja(data.bajaDonante, data.bajaMotivo, data.codigoChofer);
+  }
 }
 
 // ── Logging de mensajes ─────────────────────────────────
@@ -258,5 +264,62 @@ async function logMessage(
     });
   } catch (err) {
     logger.error({ phone, err }, "Error al loguear mensaje");
+  }
+}
+
+// ── Auto-contactar donante por baja reportada por chofer ──
+async function contactarDonanteParaBaja(
+  bajaDonante: string,
+  bajaMotivo: string,
+  codigoChofer: string,
+): Promise<void> {
+  try {
+    // Buscar la donante por nombre (coincidencia parcial)
+    const nombreBusqueda = bajaDonante.split(",")[0].trim(); // tomar el nombre antes de la dirección
+    const resultados = await db
+      .select({ id: donantes.id, nombre: donantes.nombre, telefono: donantes.telefono })
+      .from(donantes)
+      .where(ilike(donantes.nombre, `%${nombreBusqueda}%`))
+      .limit(3);
+
+    if (resultados.length === 0) {
+      logger.warn({ bajaDonante }, "No se encontró donante para auto-contacto de baja");
+      await sendMessage(
+        env.CEO_PHONE,
+        `⚠️ *No se pudo auto-contactar a la donante*\n\n` +
+        `Datos del chofer: ${bajaDonante}\n` +
+        `No se encontró en la base de datos. Contactar manualmente.`,
+      );
+      return;
+    }
+
+    // Tomar la primera coincidencia
+    const donante = resultados[0];
+
+    // Guardar reporte de baja en DB
+    await db.insert(reportesBaja).values({
+      donanteId: donante.id,
+      donanteNombre: bajaDonante,
+      reportadoPor: "chofer",
+      reportadoPorNombre: `Chofer #${codigoChofer}`,
+      motivo: bajaMotivo,
+      contactadaDonante: true,
+    });
+
+    // Enviar mensaje a la donante preguntando qué pasó
+    await sendMessage(
+      donante.telefono,
+      `Hola ${donante.nombre.split(" ")[0]}, te escribimos de parte del laboratorio. 💙\n\n` +
+      `Nuestro recolector nos informó que ya no estarías participando de la donación.\n\n` +
+      `Queríamos saber qué pasó y si hay algo en lo que podamos ayudarte.\n\n` +
+      `¿Podrías contarnos brevemente el motivo? Tu respuesta es muy importante para nosotros.`,
+    );
+
+    logger.info(
+      { donante: donante.nombre, telefono: donante.telefono, chofer: codigoChofer },
+      "Auto-contacto de baja enviado a donante",
+    );
+  } catch (err) {
+    logger.error({ bajaDonante, err }, "Error en auto-contacto de baja");
   }
 }

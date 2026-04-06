@@ -14,7 +14,7 @@ describe("avisoFlow", () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "1");
             expect(res.data?.tipoAviso).toBe("vacaciones");
-            expect(res.reply).toContain("vacaciones");
+            expect(res.reply).toContain("ausencia por motivo personal");
             expect(res.nextStep).toBe(1);
         });
 
@@ -22,28 +22,31 @@ describe("avisoFlow", () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "2");
             expect(res.data?.tipoAviso).toBe("enfermedad");
+            expect(res.reply).toContain("volvamos a visitar");
             expect(res.nextStep).toBe(1);
         });
 
-        it("acepta opción 3 (medicación)", async () => {
+        it("acepta opción 3 (cambio de dirección)", async () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "3");
-            expect(res.data?.tipoAviso).toBe("medicacion");
-            expect(res.nextStep).toBe(1);
+            expect(res.data?.tipoAviso).toBe("cambio_direccion");
+            expect(res.reply).toContain("dirección");
+            expect(res.nextStep).toBe(2);
         });
 
-        it("acepta opción '1' (vacaciones vía número)", async () => {
-            const state = createState("aviso", 0);
-            const res = await avisoFlow.handle(state, "1");
-            expect(res.data?.tipoAviso).toBe("vacaciones");
-            expect(res.nextStep).toBe(1);
-        });
-
-        it("acepta opción '4' (otro motivo)", async () => {
+        it("acepta opción 4 (cambio de teléfono)", async () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "4");
-            expect(res.data?.tipoAviso).toBe("otro");
-            expect(res.nextStep).toBe(1);
+            expect(res.data?.tipoAviso).toBe("cambio_telefono");
+            expect(res.reply).toContain("teléfono");
+            expect(res.nextStep).toBe(3);
+        });
+
+        it("acepta opción 0 (volver al menú principal)", async () => {
+            const state = createState("aviso", 0);
+            const res = await avisoFlow.handle(state, "0");
+            expect(res.endFlow).toBe(true);
+            expect(res.reply).toContain("menú principal");
         });
     });
 
@@ -79,7 +82,7 @@ describe("avisoFlow", () => {
         });
 
         it("acepta 'ni idea' sin fecha", async () => {
-            const state = createState("aviso", 1, { tipoAviso: "medicacion" });
+            const state = createState("aviso", 1, { tipoAviso: "vacaciones" });
             const res = await avisoFlow.handle(state, "ni idea");
             expect(res.data?.fechaVuelta).toBeNull();
         });
@@ -90,6 +93,42 @@ describe("avisoFlow", () => {
             expect(res.notify).toBeDefined();
             expect(res.notify?.target).toBe("chofer");
             expect(res.notify?.message).toContain("Aviso de donante");
+        });
+    });
+
+    describe("step 2 - cambio de dirección", () => {
+        it("rechaza dirección muy corta", async () => {
+            const state = createState("aviso", 2, { tipoAviso: "cambio_direccion" });
+            const res = await avisoFlow.handle(state, "abc");
+            expect(res.reply).toContain("más completa");
+            expect(res.nextStep).toBe(2);
+        });
+
+        it("acepta dirección válida", async () => {
+            const state = createState("aviso", 2, { tipoAviso: "cambio_direccion" });
+            const res = await avisoFlow.handle(state, "Av. Corrientes 1234, CABA");
+            expect(res.reply).toContain("Dirección actualizada");
+            expect(res.data?.nuevaDireccion).toBe("Av. Corrientes 1234, CABA");
+            expect(res.endFlow).toBe(true);
+            expect(res.notify?.target).toBe("admin");
+        });
+    });
+
+    describe("step 3 - cambio de teléfono", () => {
+        it("rechaza teléfono inválido", async () => {
+            const state = createState("aviso", 3, { tipoAviso: "cambio_telefono" });
+            const res = await avisoFlow.handle(state, "123");
+            expect(res.reply).toContain("No parece un número");
+            expect(res.nextStep).toBe(3);
+        });
+
+        it("acepta teléfono válido", async () => {
+            const state = createState("aviso", 3, { tipoAviso: "cambio_telefono" });
+            const res = await avisoFlow.handle(state, "1155667788");
+            expect(res.reply).toContain("Teléfono actualizado");
+            expect(res.data?.nuevoTelefono).toBe("1155667788");
+            expect(res.endFlow).toBe(true);
+            expect(res.notify?.target).toBe("admin");
         });
     });
 

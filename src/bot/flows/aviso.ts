@@ -2,15 +2,18 @@ import { FlowHandler, ConversationState, FlowResponse } from "./types";
 
 /**
  * Flow de avisos de donantes.
- * Tipos: vacaciones, enfermedad, medicación
  *
- * Secuencia:
- * 0 - Menú de tipo de aviso (SIEMPRE se muestra, no se saltea)
- * 1 - Fecha de vuelta
- * 2 - Confirmación → notifica al chofer
+ * Menú:
+ * 2-1  Vacaciones → ausencia por motivo personal → fecha de vuelta → notifica chofer
+ * 2-2  Enfermedad → ¿cuándo volvés a donar? → notifica chofer
+ * 2-3  Cambio de dirección → pedir nueva dirección
+ * 2-4  Cambio de teléfono → pedir nuevo número
  *
- * Post-flow (manejado por scheduler):
- * - El día de vuelta: recordatorio al chofer de que vuelve a donar
+ * Steps:
+ * 0 - Menú de tipo de aviso (SIEMPRE se muestra)
+ * 1 - Fecha de vuelta (vacaciones/enfermedad)
+ * 2 - Pedir nueva dirección (cambio de dirección)
+ * 3 - Pedir nuevo teléfono (cambio de teléfono)
  */
 export const avisoFlow: FlowHandler = {
   name: "aviso",
@@ -24,28 +27,41 @@ export const avisoFlow: FlowHandler = {
         return handleTipoAviso(respuesta);
       case 1:
         return handleFechaVuelta(respuesta, state);
+      case 2:
+        return handleCambioDireccion(respuesta, state);
+      case 3:
+        return handleCambioTelefono(respuesta, state);
       default:
         return { reply: "¡Registrado! Te deseamos lo mejor.", endFlow: true };
     }
   },
 };
 
+const MENU_AVISO =
+  "¿Por qué motivo nos querés avisar?\n\n" +
+  "*1* - Me voy de vacaciones 🏖️\n" +
+  "*2* - Aviso por enfermedad 🤒\n" +
+  "*3* - Cambio de dirección 📍\n" +
+  "*4* - Cambio de teléfono 📱\n" +
+  "*0* - Volver al menú principal\n\n" +
+  "Respondé con el número correspondiente.";
+
 // ── Paso 0: Elegir motivo ────────────────────────────────
 function handleTipoAviso(respuesta: string): FlowResponse {
-  const MENU_AVISO =
-    "¿Por qué motivo nos querés avisar?\n\n" +
-    "*1* - Me voy de vacaciones 🏖️\n" +
-    "*2* - Estoy enferma, no puedo donar 🤒\n" +
-    "*3* - Estoy tomando medicación 💊\n" +
-    "*4* - Otro motivo\n\n" +
-    "Respondé con el número correspondiente.";
-
   const map: Record<string, string> = {
     "1": "vacaciones",
     "2": "enfermedad",
-    "3": "medicacion",
-    "4": "otro",
+    "3": "cambio_direccion",
+    "4": "cambio_telefono",
   };
+
+  // Opción 0: Volver al menú principal
+  if (respuesta.trim() === "0") {
+    return {
+      reply: "Volviste al menú principal. Escribí cualquier cosa para ver las opciones.",
+      endFlow: true,
+    };
+  }
 
   const tipo = map[respuesta.trim()];
 
@@ -56,27 +72,58 @@ function handleTipoAviso(respuesta: string): FlowResponse {
     };
   }
 
-  const labels: Record<string, string> = {
-    vacaciones: "vacaciones 🏖️",
-    enfermedad: "enfermedad 🤒",
-    medicacion: "toma de medicación 💊",
-    otro: "otro motivo",
-  };
+  // Vacaciones → pedir fecha
+  if (tipo === "vacaciones") {
+    return {
+      reply:
+        "Registramos tu aviso por: *ausencia por motivo personal* 🏖️\n\n" +
+        "¿Cuándo calculás que volvés?\n\n" +
+        "Podés escribir:\n" +
+        "• Una fecha: *15/04*, *el lunes*, *en 2 semanas*\n" +
+        "• Cantidad de días: *3 días*, *una semana*\n" +
+        "• Si no sabés: *no sé*",
+      nextStep: 1,
+      data: { tipoAviso: tipo },
+    };
+  }
 
+  // Enfermedad → preguntar cuándo vuelve
+  if (tipo === "enfermedad") {
+    return {
+      reply:
+        "Lamentamos que no te sientas bien. 🤒\n\n" +
+        "¿Cuándo querés que te volvamos a visitar?\n\n" +
+        "Podés escribir:\n" +
+        "• Una fecha: *15/04*, *el lunes*\n" +
+        "• Cantidad de días: *3 días*, *una semana*\n" +
+        "• Si no sabés: *no sé*",
+      nextStep: 1,
+      data: { tipoAviso: tipo },
+    };
+  }
+
+  // Cambio de dirección
+  if (tipo === "cambio_direccion") {
+    return {
+      reply:
+        "📍 *Cambio de dirección*\n\n" +
+        "Escribí tu *nueva dirección completa* (calle, número, entre calles, barrio):",
+      nextStep: 2,
+      data: { tipoAviso: tipo },
+    };
+  }
+
+  // Cambio de teléfono
   return {
     reply:
-      `Registramos tu aviso por: *${labels[tipo]}*.\n\n` +
-      "¿Cuándo calculás que volvés a donar?\n\n" +
-      "Podés escribir:\n" +
-      "• Una fecha: *15/04*, *el lunes*, *en 2 semanas*\n" +
-      "• Cantidad de días: *3 días*, *una semana*\n" +
-      "• Si no sabés: *no sé*",
-    nextStep: 1,
+      "📱 *Cambio de teléfono*\n\n" +
+      "Escribí tu *nuevo número de teléfono*:",
+    nextStep: 3,
     data: { tipoAviso: tipo },
   };
 }
 
-// ── Paso 1: Fecha de vuelta ─────────────────────────────
+// ── Paso 1: Fecha de vuelta (vacaciones / enfermedad) ─────────────────
 function handleFechaVuelta(respuesta: string, state: ConversationState): FlowResponse {
   const lower = respuesta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -103,14 +150,67 @@ function handleFechaVuelta(respuesta: string, state: ConversationState): FlowRes
   };
 }
 
+// ── Paso 2: Cambio de dirección ─────────────────
+function handleCambioDireccion(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta.length < 5) {
+    return {
+      reply: "Necesitamos una dirección más completa. Por favor escribila con calle y número:",
+      nextStep: 2,
+    };
+  }
+
+  return {
+    reply:
+      `✅ *Dirección actualizada*\n\n` +
+      `📍 Nueva dirección: *${respuesta}*\n\n` +
+      "Le vamos a avisar al recolector de tu zona sobre el cambio. ¡Gracias!",
+    endFlow: true,
+    data: { nuevaDireccion: respuesta },
+    notify: {
+      target: "admin",
+      message:
+        `📍 *Cambio de dirección*\n\n` +
+        `📱 Donante: ${state.phone}\n` +
+        `📍 Nueva dirección: ${respuesta}\n\n` +
+        `Actualizar en el sistema y avisar al chofer.`,
+    },
+  };
+}
+
+// ── Paso 3: Cambio de teléfono ─────────────────
+function handleCambioTelefono(respuesta: string, state: ConversationState): FlowResponse {
+  const cleaned = respuesta.replace(/[\s\-().]/g, "");
+  if (cleaned.length < 8 || !/\d{8,}/.test(cleaned)) {
+    return {
+      reply: "No parece un número de teléfono válido. Ingresá un número con al menos 8 dígitos:",
+      nextStep: 3,
+    };
+  }
+
+  return {
+    reply:
+      `✅ *Teléfono actualizado*\n\n` +
+      `📱 Nuevo teléfono: *${respuesta}*\n\n` +
+      "Lo actualizamos en el sistema. ¡Gracias!",
+    endFlow: true,
+    data: { nuevoTelefono: respuesta },
+    notify: {
+      target: "admin",
+      message:
+        `📱 *Cambio de teléfono*\n\n` +
+        `📱 Donante actual: ${state.phone}\n` +
+        `📱 Nuevo teléfono: ${respuesta}\n\n` +
+        `Actualizar en el sistema.`,
+    },
+  };
+}
+
 function getTipoPorMotivo(tipo: string): string {
   switch (tipo) {
     case "enfermedad":
       return "¡Que te mejores pronto! 💪";
     case "vacaciones":
-      return "¡Que disfrutes las vacaciones! 🌞";
-    case "medicacion":
-      return "Cuando termines el tratamiento, avisanos y retomamos. 😊";
+      return "¡Que disfrutes! 🌞";
     default:
       return "Ante cualquier duda, escribinos por acá. ¡Hasta pronto!";
   }
@@ -119,10 +219,8 @@ function getTipoPorMotivo(tipo: string): string {
 function formatNotificacionChofer(state: ConversationState, fechaVuelta: string | null): string {
   const tipo = state.data.tipoAviso || "general";
   const labels: Record<string, string> = {
-    vacaciones: "Vacaciones",
+    vacaciones: "Ausencia por motivo personal",
     enfermedad: "Enfermedad",
-    medicacion: "Medicación",
-    otro: "Otro motivo",
   };
 
   return (
@@ -135,14 +233,6 @@ function formatNotificacionChofer(state: ConversationState, fechaVuelta: string 
 }
 
 // ── Parser de fechas completo ────────────────────────────
-/**
- * Parsea múltiples formatos de fecha/duración en español:
- * - "15/04", "15-04", "15/04/2025"
- * - "3 días", "una semana", "2 semanas"
- * - "el lunes", "el jueves"
- * - "en una semana", "en 10 días"
- * - "hasta el 20", "hasta el viernes"
- */
 function parsearFecha(lower: string, original: string): string | null {
   // Formato DD/MM o DD/MM/YYYY o DD-MM
   const regexFecha = /(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/;
@@ -168,7 +258,7 @@ function parsearFecha(lower: string, original: string): string | null {
     return fecha.toLocaleDateString("es-AR");
   }
 
-  // "una semana", "1 semana", "2 semanas", "una quincena"
+  // "una semana", "1 semana", "2 semanas"
   const regexSemanas = /(\d+|una?|dos|tres|cuatro)\s*semana/i;
   const matchSemanas = lower.match(regexSemanas);
   if (matchSemanas) {
@@ -195,7 +285,7 @@ function parsearFecha(lower: string, original: string): string | null {
     return fecha.toLocaleDateString("es-AR");
   }
 
-  // Día de la semana: "el lunes", "el viernes", "lunes que viene"
+  // Día de la semana: "el lunes", "el viernes"
   const diasSemana: Record<string, number> = {
     lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 0,
   };
@@ -204,7 +294,7 @@ function parsearFecha(lower: string, original: string): string | null {
       const hoy = new Date();
       const hoyDia = hoy.getDay();
       let diff = num - hoyDia;
-      if (diff <= 0) diff += 7; // próximo de esa semana
+      if (diff <= 0) diff += 7;
       hoy.setDate(hoy.getDate() + diff);
       return hoy.toLocaleDateString("es-AR");
     }

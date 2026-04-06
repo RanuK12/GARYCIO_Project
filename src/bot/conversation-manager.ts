@@ -118,6 +118,26 @@ export async function handleIncomingMessage(
 }> {
   let state = await getConversation(phone);
 
+  // ── "Hablar con una persona" — escape global ────────────
+  if (detectarHablarConPersona(message)) {
+    if (state) await endConversation(phone);
+    logger.info({ phone, message }, "Donante pidió hablar con persona — derivando");
+    return {
+      reply:
+        "Entendemos que necesitás hablar con alguien. 🙋\n\n" +
+        "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.\n\n" +
+        "Mientras tanto, si necesitás algo más podés escribirnos de nuevo.",
+      notify: {
+        target: "admin",
+        message:
+          `🙋 *SOLICITUD DE ATENCIÓN HUMANA*\n\n` +
+          `📱 Teléfono: ${phone}\n` +
+          `💬 Mensaje: "${message}"\n\n` +
+          `⚠️ La persona pidió hablar con alguien. Requiere contacto manual.`,
+      },
+    };
+  }
+
   if (!state) {
     // Detectar intención de darse de baja antes de mostrar menú
     const bajaIntent = detectarIntenciónBaja(message);
@@ -150,10 +170,10 @@ export async function handleIncomingMessage(
             "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
             "¿Qué querés hacer?\n\n" +
             "*1* - Tengo un reclamo\n" +
-            "*2* - Quiero dar un aviso (vacaciones/enfermedad)\n" +
-            "*3* - Tengo una consulta\n" +
+            "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
+            "*3* - Otro motivo\n" +
             "*4* - Panel de administración\n\n" +
-            "Respondé con el número o escribí directamente tu consulta.",
+            "Escribí *persona* en cualquier momento para hablar con alguien del equipo.",
         };
       }
 
@@ -162,9 +182,9 @@ export async function handleIncomingMessage(
           "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
           "¿En qué te puedo ayudar?\n\n" +
           "*1* - Tengo un reclamo\n" +
-          "*2* - Quiero dar un aviso (vacaciones/enfermedad)\n" +
-          "*3* - Tengo una consulta\n\n" +
-          "Respondé con el número o escribí directamente tu consulta.",
+          "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
+          "*3* - Otro motivo\n\n" +
+          "Escribí *persona* en cualquier momento para hablar con alguien del equipo.",
       };
     }
 
@@ -251,4 +271,24 @@ function detectarIntenciónBaja(message: string): boolean {
   ];
 
   return FRASES_BAJA.some((frase) => lower.includes(frase));
+}
+
+// ── Detección de "hablar con una persona" ───────────────
+function detectarHablarConPersona(message: string): boolean {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const FRASES = [
+    "hablar con una persona",
+    "hablar con alguien",
+    "quiero hablar con alguien",
+    "necesito hablar con alguien",
+    "operador",
+    "agente",
+    "persona",
+    "humano",
+    "atencion humana",
+    "quiero un humano",
+  ];
+
+  return FRASES.some((frase) => lower === frase || lower.includes(frase));
 }

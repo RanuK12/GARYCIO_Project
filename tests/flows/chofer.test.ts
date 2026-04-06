@@ -79,10 +79,10 @@ describe("choferFlow", () => {
     describe("step 1 - menú principal", () => {
         const baseData = { codigoChofer: "01", choferId: 1 };
 
-        it("opción 1 → registro de litros", async () => {
+        it("opción 1 → bidones recolectados", async () => {
             const state = createState("chofer", 1, baseData);
             const res = await choferFlow.handle(state, "1");
-            expect(res.reply).toContain("litros");
+            expect(res.reply).toContain("bidones");
             expect(res.nextStep).toBe(2);
         });
 
@@ -97,28 +97,23 @@ describe("choferFlow", () => {
             const state = createState("chofer", 1, baseData);
             const res = await choferFlow.handle(state, "3");
             expect(res.reply).toContain("Incidente");
+            expect(res.reply).toContain("Accidente en el tránsito");
             expect(res.nextStep).toBe(20);
         });
 
-        it("opción 4 → foto/comprobante", async () => {
+        it("opción 4 → baja donante", async () => {
             const state = createState("chofer", 1, baseData);
             const res = await choferFlow.handle(state, "4");
-            expect(res.reply).toContain("Comprobante");
+            expect(res.reply).toContain("baja");
             expect(res.nextStep).toBe(30);
         });
 
-        it("opción 5 → baja donante", async () => {
+        it("opción 5 → regalos", async () => {
             const state = createState("chofer", 1, baseData);
             const res = await choferFlow.handle(state, "5");
-            expect(res.reply).toContain("baja");
-            expect(res.nextStep).toBe(40);
-        });
-
-        it("opción 6 → regalos entregados a peones", async () => {
-            const state = createState("chofer", 1, baseData);
-            const res = await choferFlow.handle(state, "6");
             expect(res.nextStep).toBe(50);
-            expect(res.reply).toContain("peones");
+            expect(res.reply).toContain("Camión");
+            expect(res.reply).toContain("Peón");
         });
 
         it("opción 0 → volver al menú principal (endFlow)", async () => {
@@ -128,9 +123,9 @@ describe("choferFlow", () => {
             expect(res.reply).toContain("menú principal");
         });
 
-        it("keyword 'litros' → registro de litros", async () => {
+        it("keyword 'bidon' → registro de bidones", async () => {
             const state = createState("chofer", 1, baseData);
-            const res = await choferFlow.handle(state, "cargar litros");
+            const res = await choferFlow.handle(state, "cargar bidones");
             expect(res.nextStep).toBe(2);
         });
 
@@ -142,65 +137,50 @@ describe("choferFlow", () => {
         });
     });
 
-    describe("steps 2-4 - recolección", () => {
+    describe("steps 2-5 - recolección de bidones + foto", () => {
         const baseData = { codigoChofer: "01", choferId: 1 };
 
-        it("rechaza litros inválidos", async () => {
+        it("rechaza bidones inválidos", async () => {
             const state = createState("chofer", 2, baseData);
             const res = await choferFlow.handle(state, "abc");
-            expect(res.reply).toContain("número válido de litros");
+            expect(res.reply).toContain("número válido de bidones");
             expect(res.nextStep).toBe(2);
         });
 
-        it("acepta litros válidos", async () => {
+        it("acepta bidones válidos y muestra resumen", async () => {
             const state = createState("chofer", 2, baseData);
-            const res = await choferFlow.handle(state, "850");
-            expect(res.data?.litros).toBe(850);
-            expect(res.reply).toContain("850 litros");
-            expect(res.nextStep).toBe(3);
-        });
-
-        it("acepta litros decimales con coma", async () => {
-            const state = createState("chofer", 2, baseData);
-            const res = await choferFlow.handle(state, "1200,5");
-            expect(res.data?.litros).toBe(1200.5);
-        });
-
-        it("rechaza bidones inválidos", async () => {
-            const state = createState("chofer", 3, { ...baseData, litros: 850 });
-            const res = await choferFlow.handle(state, "nada");
-            expect(res.reply).toContain("número válido de bidones");
-            expect(res.nextStep).toBe(3);
-        });
-
-        it("acepta bidones y muestra resumen", async () => {
-            const state = createState("chofer", 3, { ...baseData, litros: 850 });
             const res = await choferFlow.handle(state, "17");
             expect(res.data?.bidones).toBe(17);
             expect(res.reply).toContain("Resumen de recolección");
-            expect(res.reply).toContain("850");
             expect(res.reply).toContain("17");
+            expect(res.nextStep).toBe(3);
+        });
+
+        it("confirma bidones → pide foto (step 4)", async () => {
+            const state = createState("chofer", 3, { ...baseData, bidones: 17 });
+            const res = await choferFlow.handle(state, "1");
+            expect(res.reply).toContain("Bidones registrados");
+            expect(res.reply).toContain("foto");
+            expect(res.data?.recoleccionGuardada).toBe(true);
+            expect(res.notify?.target).toBe("admin");
             expect(res.nextStep).toBe(4);
         });
 
-        it("confirma recolección → va a step 99 (no a step 1)", async () => {
-            const state = createState("chofer", 4, { ...baseData, litros: 850, bidones: 17 });
-            const res = await choferFlow.handle(state, "1");
-            expect(res.reply).toContain("Datos guardados");
-            expect(res.data?.recoleccionGuardada).toBe(true);
-            expect(res.notify?.target).toBe("admin");
-            // CRITICAL: debe ir a step 99 (volver/finalizar), NO a step 1 (menú)
-            expect(res.nextStep).toBe(99);
+        it("corrige bidones → vuelve a step 2", async () => {
+            const state = createState("chofer", 3, { ...baseData, bidones: 17 });
+            const res = await choferFlow.handle(state, "nah");
+            expect(res.nextStep).toBe(2);
         });
 
-        it("corrige recolección → vuelve a litros", async () => {
-            const state = createState("chofer", 4, { ...baseData, litros: 850, bidones: 17 });
-            const res = await choferFlow.handle(state, "2");
-            expect(res.nextStep).toBe(2);
+        it("foto omitida → step 99", async () => {
+            const state = createState("chofer", 4, { ...baseData, bidones: 17 });
+            const res = await choferFlow.handle(state, "omitir");
+            expect(res.reply).toContain("Foto omitida");
+            expect(res.nextStep).toBe(99);
         });
     });
 
-    describe("steps 10-11 - combustible", () => {
+    describe("steps 10-13 - combustible + foto", () => {
         const baseData = { codigoChofer: "01", choferId: 1 };
 
         it("rechaza formato inválido", async () => {
@@ -218,43 +198,74 @@ describe("choferFlow", () => {
             expect(res.nextStep).toBe(11);
         });
 
-        it("confirma combustible → va a step 99 (no a step 1)", async () => {
+        it("confirma combustible → pide foto (step 12)", async () => {
             const state = createState("chofer", 11, { ...baseData, litrosCombustible: 45, montoCombustible: 12500 });
             const res = await choferFlow.handle(state, "1");
             expect(res.reply).toContain("Combustible registrado");
+            expect(res.reply).toContain("foto");
             expect(res.notify?.target).toBe("admin");
-            // CRITICAL: debe ir a step 99
-            expect(res.nextStep).toBe(99);
+            expect(res.nextStep).toBe(12);
         });
     });
 
     describe("steps 20-22 - incidentes", () => {
         const baseData = { codigoChofer: "01", choferId: 1 };
 
-        it("pide tipo de incidente", async () => {
+        it("pide tipo de incidente en respuesta inválida", async () => {
             const state = createState("chofer", 20, baseData);
             const res = await choferFlow.handle(state, "99");
             expect(res.reply).toContain("número del tipo de incidente");
             expect(res.nextStep).toBe(20);
         });
 
-        it("acepta tipo de incidente", async () => {
+        it("acepta tipo 1 (accidente en el tránsito)", async () => {
             const state = createState("chofer", 20, baseData);
             const res = await choferFlow.handle(state, "1");
-            expect(res.data?.tipoIncidente).toBe("accidente");
-            expect(res.reply).toContain("Accidente de tránsito");
+            expect(res.data?.tipoIncidente).toBe("accidente_transito");
+            expect(res.reply).toContain("Accidente en el tránsito");
+            expect(res.nextStep).toBe(21);
+        });
+
+        it("acepta tipo 2 (retraso) → pregunta tiempo estimado", async () => {
+            const state = createState("chofer", 20, baseData);
+            const res = await choferFlow.handle(state, "2");
+            expect(res.data?.tipoIncidente).toBe("retraso");
+            expect(res.reply).toContain("cuánto tiempo");
+            expect(res.nextStep).toBe(21);
+        });
+
+        it("acepta tipo 3 (avería) → pregunta qué avería", async () => {
+            const state = createState("chofer", 20, baseData);
+            const res = await choferFlow.handle(state, "3");
+            expect(res.data?.tipoIncidente).toBe("averia");
+            expect(res.reply).toContain("avería");
+            expect(res.nextStep).toBe(21);
+        });
+
+        it("acepta tipo 4 (robo) → pregunta qué pasó y dónde", async () => {
+            const state = createState("chofer", 20, baseData);
+            const res = await choferFlow.handle(state, "4");
+            expect(res.data?.tipoIncidente).toBe("robo");
+            expect(res.reply).toContain("dónde");
+            expect(res.nextStep).toBe(21);
+        });
+
+        it("acepta tipo 5 (otro)", async () => {
+            const state = createState("chofer", 20, baseData);
+            const res = await choferFlow.handle(state, "5");
+            expect(res.data?.tipoIncidente).toBe("otro");
             expect(res.nextStep).toBe(21);
         });
 
         it("rechaza descripción muy corta", async () => {
-            const state = createState("chofer", 21, { ...baseData, tipoIncidente: "accidente" });
-            const res = await choferFlow.handle(state, "mal");
+            const state = createState("chofer", 21, { ...baseData, tipoIncidente: "accidente_transito" });
+            const res = await choferFlow.handle(state, "si");
             expect(res.reply).toContain("más detalle");
             expect(res.nextStep).toBe(21);
         });
 
         it("acepta descripción válida", async () => {
-            const state = createState("chofer", 21, { ...baseData, tipoIncidente: "accidente" });
+            const state = createState("chofer", 21, { ...baseData, tipoIncidente: "accidente_transito" });
             const res = await choferFlow.handle(state, "Choqué con un auto estacionado en la esquina");
             expect(res.data?.descripcionIncidente).toBeTruthy();
             expect(res.reply).toContain("¿Qué tan grave");
@@ -264,7 +275,7 @@ describe("choferFlow", () => {
         it("registra gravedad y notifica admin", async () => {
             const state = createState("chofer", 22, {
                 ...baseData,
-                tipoIncidente: "accidente",
+                tipoIncidente: "accidente_transito",
                 descripcionIncidente: "Choque con auto",
             });
             const res = await choferFlow.handle(state, "3");
@@ -272,7 +283,6 @@ describe("choferFlow", () => {
             expect(res.reply).toContain("Incidente registrado");
             expect(res.notify?.target).toBe("admin");
             expect(res.notify?.message).toContain("INCIDENTE REPORTADO");
-            // CRITICAL: debe ir a step 99
             expect(res.nextStep).toBe(99);
         });
 
@@ -285,99 +295,207 @@ describe("choferFlow", () => {
             const res = await choferFlow.handle(state, "xyz");
             expect(res.data?.gravedadIncidente).toBe("media");
         });
-    });
 
-    describe("step 99 - volver al menú o finalizar (FIX del ciclo)", () => {
-        const baseData = { codigoChofer: "01", choferId: 1, litros: 850, bidones: 17 };
-
-        it("opción 1 en step 99 → vuelve al menú chofer (step 1)", async () => {
-            const state = createState("chofer", 99, baseData);
-            const res = await choferFlow.handle(state, "1");
-            expect(res.nextStep).toBe(1);
-            expect(res.endFlow).toBeUndefined();
-            // Debe mostrar el menú completo de opciones
-            expect(res.reply).toContain("Litros y bidones");
-            expect(res.reply).toContain("combustible");
-            expect(res.reply).toContain("Reportar incidente");
-            expect(res.reply).toContain("Regalos entregados");
-            expect(res.reply).toContain("Volver al menú principal");
-        });
-
-        it("opción 0 en step 99 → vuelve al menú principal (endFlow)", async () => {
-            const state = createState("chofer", 99, baseData);
-            const res = await choferFlow.handle(state, "0");
-            expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("menú principal");
-        });
-
-        it("opción 2 en step 99 → finaliza jornada", async () => {
-            const state = createState("chofer", 99, baseData);
-            const res = await choferFlow.handle(state, "2");
-            expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("Jornada finalizada");
-            expect(res.notify?.target).toBe("admin");
-        });
-
-        it("cualquier otra respuesta en step 99 → finaliza jornada", async () => {
-            const state = createState("chofer", 99, baseData);
-            const res = await choferFlow.handle(state, "xyz");
-            expect(res.endFlow).toBe(true);
-        });
-
-        it("ciclo completo: litros → confirmar → step 99 → volver al menú → combustible", async () => {
-            // Simular el flujo completo que antes se rompía
-            const data = { codigoChofer: "01", choferId: 1 };
-
-            // 1. Ingreso de litros
-            let state = createState("chofer", 2, data);
-            let res = await choferFlow.handle(state, "850");
-            expect(res.nextStep).toBe(3);
-
-            // 2. Ingreso de bidones
-            state = createState("chofer", 3, { ...data, litros: 850 });
-            res = await choferFlow.handle(state, "17");
-            expect(res.nextStep).toBe(4);
-
-            // 3. Confirmación → va a step 99 (NO a step 1)
-            state = createState("chofer", 4, { ...data, litros: 850, bidones: 17 });
-            res = await choferFlow.handle(state, "1");
-            expect(res.nextStep).toBe(99);
-            // ANTES del fix: iba a step 1 y el "1" se interpretaba como "litros" de nuevo
-
-            // 4. Step 99: usuario dice "1" para volver al menú
-            state = createState("chofer", 99, { ...data, litros: 850, bidones: 17 });
-            res = await choferFlow.handle(state, "1");
-            expect(res.nextStep).toBe(1);
-            // Ahora muestra el menú correctamente
-
-            // 5. Ahora en el menú, el "2" es combustible (no se confunde)
-            state = createState("chofer", 1, { ...data, litros: 850, bidones: 17 });
-            res = await choferFlow.handle(state, "2");
-            expect(res.nextStep).toBe(10);
-            expect(res.reply).toContain("combustible");
+        it("no tiene opción 'problema climático' en menú de incidentes", async () => {
+            const state = createState("chofer", 1, baseData);
+            const res = await choferFlow.handle(state, "3");
+            expect(res.reply).not.toContain("climático");
+            expect(res.reply).not.toContain("Clima");
         });
     });
 
-    describe("steps 40-42 - baja donante", () => {
+    describe("steps 30-32 - baja donante", () => {
         const baseData = { codigoChofer: "01", choferId: 1 };
 
-        it("baja: confirmar → va a step 99", async () => {
-            const state = createState("chofer", 42, {
+        it("pide datos si input es muy corto", async () => {
+            const state = createState("chofer", 30, baseData);
+            const res = await choferFlow.handle(state, "ab");
+            expect(res.nextStep).toBe(30);
+        });
+
+        it("acepta nombre/dirección y pide motivo", async () => {
+            const state = createState("chofer", 30, baseData);
+            const res = await choferFlow.handle(state, "María López, Belgrano 123");
+            expect(res.data?.bajaDonante).toBe("María López, Belgrano 123");
+            expect(res.reply).toContain("motivo");
+            expect(res.nextStep).toBe(31);
+        });
+
+        it("acepta motivo y muestra confirmación", async () => {
+            const state = createState("chofer", 31, { ...baseData, bajaDonante: "María López, Belgrano 123" });
+            const res = await choferFlow.handle(state, "1");
+            expect(res.data?.bajaMotivo).toBe("No dona más");
+            expect(res.reply).toContain("Confirmar");
+            expect(res.reply).toContain("contactará automáticamente");
+            expect(res.nextStep).toBe(32);
+        });
+
+        it("confirmar baja → notifica admin y va a step 99", async () => {
+            const state = createState("chofer", 32, {
                 ...baseData,
                 bajaDonante: "María de Belgrano 123",
                 bajaMotivo: "No dona más",
             });
             const res = await choferFlow.handle(state, "1");
             expect(res.reply).toContain("Reporte de baja enviado");
+            expect(res.data?.bajaAutoContactar).toBe(true);
             expect(res.nextStep).toBe(99);
             expect(res.notify?.target).toBe("admin");
         });
 
-        it("baja: cancelar → va a step 99", async () => {
-            const state = createState("chofer", 42, baseData);
+        it("cancelar baja → va a step 99", async () => {
+            const state = createState("chofer", 32, baseData);
             const res = await choferFlow.handle(state, "2");
             expect(res.reply).toContain("Cancelado");
             expect(res.nextStep).toBe(99);
+        });
+    });
+
+    describe("steps 50-54 - regalos", () => {
+        const baseData = { codigoChofer: "01", choferId: 1 };
+
+        it("muestra sub-menú camión/peón", async () => {
+            const state = createState("chofer", 50, baseData);
+            const res = await choferFlow.handle(state, "99");
+            expect(res.reply).toContain("Camión");
+            expect(res.reply).toContain("Peón");
+            expect(res.nextStep).toBe(50);
+        });
+
+        it("opción 1 (Camión) → directo a sub-tipo", async () => {
+            const state = createState("chofer", 50, baseData);
+            const res = await choferFlow.handle(state, "1");
+            expect(res.data?.regalosVehiculo).toBe("Camión");
+            expect(res.reply).toContain("Entregados");
+            expect(res.reply).toContain("Faltantes");
+            expect(res.reply).toContain("Sobrantes");
+            expect(res.reply).toContain("Cambios");
+            expect(res.nextStep).toBe(52);
+        });
+
+        it("opción 2 (Peón 1) → pide nombre del peón", async () => {
+            const state = createState("chofer", 50, baseData);
+            const res = await choferFlow.handle(state, "2");
+            expect(res.data?.regalosVehiculo).toBe("Peón 1");
+            expect(res.data?.regalosEsPeon).toBe(true);
+            expect(res.reply).toContain("nombre");
+            expect(res.nextStep).toBe(51);
+        });
+
+        it("nombre del peón → sub-tipo", async () => {
+            const state = createState("chofer", 51, { ...baseData, regalosVehiculo: "Peón 1", regalosEsPeon: true });
+            const res = await choferFlow.handle(state, "Juan Pérez");
+            expect(res.data?.regalosNombrePeon).toBe("Juan Pérez");
+            expect(res.reply).toContain("Entregados");
+            expect(res.nextStep).toBe(52);
+        });
+
+        it("sub-tipo entregados → pide cantidad", async () => {
+            const state = createState("chofer", 52, { ...baseData, regalosVehiculo: "Camión" });
+            const res = await choferFlow.handle(state, "1");
+            expect(res.data?.regalosSubTipo).toBe("Entregados");
+            expect(res.reply).toContain("Cuántos");
+            expect(res.nextStep).toBe(53);
+        });
+
+        it("cantidad → muestra resumen y pregunta si registrar más", async () => {
+            const state = createState("chofer", 53, {
+                ...baseData,
+                regalosVehiculo: "Camión",
+                regalosSubTipo: "Entregados",
+                regalosLista: [],
+            });
+            const res = await choferFlow.handle(state, "5");
+            expect(res.data?.regalosUltimaCantidad).toBe(5);
+            expect(res.reply).toContain("Registrado");
+            expect(res.reply).toContain("5 entregados");
+            expect(res.nextStep).toBe(54);
+        });
+
+        it("registrar otro → vuelve a elegir camión/peón", async () => {
+            const state = createState("chofer", 54, {
+                ...baseData,
+                regalosLista: [{ vehiculo: "Camión", nombre: null, subtipo: "Entregados", cantidad: 5 }],
+            });
+            const res = await choferFlow.handle(state, "1");
+            expect(res.reply).toContain("Camión");
+            expect(res.nextStep).toBe(50);
+        });
+
+        it("confirmar regalos → notifica admin y va a step 99", async () => {
+            const state = createState("chofer", 54, {
+                ...baseData,
+                regalosLista: [{ vehiculo: "Camión", nombre: null, subtipo: "Entregados", cantidad: 5 }],
+            });
+            const res = await choferFlow.handle(state, "2");
+            expect(res.reply).toContain("Regalos registrados");
+            expect(res.notify?.target).toBe("admin");
+            expect(res.nextStep).toBe(99);
+        });
+    });
+
+    describe("step 99 - volver al menú o finalizar", () => {
+        const baseData = { codigoChofer: "01", choferId: 1, bidones: 17 };
+
+        it("opción 1 → vuelve al menú chofer (step 1)", async () => {
+            const state = createState("chofer", 99, baseData);
+            const res = await choferFlow.handle(state, "1");
+            expect(res.nextStep).toBe(1);
+            expect(res.endFlow).toBeUndefined();
+            expect(res.reply).toContain("Bidones recolectados");
+        });
+
+        it("opción 0 → vuelve al menú principal (endFlow)", async () => {
+            const state = createState("chofer", 99, baseData);
+            const res = await choferFlow.handle(state, "0");
+            expect(res.endFlow).toBe(true);
+            expect(res.reply).toContain("menú principal");
+        });
+
+        it("opción 2 → re-pregunta (no hay finalizar jornada)", async () => {
+            const state = createState("chofer", 99, baseData);
+            const res = await choferFlow.handle(state, "2");
+            expect(res.endFlow).toBeFalsy();
+            expect(res.nextStep).toBe(99);
+        });
+
+        it("cualquier otra respuesta → re-pregunta", async () => {
+            const state = createState("chofer", 99, baseData);
+            const res = await choferFlow.handle(state, "xyz");
+            expect(res.endFlow).toBeFalsy();
+            expect(res.nextStep).toBe(99);
+        });
+    });
+
+    describe("ciclo completo", () => {
+        it("bidones → foto → step 99 → volver → combustible", async () => {
+            const data = { codigoChofer: "01", choferId: 1 };
+
+            // 1. Ingreso de bidones
+            let state = createState("chofer", 2, data);
+            let res = await choferFlow.handle(state, "17");
+            expect(res.nextStep).toBe(3);
+
+            // 2. Confirmación
+            state = createState("chofer", 3, { ...data, bidones: 17 });
+            res = await choferFlow.handle(state, "1");
+            expect(res.nextStep).toBe(4);
+
+            // 3. Omitir foto → step 99
+            state = createState("chofer", 4, { ...data, bidones: 17 });
+            res = await choferFlow.handle(state, "omitir");
+            expect(res.nextStep).toBe(99);
+
+            // 4. Volver al menú
+            state = createState("chofer", 99, { ...data, bidones: 17 });
+            res = await choferFlow.handle(state, "1");
+            expect(res.nextStep).toBe(1);
+
+            // 5. Combustible
+            state = createState("chofer", 1, { ...data, bidones: 17 });
+            res = await choferFlow.handle(state, "2");
+            expect(res.nextStep).toBe(10);
+            expect(res.reply).toContain("combustible");
         });
     });
 
