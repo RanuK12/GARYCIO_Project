@@ -407,6 +407,22 @@ export const estadoDLQ = pgEnum("estado_dlq", [
   "exitoso",
 ]);
 
+// ============================================================
+// Difusión masiva — envíos y confirmaciones
+// ============================================================
+
+export const difusionEnvios = pgTable("difusion_envios", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull().unique(),
+  nombre: varchar("nombre", { length: 150 }),
+  diasRecoleccion: varchar("dias_recoleccion", { length: 100 }),
+  chofer: integer("chofer"),
+  horarioEstimado: varchar("horario_estimado", { length: 10 }),
+  confirmado: boolean("confirmado").default(false),
+  fechaEnvio: timestamp("fecha_envio").defaultNow(),
+  fechaConfirmacion: timestamp("fecha_confirmacion"),
+});
+
 export const deadLetterQueue = pgTable("dead_letter_queue", {
   id: serial("id").primaryKey(),
   telefono: varchar("telefono", { length: 20 }).notNull(),

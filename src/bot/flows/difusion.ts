@@ -1,10 +1,13 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { db } from "../../database";
+import { difusionEnvios } from "../../database/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Flow de difusión (broadcast).
  * Se activa automáticamente cuando se envía un mensaje masivo de asignación de días.
  * La donante recibe el mensaje y puede:
- *   1 → Confirmar recepción
+ *   1 → Confirmar recepción (se registra en difusion_envios)
  *   2 → Ir al menú de donantes para hacer otra consulta
  *
  * Steps:
@@ -26,13 +29,19 @@ export const difusionFlow: FlowHandler = {
   },
 };
 
-function handleRespuestaDifusion(respuesta: string, state: ConversationState): FlowResponse {
+async function handleRespuestaDifusion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   if (respuesta === "1") {
+    // Registrar confirmación en la DB
+    await db
+      .update(difusionEnvios)
+      .set({ confirmado: true, fechaConfirmacion: new Date() })
+      .where(eq(difusionEnvios.telefono, state.phone));
+
     return {
       reply:
         "✅ *Recepción confirmada*\n\n" +
         "¡Gracias por confirmar! Te esperamos en los días indicados.\n" +
-        "Recordá tener el bidón listo entre las 8 y 9 de la mañana.\n\n" +
+        "Recordá tener el bidón listo antes del horario indicado.\n\n" +
         "Si necesitás algo más, escribinos por acá. ¡Buen día!",
       endFlow: true,
       data: { confirmado: true },

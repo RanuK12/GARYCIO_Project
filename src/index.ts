@@ -24,8 +24,8 @@ import { notificarAdmins } from "./services/reportes-ceo";
 import { enviarEncuestaMensual } from "./services/encuesta-regalo";
 import { verificarProgresoRutas, obtenerResumenProgreso } from "./services/progreso-ruta";
 import { db } from "./database";
-import { donantes, reclamos, avisos, reportesBaja } from "./database/schema";
-import { eq, and, gte, lte, or, ilike, sql } from "drizzle-orm";
+import { donantes, reclamos, avisos, reportesBaja, difusionEnvios } from "./database/schema";
+import { eq, and, gte, lte, or, ilike, sql, isNull, count } from "drizzle-orm";
 
 const startTime = new Date();
 let requestCount = 0;
@@ -397,6 +397,69 @@ async function main(): Promise<void> {
     try {
       const result = await verificarProgresoRutas();
       res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Difusión — tracking de confirmaciones ───────────
+  app.get("/admin/difusion/stats", async (_req, res) => {
+    try {
+      const [total] = await db.select({ total: count() }).from(difusionEnvios);
+      const [confirmados] = await db
+        .select({ total: count() })
+        .from(difusionEnvios)
+        .where(eq(difusionEnvios.confirmado, true));
+      const totalNum = Number(total.total);
+      const confirmadosNum = Number(confirmados.total);
+      res.json({
+        status: "ok",
+        total: totalNum,
+        confirmados: confirmadosNum,
+        pendientes: totalNum - confirmadosNum,
+        porcentaje: totalNum > 0 ? Math.round((confirmadosNum / totalNum) * 100) : 0,
+      });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/difusion/pendientes", async (req, res) => {
+    const horas = parseInt(req.query.horas as string) || 0;
+    try {
+      const condiciones = [eq(difusionEnvios.confirmado, false)];
+      if (horas > 0) {
+        const corte = new Date(Date.now() - horas * 60 * 60 * 1000);
+        condiciones.push(lte(difusionEnvios.fechaEnvio, corte));
+      }
+      const pendientes = await db
+        .select()
+        .from(difusionEnvios)
+        .where(and(...condiciones))
+        .orderBy(difusionEnvios.fechaEnvio);
+      res.json({ status: "ok", horas_desde_envio: horas, total: pendientes.length, pendientes });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/difusion/reenviar-pendientes", async (req, res) => {
+    const horas = parseInt(req.query.horas as string) || 48;
+    try {
+      const corte = new Date(Date.now() - horas * 60 * 60 * 1000);
+      const pendientes = await db
+        .select({ telefono: difusionEnvios.telefono })
+        .from(difusionEnvios)
+        .where(and(eq(difusionEnvios.confirmado, false), lte(difusionEnvios.fechaEnvio, corte)));
+
+      if (pendientes.length === 0) {
+        res.json({ status: "ok", mensaje: "No hay pendientes para reenviar", total: 0 });
+        return;
+      }
+
+      const telefonos = new Set(pendientes.map((p) => p.telefono));
+      const result = await enviarDifusionPorRutas({ telefonos });
+      res.json({ status: "ok", horas_desde_envio: horas, ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }

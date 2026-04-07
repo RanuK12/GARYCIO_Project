@@ -481,7 +481,7 @@ function selectRole(role) {
     conversationState.flow = 'difusion';
     conversationState.step = 0;
     conversationState.data = { diasAsignados: 'Lunes y Jueves', chofer: 2 };
-    addMessage('Buen día *María*. Le hablamos de parte del laboratorio GARYCIO para informarle que sus días de recolección son: *Lunes y Jueves*, y le corresponde el *Camión #2*.\n\nEl horario de paso es entre las *8 y 9 de la mañana*.\n\nConfirme recepción apretando el número *1*.\nDe lo contrario, si tiene alguna otra consulta oprima *2*.', 'received');
+    addMessage('Buen día *María*. Le hablamos de parte del laboratorio para informarle que sus días de recolección son: *Lunes y Jueves*, y le corresponde el *Camión #2*.\n\nEl horario estimado de paso es alrededor de las *07:45 hs*.\n\nConfirme recepción apretando el número *1*.\nDe lo contrario, si tiene alguna otra consulta oprima *2*.', 'received');
     document.getElementById('infoFlow').textContent = 'difusion';
     document.getElementById('infoStep').textContent = '0';
   } else if (role === 'chofer') {

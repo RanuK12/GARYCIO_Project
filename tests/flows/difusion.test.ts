@@ -1,3 +1,25 @@
+jest.mock("../../src/config/env", () => ({
+    env: {
+        CEO_PHONE: "5411000000",
+        ADMIN_PHONES: "5411000000",
+        BOT_SESSION_NAME: "test",
+        PORT: 3000,
+        NODE_ENV: "test",
+        LOG_LEVEL: "silent",
+        DATABASE_URL: "postgres://test",
+    },
+}));
+
+jest.mock("../../src/database", () => ({
+    db: {
+        update: jest.fn().mockReturnValue({
+            set: jest.fn().mockReturnValue({
+                where: jest.fn().mockResolvedValue(undefined),
+            }),
+        }),
+    },
+}));
+
 import { difusionFlow } from "../../src/bot/flows/difusion";
 import { createState } from "../helpers";
 

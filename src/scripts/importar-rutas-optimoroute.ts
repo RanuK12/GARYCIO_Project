@@ -34,7 +34,7 @@ import * as XLSX from "xlsx";
 
 // ── Configuración de archivos ────────────────────────────────────
 
-const RUTAS_DIR = path.join(__dirname, "../data/rutas");
+const RUTAS_DIR = path.join(__dirname, "../../data/rutas");
 
 const DIAS_MAP: Record<string, string> = {
   LJ: "Lunes y Jueves",

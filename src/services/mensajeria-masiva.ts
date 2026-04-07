@@ -1,11 +1,11 @@
 import { sendMessage, sendTemplate } from "../bot/client";
 import { sendBulkWithProgress } from "../bot/queue";
 import { db } from "../database";
-import { donantes, subZonas, mensajesLog, conversationStates } from "../database/schema";
+import { donantes, subZonas, mensajesLog, conversationStates, difusionEnvios } from "../database/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
-import { importarRutas, type DonantesRuta } from "../../scripts/importar-rutas-optimoroute";
+import { importarRutas, type DonantesRuta } from "../scripts/importar-rutas-optimoroute";
 
 interface DonanteMensaje {
   id: number;
@@ -290,6 +290,7 @@ export async function enviarDifusionPorRutas(opciones?: {
   ruta?: string;
   dias?: string;
   chofer?: number;
+  telefonos?: Set<string>;
 }): Promise<{
   total: number;
   enviados: number;
@@ -315,6 +316,12 @@ export async function enviarDifusionPorRutas(opciones?: {
   if (opciones?.chofer) {
     donantesFiltrados = donantesFiltrados.filter(
       (d) => d.chofer === opciones.chofer,
+    );
+  }
+
+  if (opciones?.telefonos) {
+    donantesFiltrados = donantesFiltrados.filter(
+      (d) => opciones.telefonos!.has(d.celularWhatsApp),
     );
   }
 
@@ -358,6 +365,7 @@ export async function enviarDifusionPorRutas(opciones?: {
   });
 
   // Crear estado de conversación "difusion" para cada donante
+  // y registrar el envío en difusion_envios para tracking de confirmaciones
   for (const d of donantesFiltrados) {
     await db
       .insert(conversationStates)
@@ -375,6 +383,27 @@ export async function enviarDifusionPorRutas(opciones?: {
           step: 0,
           data: { diasAsignados: d.diasRecoleccion, chofer: d.chofer },
           lastInteraction: new Date(),
+        },
+      });
+
+    await db
+      .insert(difusionEnvios)
+      .values({
+        telefono: d.celularWhatsApp,
+        nombre: d.nombre,
+        diasRecoleccion: d.diasRecoleccion,
+        chofer: d.chofer,
+        horarioEstimado: d.horarioEstimado ?? null,
+        confirmado: false,
+        fechaEnvio: new Date(),
+        fechaConfirmacion: null,
+      })
+      .onConflictDoUpdate({
+        target: difusionEnvios.telefono,
+        set: {
+          confirmado: false,
+          fechaEnvio: new Date(),
+          fechaConfirmacion: null,
         },
       });
   }
@@ -409,12 +438,15 @@ export async function enviarDifusionPorRutas(opciones?: {
 
 function generarMensajeDifusionRuta(donante: DonantesRuta): string {
   const nombre = donante.nombre;
+  const horario = donante.horarioEstimado
+    ? `El horario estimado de paso es alrededor de las *${donante.horarioEstimado} hs*.`
+    : `El horario de paso es entre las *8 y 9 de la mañana*.`;
 
   return (
-    `Buen día *${nombre}*. Le hablamos de parte del laboratorio GARYCIO ` +
+    `Buen día *${nombre}*. Le hablamos de parte del laboratorio ` +
     `para informarle que sus días de recolección son: *${donante.diasRecoleccion}*, ` +
     `y le corresponde el *Camión #${donante.chofer}*.\n\n` +
-    `El horario de paso es entre las *8 y 9 de la mañana*.\n\n` +
+    `${horario}\n\n` +
     `Confirme recepción apretando el número *1*.\n` +
     `De lo contrario, si tiene alguna otra consulta oprima *2*.`
   );
