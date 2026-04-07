@@ -477,11 +477,11 @@ function selectRole(role) {
     addMessage('Hola', 'sent');
     setTimeout(() => processBot('hola'), 800);
   } else if (role === 'donante_difusion') {
-    // Simulamos que el bot ya mandó un mensaje de difusión
+    // Simulamos que el bot ya mandó un mensaje de difusión con ruta OptimoRoute
     conversationState.flow = 'difusion';
     conversationState.step = 0;
-    conversationState.data = { diasAsignados: 'lunes y jueves' };
-    addMessage('📢 *Buen día señora donante.*\n\nLe hablamos de parte del laboratorio GARYCIO para recordarle que su día de recolección es: *lunes y jueves*.\n\nResponda:\n*1* - Confirmado, gracias\n*2* - Ver menú de opciones', 'received');
+    conversationState.data = { diasAsignados: 'Lunes y Jueves', chofer: 2 };
+    addMessage('Buen día *María*. Le hablamos de parte del laboratorio GARYCIO para informarle que sus días de recolección son: *Lunes y Jueves*, y le corresponde el *Camión #2*.\n\nEl horario de paso es entre las *8 y 9 de la mañana*.\n\nConfirme recepción apretando el número *1*.\nDe lo contrario, si tiene alguna otra consulta oprima *2*.', 'received');
     document.getElementById('infoFlow').textContent = 'difusion';
     document.getElementById('infoStep').textContent = '0';
   } else if (role === 'chofer') {

@@ -5,6 +5,7 @@ import { donantes, subZonas, mensajesLog, conversationStates } from "../database
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
+import { importarRutas, type DonantesRuta } from "../../scripts/importar-rutas-optimoroute";
 
 interface DonanteMensaje {
   id: number;
@@ -268,4 +269,153 @@ export async function enviarAsignacionDias(subZonaCodigo: string): Promise<{
     enviados: resultado.sent,
     fallidos: resultado.failed,
   };
+}
+
+// ============================================================
+// Envío masivo basado en rutas de OptimoRoute
+// ============================================================
+
+/**
+ * Envía mensajes de difusión personalizados a los donantes según sus rutas
+ * asignadas por OptimoRoute. Cada donante recibe un mensaje indicando
+ * qué días le pasan a buscar y qué chofer/camión le corresponde.
+ *
+ * Opciones:
+ *   ruta - Filtrar por ruta específica (ej: "LJ_1", "MS_2", "MV_3")
+ *          Si no se especifica, envía a TODAS las rutas.
+ *   dias - Filtrar por días (ej: "LJ" para Lunes/Jueves)
+ *   chofer - Filtrar por número de chofer (1, 2 o 3)
+ */
+export async function enviarDifusionPorRutas(opciones?: {
+  ruta?: string;
+  dias?: string;
+  chofer?: number;
+}): Promise<{
+  total: number;
+  enviados: number;
+  fallidos: number;
+  porRuta: Record<string, { enviados: number; fallidos: number }>;
+}> {
+  const resumenRutas = importarRutas();
+
+  let donantesFiltrados = resumenRutas.donantes;
+
+  if (opciones?.ruta) {
+    donantesFiltrados = donantesFiltrados.filter(
+      (d) => d.archivoOrigen === opciones.ruta,
+    );
+  }
+
+  if (opciones?.dias) {
+    donantesFiltrados = donantesFiltrados.filter(
+      (d) => d.archivoOrigen.startsWith(opciones.dias!),
+    );
+  }
+
+  if (opciones?.chofer) {
+    donantesFiltrados = donantesFiltrados.filter(
+      (d) => d.chofer === opciones.chofer,
+    );
+  }
+
+  donantesFiltrados = donantesFiltrados.filter((d) => d.celularWhatsApp);
+
+  logger.info(
+    { total: donantesFiltrados.length, filtros: opciones },
+    "Iniciando envío masivo por rutas OptimoRoute",
+  );
+
+  if (donantesFiltrados.length === 0) {
+    return { total: 0, enviados: 0, fallidos: 0, porRuta: {} };
+  }
+
+  const mensajes = donantesFiltrados.map((d) => ({
+    phone: d.celularWhatsApp,
+    message: generarMensajeDifusionRuta(d),
+  }));
+
+  const resultado = await sendBulkWithProgress(mensajes, async (phone, message) => {
+    try {
+      await sendMessage(phone, message);
+    } catch (err) {
+      await addToDeadLetterQueue({
+        telefono: phone,
+        tipo: "texto",
+        contenido: message,
+        errorMessage: (err as Error).message,
+      });
+      throw err;
+    }
+  }, {
+    delayMs: 50,
+    batchSize: 500,
+    batchPauseMs: 5000,
+    onProgress: (sent, failed, total) => {
+      if ((sent + failed) % 200 === 0) {
+        logger.info({ sent, failed, total }, "Progreso envío rutas OptimoRoute");
+      }
+    },
+  });
+
+  // Crear estado de conversación "difusion" para cada donante
+  for (const d of donantesFiltrados) {
+    await db
+      .insert(conversationStates)
+      .values({
+        phone: d.celularWhatsApp,
+        currentFlow: "difusion",
+        step: 0,
+        data: { diasAsignados: d.diasRecoleccion, chofer: d.chofer },
+        lastInteraction: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: conversationStates.phone,
+        set: {
+          currentFlow: "difusion",
+          step: 0,
+          data: { diasAsignados: d.diasRecoleccion, chofer: d.chofer },
+          lastInteraction: new Date(),
+        },
+      });
+  }
+
+  // Resumen por ruta
+  const porRuta: Record<string, { enviados: number; fallidos: number }> = {};
+  const erroresSet = new Set(resultado.errors.map((e) => e.phone));
+
+  for (const d of donantesFiltrados) {
+    if (!porRuta[d.archivoOrigen]) {
+      porRuta[d.archivoOrigen] = { enviados: 0, fallidos: 0 };
+    }
+    if (erroresSet.has(d.celularWhatsApp)) {
+      porRuta[d.archivoOrigen].fallidos++;
+    } else {
+      porRuta[d.archivoOrigen].enviados++;
+    }
+  }
+
+  logger.info(
+    { total: donantesFiltrados.length, enviados: resultado.sent, fallidos: resultado.failed, porRuta },
+    "Envío masivo por rutas completado",
+  );
+
+  return {
+    total: donantesFiltrados.length,
+    enviados: resultado.sent,
+    fallidos: resultado.failed,
+    porRuta,
+  };
+}
+
+function generarMensajeDifusionRuta(donante: DonantesRuta): string {
+  const nombre = donante.nombre;
+
+  return (
+    `Buen día *${nombre}*. Le hablamos de parte del laboratorio GARYCIO ` +
+    `para informarle que sus días de recolección son: *${donante.diasRecoleccion}*, ` +
+    `y le corresponde el *Camión #${donante.chofer}*.\n\n` +
+    `El horario de paso es entre las *8 y 9 de la mañana*.\n\n` +
+    `Confirme recepción apretando el número *1*.\n` +
+    `De lo contrario, si tiene alguna otra consulta oprima *2*.`
+  );
 }

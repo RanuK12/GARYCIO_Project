@@ -8,7 +8,7 @@ import { initReporteDiario } from "./services/reporte-diario";
 import { getDLQStats, retryDeadLetterQueue } from "./services/dead-letter-queue";
 import { geocodeBatch } from "./services/geocoding";
 import { asignarSubZonas, generarRutaParaSubZona } from "./services/route-optimizer";
-import { enviarAsignacionDias } from "./services/mensajeria-masiva";
+import { enviarAsignacionDias, enviarDifusionPorRutas } from "./services/mensajeria-masiva";
 import { generarResumenCEO, generarReporteCEOPDF } from "./services/reportes-ceo";
 import {
   obtenerPosiciones,
@@ -182,6 +182,21 @@ async function main(): Promise<void> {
     }
     try {
       const result = await enviarAsignacionDias(subZona);
+      res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Envío masivo por rutas OptimoRoute ──────────────
+  app.post("/admin/enviar-rutas", async (req, res) => {
+    const { ruta, dias, chofer } = req.body as {
+      ruta?: string;
+      dias?: string;
+      chofer?: number;
+    };
+    try {
+      const result = await enviarDifusionPorRutas({ ruta, dias, chofer });
       res.json({ status: "ok", ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
