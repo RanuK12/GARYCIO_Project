@@ -127,6 +127,16 @@ async function main(): Promise<void> {
     });
   });
 
+  // ── Autenticación para endpoints admin ───────────
+  app.use("/admin", (req, res, next) => {
+    const key = req.headers["x-admin-key"] as string | undefined;
+    if (!key || key !== env.ADMIN_API_KEY) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    next();
+  });
+
   // ── Endpoints administrativos ────────────────────
   app.post("/admin/dlq/retry", async (_req, res) => {
     try {

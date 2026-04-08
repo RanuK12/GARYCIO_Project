@@ -26,7 +26,15 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
 
   // WhatsApp Business Phone (el número real)
-  WHATSAPP_BUSINESS_PHONE: z.string().default("5491171560000"),
+  WHATSAPP_BUSINESS_PHONE: z.string().default(""),
+
+  // API Key para proteger endpoints /admin/*
+  ADMIN_API_KEY: z.string().min(16),
+
+  // Difusión: usar template aprobado por Meta (categoría utility = más barato)
+  // false = texto libre (marketing, más caro), true = template "recoleccion_aviso" (utility)
+  DIFUSION_USE_TEMPLATE: z.coerce.boolean().default(false),
+  DIFUSION_TEMPLATE_NAME: z.string().default("recoleccion_aviso"),
 
   // Rate limiting & queue
   SEND_RATE_PER_SECOND: z.coerce.number().default(30),
@@ -52,7 +60,7 @@ const envSchema = z.object({
   ITURAN_API_URL: z.string().default("https://web2.ituran.com.ar/ibi2_services/tripsData.svc/GetTripsByDateDriverNVehicleNTripID"),
 
   // Admin phones para alertas CEO (comma-separated)
-  ADMIN_PHONES: z.string().default("5491130128112,5491151042517"),
+  ADMIN_PHONES: z.string().default(""),
 
   // Límite de velocidad para alertas (km/h)
   SPEED_LIMIT_KMH: z.coerce.number().default(80),

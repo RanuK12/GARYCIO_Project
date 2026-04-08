@@ -1,9 +1,10 @@
-import { sendMessage, sendTemplate } from "../bot/client";
+import { sendMessage, sendTemplate, WhatsAppAPIError } from "../bot/client";
 import { sendBulkWithProgress } from "../bot/queue";
 import { db } from "../database";
 import { donantes, subZonas, mensajesLog, conversationStates, difusionEnvios } from "../database/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../config/logger";
+import { env } from "../config/env";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
 import { importarRutas, type DonantesRuta } from "../scripts/importar-rutas-optimoroute";
 
@@ -341,14 +342,37 @@ export async function enviarDifusionPorRutas(opciones?: {
     message: generarMensajeDifusionRuta(d),
   }));
 
+  const usarTemplate = env.DIFUSION_USE_TEMPLATE;
+  const templateName = env.DIFUSION_TEMPLATE_NAME;
+
   const resultado = await sendBulkWithProgress(mensajes, async (phone, message) => {
     try {
-      await sendMessage(phone, message);
+      if (usarTemplate) {
+        // Modo utility: usa template aprobado por Meta (más barato, sin categoría marketing)
+        // El template debe tener parámetros: {{1}}=nombre, {{2}}=días, {{3}}=camión, {{4}}=horario
+        const donante = donantesFiltrados.find((d) => d.celularWhatsApp === phone);
+        const horario = donante?.horarioEstimado ?? "a determinar";
+        await sendTemplate(phone, templateName, "es_AR", [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: donante?.nombre ?? "" },
+              { type: "text", text: donante?.diasRecoleccion ?? "" },
+              { type: "text", text: String(donante?.chofer ?? "") },
+              { type: "text", text: horario },
+            ],
+          },
+        ]);
+      } else {
+        // Modo texto libre (funciona sin template pero Meta cobra como marketing)
+        await sendMessage(phone, message);
+      }
     } catch (err) {
       await addToDeadLetterQueue({
         telefono: phone,
-        tipo: "texto",
+        tipo: usarTemplate ? "template" : "texto",
         contenido: message,
+        templateName: usarTemplate ? templateName : undefined,
         errorMessage: (err as Error).message,
       });
       throw err;

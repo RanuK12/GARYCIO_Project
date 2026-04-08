@@ -6,6 +6,9 @@ import * as schema from "./schema";
 
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
+  // SSL requerido en producción (Oracle Cloud, Railway, Supabase, etc.)
+  // Si DATABASE_URL ya incluye ?sslmode=disable, esto no aplica
+  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
 pool.on("error", (err) => {
