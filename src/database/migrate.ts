@@ -321,6 +321,18 @@ const migrations = [
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
   )`,
+
+  `CREATE TABLE IF NOT EXISTS difusion_envios (
+    id SERIAL PRIMARY KEY,
+    telefono VARCHAR(20) NOT NULL UNIQUE,
+    nombre VARCHAR(150),
+    dias_recoleccion VARCHAR(100),
+    chofer INTEGER,
+    horario_estimado VARCHAR(10),
+    confirmado BOOLEAN DEFAULT false,
+    fecha_envio TIMESTAMP DEFAULT NOW(),
+    fecha_confirmacion TIMESTAMP
+  )`,
 ];
 
 async function migrate(): Promise<void> {
