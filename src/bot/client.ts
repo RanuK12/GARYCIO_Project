@@ -2,7 +2,13 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 import fs from "fs";
 
-const API_BASE = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
+// Soporte para Meta Cloud API directa o 360dialog como proveedor
+// Meta:      https://graph.facebook.com/v22.0/{phone_number_id}  — Authorization: Bearer TOKEN
+// 360dialog: https://waba-v2.360dialog.io/v2/                    — D360-API-KEY: TOKEN
+const is360 = env.WHATSAPP_PROVIDER === "360dialog";
+const API_BASE = is360
+  ? "https://waba-v2.360dialog.io/v2"
+  : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
 
 // ── Test mode whitelist ─────────────────────────────────
 const TEST_WHITELIST: ReadonlySet<string> = new Set(
@@ -40,12 +46,16 @@ async function callWhatsAppAPI(
 ): Promise<any> {
   const url = `${API_BASE}${endpoint}`;
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(is360
+      ? { "D360-API-KEY": env.WHATSAPP_TOKEN }
+      : { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` }),
+  };
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -209,9 +219,9 @@ async function uploadMedia(filePath: string, fileName: string): Promise<string> 
 
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
-    },
+    headers: is360
+      ? { "D360-API-KEY": env.WHATSAPP_TOKEN }
+      : { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
     body: formData,
   });
 
@@ -232,10 +242,14 @@ async function uploadMedia(filePath: string, fileName: string): Promise<string> 
  * Paso 2: GET url con Authorization → retorna el archivo binario
  */
 export async function getMediaUrl(mediaId: string): Promise<string> {
-  const url = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`;
+  const url = is360
+    ? `https://waba-v2.360dialog.io/v2/media/${mediaId}`
+    : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`;
 
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+    headers: is360
+      ? { "D360-API-KEY": env.WHATSAPP_TOKEN }
+      : { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
   });
 
   const data = (await response.json()) as Record<string, any>;

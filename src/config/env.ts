@@ -18,6 +18,9 @@ const envSchema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().min(1),
   WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().default(""),
   WHATSAPP_API_VERSION: z.string().default("v22.0"),
+  // Proveedor de WhatsApp API: "meta" (directo) o "360dialog"
+  // Con 360dialog: WHATSAPP_TOKEN = tu D360-API-KEY
+  WHATSAPP_PROVIDER: z.enum(["meta", "360dialog"]).default("meta"),
 
   // App
   CEO_PHONE: z.string().min(8),
