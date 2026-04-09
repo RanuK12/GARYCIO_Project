@@ -7,7 +7,7 @@ import fs from "fs";
 // 360dialog: https://waba-v2.360dialog.io/v2/                    — D360-API-KEY: TOKEN
 const is360 = env.WHATSAPP_PROVIDER === "360dialog";
 const API_BASE = is360
-  ? "https://waba-v2.360dialog.io/v2"
+  ? "https://waba-v2.360dialog.io"
   : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
 
 // ── Test mode whitelist ─────────────────────────────────
@@ -243,7 +243,7 @@ async function uploadMedia(filePath: string, fileName: string): Promise<string> 
  */
 export async function getMediaUrl(mediaId: string): Promise<string> {
   const url = is360
-    ? `https://waba-v2.360dialog.io/v2/media/${mediaId}`
+    ? `https://waba-v2.360dialog.io/media/${mediaId}`
     : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`;
 
   const response = await fetch(url, {
