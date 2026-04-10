@@ -4,6 +4,10 @@
  *
  * - Usa onConflictDoUpdate para que sea idempotente (se puede correr varias veces sin duplicar)
  * - Los teléfonos se normalizan: se saca el "+" para coincidir con el formato del bot
+ *
+ * ADMINS (van en .env, no en DB):
+ *   CEO_PHONE=5491126330388       → Stefano Gargiulo
+ *   ADMIN_PHONES=5491126330388,393445721753  → Stefano + Emilio Ranucoli
  */
 
 import { config } from "dotenv";
