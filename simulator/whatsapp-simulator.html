@@ -672,10 +672,6 @@ function processBot(message) {
   // Route to flow handlers
   const result = handleFlow(conversationState.flow, conversationState.step, msg, lower);
 
-  if (result.reply) {
-    addMessage(result.reply, 'received');
-  }
-
   if (result.data) {
     conversationState.data = { ...conversationState.data, ...result.data };
   }
@@ -684,8 +680,12 @@ function processBot(message) {
     conversationState.flow = null;
     conversationState.step = 0;
     conversationState.data = {};
-  } else if (result.nextStep !== undefined) {
-    conversationState.step = result.nextStep;
+    // reply vacío → mostrar menú principal directo
+    const replyText = result.reply || MENU_PRINCIPAL;
+    addMessage(replyText, 'received');
+  } else {
+    if (result.reply) addMessage(result.reply, 'received');
+    if (result.nextStep !== undefined) conversationState.step = result.nextStep;
   }
 
   if (result.notify) {
@@ -762,6 +762,9 @@ function handleDifusion(step, msg, lower) {
  * step 3 - Confirmación final
  * step 4 - Foto del regalo roto (o omitir con *0*)
  */
+const MENU_PRINCIPAL =
+  "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n*3* - Otro motivo";
+
 const MENU_RECLAMO =
   "¿Qué tipo de reclamo querés hacer?\n\n" +
   "*1* - No me dejaron bidón vacío\n" +
@@ -776,7 +779,7 @@ function handleReclamo(step, msg, lower) {
   switch (step) {
     case 0: {
       if (lower === '0' || lower.includes('volver') || lower.includes('menu principal')) {
-        return { reply: "Volviste al menú principal. Escribí cualquier cosa para ver las opciones.", endFlow: true };
+        return { reply: "", endFlow: true };
       }
       if (lower === '1') {
         return {
@@ -792,14 +795,14 @@ function handleReclamo(step, msg, lower) {
       }
       if (lower === '3') {
         return {
-          reply: "Tomamos nota de tu reclamo por *bidón sucio*. 🧹\n\nEstamos trabajando para mejorar nuestro servicio de limpieza de bidones. Tu comentario nos ayuda a mejorar.\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
+          reply: "Tomamos nota de tu reclamo por *bidón sucio*. 🧹\n\nEstamos trabajando para mejorar nuestro servicio de limpieza de bidones. Tu comentario nos ayuda a mejorar.\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\n\n¿Hay algo más que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
           nextStep: 3, data: { tipoReclamo: 'bidon_sucio' },
           notify: { target: 'admin', message: `📋 *Reclamo: Bidón sucio*\n\nDonante solicitó reclamo por bidón sucio.\n\n_Reclamo automático_` }
         };
       }
       if (lower === '4') {
         return {
-          reply: "Tomamos nota de tu pedido de *pelela*. 🪣\n\nNos vamos a comunicar con los recolectores para que te lleven una pelela en la próxima visita.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
+          reply: "Tomamos nota de tu pedido de *pelela*. 🪣\n\nNos vamos a comunicar con los recolectores para que te lleven una pelela en la próxima visita.\n\n¿Hay algo más que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
           nextStep: 3, data: { tipoReclamo: 'pelela' },
           notify: { target: 'chofer', message: `🪣 *Pedido de pelela*\n\nUna donante solicitó una pelela. Llevar en la próxima visita.` }
         };
@@ -845,7 +848,7 @@ function handleReclamo(step, msg, lower) {
       }
 
       return {
-        reply: `Tu reclamo por *${label}* quedó registrado. ✅\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\n\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
+        reply: `Tu reclamo por *${label}* quedó registrado. ✅\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\n\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.\n\n¿Hay algo más que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
         nextStep: 3,
         data: { detalleReclamo: sinDetalle ? null : msg },
         notify: { target: 'chofer', message: `📋 *Nuevo reclamo*\n\nTipo: ${label}\nDetalle: ${sinDetalle ? 'Sin detalle' : msg}\n\nPor favor resolvelo en los próximos días.` }
@@ -860,7 +863,7 @@ function handleReclamo(step, msg, lower) {
         ? '⚠️ Sin foto'
         : '📸 Foto recibida (en WhatsApp real se guardaría automáticamente)';
       return {
-        reply: `${omitir ? 'Entendido, seguimos sin foto.' : '📸 ¡Gracias por la foto!'}\n\nTu reclamo por *${label}* ya fue derivado al equipo. En *4 días* te escribimos para ver si se resolvió.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
+        reply: `${omitir ? 'Entendido, seguimos sin foto.' : '📸 ¡Gracias por la foto!'}\n\nTu reclamo por *${label}* ya fue derivado al equipo. En *4 días* te escribimos para ver si se resolvió.\n\n¿Hay algo más que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
         nextStep: 3,
         notify: { target: 'chofer', message: `📋 *Nuevo reclamo - Regalo roto*\n\nTipo: ${label}\nDetalle: ${detalle}\n${fotoTexto}\n\nPor favor resolvelo en los próximos días.` }
       };
@@ -868,10 +871,8 @@ function handleReclamo(step, msg, lower) {
     case 3: {
       const esAfirmativo = ['si','sí','sep','sip','1'].some(a => lower === a || lower.startsWith(a + ' '));
       if (esAfirmativo) {
-        return {
-          reply: "¿En qué más te podemos ayudar?\n\n*1* - Tengo otro reclamo\n*2* - Quiero dar un aviso\n*3* - Otro motivo",
-          endFlow: true
-        };
+        // reply vacío → el dispatcher muestra MENU_PRINCIPAL directamente
+        return { reply: "", endFlow: true };
       }
       if (msg.trim().length >= 8 && !['no','nop','na','nah','gracias','2'].some(n => lower === n)) {
         return {
@@ -914,7 +915,7 @@ function handleAviso(step, msg, lower) {
   switch (step) {
     case 0: {
       if (lower === '0' || lower.includes('volver')) {
-        return { reply: "Volviste al menú principal. Escribí cualquier cosa para ver las opciones.", endFlow: true };
+        return { reply: "", endFlow: true };
       }
       if (lower === '1') {
         return {
@@ -1044,7 +1045,7 @@ function handleConsulta(step, msg, lower) {
       }
       if (msg.trim().length >= 8 && !['1','2','3','4'].includes(msg.trim())) {
         return {
-          reply: "Anotamos tu consulta y te respondemos a la brevedad. 📩\n\nUna persona de nuestro equipo va a revisar tu mensaje y te va a contestar personalmente.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
+          reply: "Anotamos tu consulta y te respondemos a la brevedad. 📩\n\nUna persona de nuestro equipo va a revisar tu mensaje y te va a contestar personalmente.\n\n¿Hay algo más que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias",
           nextStep: 1,
           notify: { target: 'admin', message: `📩 *Consulta libre*\n\n💬 Mensaje: "${msg}"\n\n⚠️ Requiere respuesta manual.` }
         };
@@ -1654,10 +1655,12 @@ function handleAdmin(step, msg, lower) {
     }
     case 99: {
       if (msg === '1') return { reply: MENU_ADMIN_TEXT, nextStep: 1 };
-      return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+      if (msg === '2') return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+      // Cualquier otro input (incluyendo keywords) → re-preguntar
+      return { reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar", nextStep: 99 };
     }
     default:
-      return { reply: "Sesión finalizada. Escribí *admin* para volver.", endFlow: true };
+      return handleAdmin(0, msg, lower); // volver a bienvenida en vez de finalizar
   }
 }
 </script>

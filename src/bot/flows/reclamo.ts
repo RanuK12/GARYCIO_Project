@@ -56,12 +56,9 @@ const MENU_RECLAMO =
 function handleTipoReclamo(respuesta: string): FlowResponse {
   const lower = respuesta.toLowerCase();
 
-  // Opción 0: Volver al menú principal
+  // Opción 0: Volver al menú principal → endFlow con reply vacío para que el manager muestre el menú
   if (lower === "0" || lower.includes("volver") || lower.includes("menu principal")) {
-    return {
-      reply: "Volviste al menú principal. Escribí cualquier cosa para ver las opciones.",
-      endFlow: true,
-    };
+    return { reply: "", endFlow: true };
   }
 
   // Opción 1: No me dejaron bidón vacío
@@ -96,7 +93,7 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
         "Estamos trabajando para mejorar nuestro servicio de limpieza de bidones. " +
         "Tu comentario nos ayuda a mejorar.\n\n" +
         "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
-        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "¿Hay algo más que te podamos ayudar?\n" +
         "*1* - Sí\n*2* - No, gracias",
       nextStep: 3,
       data: { tipoReclamo: "bidon_sucio", labelReclamo: "Bidón sucio" },
@@ -118,7 +115,7 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
         "Tomamos nota de tu pedido de *pelela*. 🪣\n\n" +
         "Nos vamos a comunicar con los recolectores para que te lleven una pelela " +
         "en la próxima visita.\n\n" +
-        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "¿Hay algo más que te podamos ayudar?\n" +
         "*1* - Sí\n*2* - No, gracias",
       nextStep: 3,
       data: { tipoReclamo: "pelela", labelReclamo: "Necesita pelela" },
@@ -252,15 +249,9 @@ function handleConfirmacionFinal(respuesta: string, _state: ConversationState): 
     (a) => lower === a || lower.startsWith(a + ",") || lower.startsWith(a + " "),
   );
 
+  // Sí → volver al menú principal (endFlow sin reply propio; el manager muestra el menú)
   if (esAfirmativo) {
-    return {
-      reply:
-        "¿En qué más te podemos ayudar?\n\n" +
-        "*1* - Tengo otro reclamo\n" +
-        "*2* - Quiero dar un aviso\n" +
-        "*3* - Otro motivo",
-      endFlow: true,
-    };
+    return { reply: "", endFlow: true };
   }
 
   // Texto libre con suficiente contexto → escalar
@@ -299,7 +290,7 @@ async function handleFotoRegaloRoto(
         "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
         "Se lo vamos a informar al recolector de tu zona. " +
         "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
-        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "¿Hay algo más que te podamos ayudar?\n" +
         "*1* - Sí\n*2* - No, gracias",
       nextStep: 3,
     };

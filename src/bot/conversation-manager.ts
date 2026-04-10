@@ -106,6 +106,27 @@ async function endConversation(phone: string): Promise<void> {
   await db.delete(conversationStates).where(eq(conversationStates.phone, phone));
 }
 
+// ── Menú principal donante ───────────────────────────────
+function getMenuPrincipal(phone: string): string {
+  if (isAdminPhone(phone)) {
+    return (
+      "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
+      "¿Qué querés hacer?\n\n" +
+      "*1* - Tengo un reclamo\n" +
+      "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
+      "*3* - Otro motivo\n" +
+      "*4* - Panel de administración"
+    );
+  }
+  return (
+    "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
+    "¿En qué te puedo ayudar?\n\n" +
+    "*1* - Tengo un reclamo\n" +
+    "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
+    "*3* - Otro motivo"
+  );
+}
+
 // ── Procesar mensaje entrante ───────────────────────────
 export async function handleIncomingMessage(
   phone: string,
@@ -163,27 +184,7 @@ export async function handleIncomingMessage(
     const detectedFlow = detectFlow(message, phone);
 
     if (!detectedFlow) {
-      // Si es admin, mostrar menú con opción de admin
-      if (isAdminPhone(phone)) {
-        return {
-          reply:
-            "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
-            "¿Qué querés hacer?\n\n" +
-            "*1* - Tengo un reclamo\n" +
-            "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
-            "*3* - Otro motivo\n" +
-            "*4* - Panel de administración",
-        };
-      }
-
-      return {
-        reply:
-          "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
-          "¿En qué te puedo ayudar?\n\n" +
-          "*1* - Tengo un reclamo\n" +
-          "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
-          "*3* - Otro motivo",
-      };
+      return { reply: getMenuPrincipal(phone) };
     }
 
     state = await startConversation(phone, detectedFlow.name);
@@ -236,12 +237,13 @@ export async function handleIncomingMessage(
       : undefined;
 
     if (response.endFlow) {
+      const prevFlow = state.currentFlow;
       await endConversation(phone);
 
       // Si el mensaje original es una keyword de otro flow, re-detectar
       // para que el usuario no tenga que escribirlo dos veces
       const redetected = detectFlow(message, phone);
-      if (redetected && redetected.name !== state.currentFlow) {
+      if (redetected && redetected.name !== prevFlow) {
         const newState = await startConversation(phone, redetected.name);
         const newResponse = await redetected.handle(newState, "", undefined);
         if (newResponse.data) {
@@ -251,11 +253,17 @@ export async function handleIncomingMessage(
           newState.step = newResponse.nextStep;
           await updateConversation(phone, newState);
         }
+        const prefix = response.reply ? response.reply + "\n\n" : "";
         return {
-          reply: response.reply + "\n\n" + newResponse.reply,
+          reply: prefix + newResponse.reply,
           notify: response.notify || newResponse.notify,
           flowData,
         };
+      }
+
+      // Reply vacío → mostrar menú principal directamente
+      if (!response.reply) {
+        return { reply: getMenuPrincipal(phone), notify: response.notify, flowData };
       }
     } else if (response.nextStep !== undefined) {
       state.step = response.nextStep;

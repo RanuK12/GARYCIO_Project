@@ -45,7 +45,7 @@ export const adminFlow: FlowHandler = {
       case 70: return await handleGenerarReporte();
       case 99: return handleVolverOFinalizar(respuesta);
       default:
-        return { reply: "Sesión finalizada. Escribí *admin* para volver.", endFlow: true };
+        return handleBienvenida();
     }
   },
 };
@@ -486,5 +486,12 @@ function handleVolverOFinalizar(respuesta: string): FlowResponse {
   if (respuesta === "1") {
     return handleBienvenida();
   }
-  return { reply: "✅ Sesión finalizada. Escribí *admin* para volver.", endFlow: true };
+  if (respuesta === "2") {
+    return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+  }
+  // Cualquier otra cosa (incluyendo keywords como "reclamo") → re-mostrar opciones
+  return {
+    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+    nextStep: 99,
+  };
 }

@@ -56,7 +56,8 @@ describe("reclamoFlow", () => {
             const state = createState("reclamo", 0);
             const res = await reclamoFlow.handle(state, "0");
             expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("menú principal");
+            // reply vacío → el conversation-manager muestra el menú principal
+            expect(res.reply).toBe("");
         });
     });
 
@@ -112,10 +113,11 @@ describe("reclamoFlow", () => {
     });
 
     describe("step 3 - confirmación", () => {
-        it("ofrece más opciones si dice sí", async () => {
+        it("vuelve al menú principal si dice sí", async () => {
             const state = createState("reclamo", 3);
             const res = await reclamoFlow.handle(state, "sí");
-            expect(res.reply).toContain("¿En qué más te podemos ayudar?");
+            // reply vacío → el conversation-manager muestra el menú principal directo
+            expect(res.reply).toBe("");
             expect(res.endFlow).toBe(true);
         });
 
