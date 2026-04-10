@@ -3,6 +3,14 @@ import { z } from "zod";
 
 config();
 
+// z.coerce.boolean() convierte cualquier string no-vacío a true (incluso "false").
+// Este helper parsea correctamente: "false"/"0"/"" → false, resto → true.
+const booleanFromEnv = z
+  .string()
+  .transform((v) => !["false", "0", ""].includes(v.toLowerCase()))
+  .or(z.boolean())
+  .default(false);
+
 const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
@@ -36,7 +44,7 @@ const envSchema = z.object({
 
   // Difusión: usar template aprobado por Meta (categoría utility = más barato)
   // false = texto libre (marketing, más caro), true = template "recoleccion_aviso" (utility)
-  DIFUSION_USE_TEMPLATE: z.coerce.boolean().default(false),
+  DIFUSION_USE_TEMPLATE: booleanFromEnv,
   DIFUSION_TEMPLATE_NAME: z.string().default("recoleccion_aviso"),
 
   // Rate limiting & queue
@@ -69,7 +77,7 @@ const envSchema = z.object({
   SPEED_LIMIT_KMH: z.coerce.number().default(80),
 
   // Test mode: solo permite envíos a números en la whitelist
-  TEST_MODE: z.coerce.boolean().default(false),
+  TEST_MODE: booleanFromEnv,
   TEST_PHONES: z.string().default(""),  // comma-separated, ej: "393445721753,5491126330388"
 });
 
