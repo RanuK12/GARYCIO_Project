@@ -292,6 +292,7 @@ export async function enviarDifusionPorRutas(opciones?: {
   dias?: string;
   chofer?: number;
   telefonos?: Set<string>;
+  limite?: number;
 }): Promise<{
   total: number;
   enviados: number;
@@ -327,6 +328,10 @@ export async function enviarDifusionPorRutas(opciones?: {
   }
 
   donantesFiltrados = donantesFiltrados.filter((d) => d.celularWhatsApp);
+
+  if (opciones?.limite && opciones.limite > 0) {
+    donantesFiltrados = donantesFiltrados.slice(0, opciones.limite);
+  }
 
   logger.info(
     { total: donantesFiltrados.length, filtros: opciones },

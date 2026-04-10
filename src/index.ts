@@ -200,13 +200,14 @@ async function main(): Promise<void> {
 
   // ── Envío masivo por rutas OptimoRoute ──────────────
   app.post("/admin/enviar-rutas", async (req, res) => {
-    const { ruta, dias, chofer } = req.body as {
+    const { ruta, dias, chofer, limite } = req.body as {
       ruta?: string;
       dias?: string;
       chofer?: number;
+      limite?: number;
     };
     try {
-      const result = await enviarDifusionPorRutas({ ruta, dias, chofer });
+      const result = await enviarDifusionPorRutas({ ruta, dias, chofer, limite });
       res.json({ status: "ok", ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
