@@ -7,7 +7,8 @@
  *
  * ADMINS (van en .env, no en DB):
  *   CEO_PHONE=5491126330388       → Stefano Gargiulo
- *   ADMIN_PHONES=5491126330388,393445721753  → Stefano + Emilio Ranucoli
+ *   ADMIN_PHONES=5491126330388,393445721753,5491151042517,5491130128112,5491154017202
+ *     → Stefano + Emilio Ranucoli + Vicente Gargiulo + Luciano Gargiulo + Giovanni Gargiulo
  */
 
 import { config } from "dotenv";
