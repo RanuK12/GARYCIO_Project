@@ -73,7 +73,7 @@ describe("visitadoraFlow", () => {
             expect(res.nextStep).toBe(12);
         });
 
-        it("acepta teléfono y muestra confirmación", async () => {
+        it("acepta teléfono y pide fecha de nacimiento", async () => {
             const state = createState("visitadora", 12, {
                 ...baseData,
                 nuevaDonNombre: "María López",
@@ -81,8 +81,7 @@ describe("visitadoraFlow", () => {
             });
             const res = await visitadoraFlow.handle(state, "1155667788");
             expect(res.data?.nuevaDonTelefono).toBe("1155667788");
-            expect(res.reply).toContain("Confirmar");
-            expect(res.reply).toContain("María López");
+            expect(res.reply).toContain("fecha de nacimiento");
             expect(res.nextStep).toBe(13);
         });
 
@@ -97,12 +96,27 @@ describe("visitadoraFlow", () => {
             expect(res.nextStep).toBe(13);
         });
 
-        it("confirmar → registra y notifica admin", async () => {
+        it("acepta fecha de nacimiento y muestra confirmación", async () => {
             const state = createState("visitadora", 13, {
                 ...baseData,
                 nuevaDonNombre: "María López",
                 nuevaDonDireccion: "Belgrano 123",
                 nuevaDonTelefono: "1155667788",
+            });
+            const res = await visitadoraFlow.handle(state, "15/04/1985");
+            expect(res.data?.nuevaDonFechaNac).toBe("15/04/1985");
+            expect(res.reply).toContain("Confirmar");
+            expect(res.reply).toContain("María López");
+            expect(res.nextStep).toBe(14);
+        });
+
+        it("confirmar → registra y notifica admin", async () => {
+            const state = createState("visitadora", 14, {
+                ...baseData,
+                nuevaDonNombre: "María López",
+                nuevaDonDireccion: "Belgrano 123",
+                nuevaDonTelefono: "1155667788",
+                nuevaDonFechaNac: "15/04/1985",
             });
             const res = await visitadoraFlow.handle(state, "1");
             expect(res.reply).toContain("Nueva donante registrada");
@@ -112,7 +126,7 @@ describe("visitadoraFlow", () => {
         });
 
         it("cancelar → va a step 99", async () => {
-            const state = createState("visitadora", 13, baseData);
+            const state = createState("visitadora", 14, baseData);
             const res = await visitadoraFlow.handle(state, "2");
             expect(res.reply).toContain("Cancelado");
             expect(res.nextStep).toBe(99);

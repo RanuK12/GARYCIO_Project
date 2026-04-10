@@ -77,11 +77,11 @@ describe("peonFlow", () => {
             expect(res.nextStep).toBe(10);
         });
 
-        it("opción 5 → cierre de jornada (conteo de regalos)", async () => {
+        it("opción 5 → entrega donante nueva", async () => {
             const state = createState("peon", 1, baseData);
             const res = await peonFlow.handle(state, "5");
-            expect(res.nextStep).toBe(60);
-            expect(res.reply).toContain("regalos");
+            expect(res.nextStep).toBe(35);
+            expect(res.reply).toContain("donante nueva");
         });
 
         it("opción 0 → volver al menú principal (endFlow)", async () => {
@@ -102,14 +102,13 @@ describe("peonFlow", () => {
             expect(res.endFlow).toBeUndefined();
             expect(res.reply).toContain("Reportar reclamo");
             expect(res.reply).toContain("regalo");
-            expect(res.reply).toContain("Volver al menú principal");
         });
 
-        it("opción 0 en step 99 → vuelve al menú principal (endFlow)", async () => {
+        it("opción 0 en step 99 → vuelve al menú peón (step 1)", async () => {
             const state = createState("peon", 99, baseData);
             const res = await peonFlow.handle(state, "0");
-            expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("menú principal");
+            expect(res.nextStep).toBe(1);
+            expect(res.endFlow).toBeUndefined();
         });
 
         it("opción 2 en step 99 → finaliza jornada", async () => {

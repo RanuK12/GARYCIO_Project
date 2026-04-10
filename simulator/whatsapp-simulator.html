@@ -481,7 +481,7 @@ function selectRole(role) {
     conversationState.flow = 'difusion';
     conversationState.step = 0;
     conversationState.data = { diasAsignados: 'Lunes y Jueves', chofer: 2 };
-    addMessage('Buen día *María*. Le hablamos de parte del laboratorio para informarle que sus días de recolección son: *Lunes y Jueves*, y le corresponde el *Camión #2*.\n\nEl horario estimado de paso es alrededor de las *07:45 hs*.\n\nConfirme recepción apretando el número *1*.\nDe lo contrario, si tiene alguna otra consulta oprima *2*.', 'received');
+    addMessage('Buen dia *María*. Le hablamos de parte del laboratorio para informarle que a partir de ahora sus días de recolección van a ser: *Lunes y Jueves*.\nEl horario estimado de paso es alrededor de las *7:45hs*.\nConfirme recepción apretando el número *1*. De lo contrario, si tiene alguna otra consulta oprima *2*.', 'received');
     document.getElementById('infoFlow').textContent = 'difusion';
     document.getElementById('infoStep').textContent = '0';
   } else if (role === 'chofer') {
@@ -572,16 +572,20 @@ function processBot(message) {
   const lower = msg.toLowerCase();
   const lowerNorm = lower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  // ── Global escape: "hablar con persona" ──────────
+  // ── Global escape: "hablar con persona" (solo frases muy explícitas) ──
   if (!conversationState.flow || ['donante_menu', 'reclamo', 'aviso', 'consulta', 'difusion'].includes(conversationState.flow)) {
     const FRASES_PERSONA = [
-      "hablar con una persona", "hablar con alguien", "quiero hablar con",
-      "persona real", "operador", "humano", "atencion humana",
-      "comunicarme con alguien"
+      "hablar con una persona",
+      "hablar con alguien",
+      "quiero hablar con alguien",
+      "necesito hablar con alguien",
+      "quiero un humano",
+      "necesito atencion humana",
+      "quiero hablar con una persona",
     ];
     if (FRASES_PERSONA.some(f => lowerNorm.includes(f))) {
-      showNotification('admin', `🤝 *Atención personalizada requerida*\n\n💬 Mensaje: "${msg}"\n\n⚠️ La donante quiere hablar con una persona.`);
-      addMessage("✅ Te vamos a derivar con una persona de nuestro equipo.\n\nEn breve alguien se va a comunicar con vos. ¡Gracias por tu paciencia! 😊", 'received');
+      showNotification('admin', `🙋 *SOLICITUD DE ATENCIÓN HUMANA*\n\n💬 Mensaje: "${msg}"\n\n⚠️ La persona pidió hablar con alguien.`);
+      addMessage("Entendemos que necesitás hablar con alguien. 🙋\n\nTu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.\n\nMientras tanto, si necesitás algo más podés escribirnos de nuevo.", 'received');
       conversationState = { flow: null, step: 0, data: {} };
       updateInfo();
       return;
@@ -627,7 +631,7 @@ function processBot(message) {
     } else {
       // Default donante greeting → show main menu
       addMessage(
-        "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso\n*3* - Tengo una consulta\n*4* - Hablar con una persona\n\nRespondé con el número o escribí directamente tu consulta.",
+        "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n*3* - Otro motivo",
         'received'
       );
       conversationState.flow = 'donante_menu';
@@ -642,20 +646,24 @@ function processBot(message) {
     if (lower === '1' || lower.includes('reclamo')) {
       conversationState.flow = 'reclamo';
       conversationState.step = 0;
+      // Mostrar menú de reclamo en vez de pasar "1" al handler
+      addMessage(MENU_RECLAMO, 'received');
+      updateInfo();
+      return;
     } else if (lower === '2' || lower.includes('aviso')) {
       conversationState.flow = 'aviso';
       conversationState.step = 0;
+      addMessage(MENU_AVISO, 'received');
+      updateInfo();
+      return;
     } else if (lower === '3' || lower.includes('consulta')) {
       conversationState.flow = 'consulta';
       conversationState.step = 0;
-    } else if (lower === '4') {
-      showNotification('admin', `🤝 *Atención personalizada*\n\n📱 Donante solicitó hablar con una persona desde el menú principal.`);
-      addMessage("Te vamos a derivar con una persona de nuestro equipo. En breve se van a comunicar con vos. 😊", 'received');
-      conversationState = { flow: null, step: 0, data: {} };
+      addMessage("¿Sobre qué querés consultar?\n\n*1* - Días de recolección\n*2* - Regalos y beneficios\n*3* - Cambio de dirección\n*4* - Dejar de donar\n\nRespondé con el número o escribí tu consulta directamente.", 'received');
       updateInfo();
       return;
     } else {
-      addMessage("¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso\n*3* - Tengo una consulta\n*4* - Hablar con una persona", 'received');
+      addMessage("¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso\n*3* - Otro motivo", 'received');
       updateInfo();
       return;
     }
@@ -722,7 +730,7 @@ function handleDifusion(step, msg, lower) {
       }
       if (msg === '2') {
         return {
-          reply: "¡Hola! 👋 ¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso\n*3* - Tengo una consulta\n*4* - Hablar con una persona",
+          reply: "¡Hola! 👋 ¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n*3* - Otro motivo",
           endFlow: true
         };
       }
@@ -749,9 +757,10 @@ function handleDifusion(step, msg, lower) {
  *   0 → endFlow
  * step 1 - Sub-menú regalo
  *   1 → falta → step 2
- *   2 → roto  → step 2
- * step 2 - Detalle opcional → step 3
+ *   2 → roto  → step 2 (luego foto en step 4)
+ * step 2 - Detalle opcional → step 3 (o step 4 si es regalo roto)
  * step 3 - Confirmación final
+ * step 4 - Foto del regalo roto (o omitir con *0*)
  */
 const MENU_RECLAMO =
   "¿Qué tipo de reclamo querés hacer?\n\n" +
@@ -824,11 +833,36 @@ function handleReclamo(step, msg, lower) {
     case 2: {
       const sinDetalle = ['no','nop','na','nada','no se','no sé'].some(n => lower === n);
       const label = conversationState.data.labelReclamo || 'general';
+      const esRegaloRoto = conversationState.data.subTipoRegalo === 'roto';
+
+      if (esRegaloRoto) {
+        // Regalo roto: pedir foto antes de cerrar
+        return {
+          reply: `Tu reclamo por *${label}* quedó registrado. ✅\n\nPor favor enviá una *foto del regalo roto* para poder evaluarlo.\n\nSi no podés enviar foto, escribí *0* para omitir.`,
+          nextStep: 4,
+          data: { detalleReclamo: sinDetalle ? null : msg }
+        };
+      }
+
       return {
         reply: `Tu reclamo por *${label}* quedó registrado. ✅\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\n\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
         nextStep: 3,
         data: { detalleReclamo: sinDetalle ? null : msg },
         notify: { target: 'chofer', message: `📋 *Nuevo reclamo*\n\nTipo: ${label}\nDetalle: ${sinDetalle ? 'Sin detalle' : msg}\n\nPor favor resolvelo en los próximos días.` }
+      };
+    }
+    case 4: {
+      // Foto del regalo roto (o omitir)
+      const omitir = lower === '0';
+      const label = conversationState.data.labelReclamo || 'Regalo roto';
+      const detalle = conversationState.data.detalleReclamo || 'Sin detalle';
+      const fotoTexto = omitir
+        ? '⚠️ Sin foto'
+        : '📸 Foto recibida (en WhatsApp real se guardaría automáticamente)';
+      return {
+        reply: `${omitir ? 'Entendido, seguimos sin foto.' : '📸 ¡Gracias por la foto!'}\n\nTu reclamo por *${label}* ya fue derivado al equipo. En *4 días* te escribimos para ver si se resolvió.\n\n¿Hay algo más en lo que te podamos ayudar?\n*1* - Sí\n*2* - No, gracias`,
+        nextStep: 3,
+        notify: { target: 'chofer', message: `📋 *Nuevo reclamo - Regalo roto*\n\nTipo: ${label}\nDetalle: ${detalle}\n${fotoTexto}\n\nPor favor resolvelo en los próximos días.` }
       };
     }
     case 3: {
@@ -1060,8 +1094,8 @@ function handleConsulta(step, msg, lower) {
  * step 30 - Baja: nombre/dirección donante
  * step 31 - Baja: motivo
  * step 32 - Baja: confirmar
- * step 50 - Regalos: vehículo (1=camión, 2=peón1, 3=peón2, 4=peón3)
- * step 51 - Regalos: nombre del peón
+ * step 50 - Regalos: vehículo (1=Camión, 2=Peón)
+ * step 51 - Regalos: nombre del peón (si vehículo = Peón)
  * step 52 - Regalos: sub-tipo (1=Entregados, 2=Faltantes, 3=Sobrantes, 4=Cambios)
  * step 53 - Regalos: cantidad
  * step 54 - Regalos: ¿registrar más?
@@ -1074,11 +1108,11 @@ const MENU_CHOFER =
   "*3* - Reportar incidente\n" +
   "*4* - Reportar donante de baja\n" +
   "*5* - Regalos 🎁\n" +
-  "*0* - Volver al menú principal";
+  "*0* - Salir";
 
 const OPCIONES_99_CHOFER =
   "*1* - Sí, seguir registrando\n" +
-  "*0* - Volver al menú principal";
+  "*0* - Volver al menú de chofer";
 
 function handleChofer(step, msg, lower) {
   switch (step) {
@@ -1094,7 +1128,7 @@ function handleChofer(step, msg, lower) {
       };
     }
     case 1: {
-      if (lower === '0' || lower.includes('volver')) return { reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
+      if (lower === '0' || lower.includes('salir')) return { reply: "Sesión de chofer finalizada. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
       if (lower === '1' || lower.includes('bidon')) return { reply: "🛢️ *Registro de recolección*\n\n¿Cuántos *bidones* recolectaste hoy?\n(ej: *17*, *25*)", nextStep: 2 };
       if (lower === '2' || lower.includes('combustible')) return { reply: "⛽ *Carga de combustible*\n\nIngresá los litros y el monto separados por coma:\n(ej: *45, 12500*)", nextStep: 10 };
       if (lower === '3' || lower.includes('incidente')) {
@@ -1105,21 +1139,22 @@ function handleChofer(step, msg, lower) {
       }
       if (lower === '4' || lower.includes('baja')) {
         return {
-          reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre, dirección y motivo* de la donante:\n(podés escribirlo todo junto o primero el nombre)",
+          reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y dirección* de la donante:",
           nextStep: 30
         };
       }
       if (lower === '5' || lower.includes('regalo')) {
         return {
-          reply: "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón 1\n*3* - Peón 2\n*4* - Peón 3\n\nRespondé con el número.",
+          reply: "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón\n*0* - Volver\n\nRespondé con el número.",
           nextStep: 50
         };
       }
       return { reply: `No entendí. Respondé con un número:\n\n${MENU_CHOFER}`, nextStep: 1 };
     }
     case 2: {
+      if (lower === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
       const bidones = parseInt(msg, 10);
-      if (isNaN(bidones) || bidones <= 0) return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)", nextStep: 2 };
+      if (isNaN(bidones) || bidones <= 0) return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)\n\n*0* - Volver", nextStep: 2 };
       return {
         reply: `📋 *Resumen de recolección*\n\nChofer: *#${conversationState.data.codigoChofer}*\nBidones: *${bidones}*\n\n*1* - Confirmar | *2* - Corregir`,
         nextStep: 3, data: { bidones }
@@ -1130,23 +1165,21 @@ function handleChofer(step, msg, lower) {
         return { reply: "¿Cuántos *bidones* recolectaste? Empecemos de nuevo.", nextStep: 2, data: { bidones: undefined } };
       }
       return {
-        reply: "✅ *Bidones registrados*\n\nAhora enviá una *foto* de los bidones recolectados. 📸\n\nSi no tenés foto, escribí *omitir*.",
+        reply: "✅ *Bidones registrados*\n\nAhora enviá una *foto* de los bidones recolectados. 📸",
         nextStep: 4, data: { recoleccionGuardada: true },
         notify: { target: 'admin', message: `🛢️ *Recolección registrada*\n\nChofer: #${conversationState.data.codigoChofer}\nBidones: ${conversationState.data.bidones}` }
       };
     }
     case 4: {
-      if (lower.includes('omitir') || lower.includes('no tengo')) {
-        return { reply: `Foto omitida. ¿Querés registrar algo más?\n\n${OPCIONES_99_CHOFER}`, nextStep: 99 };
-      }
       return { reply: `📸 En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría. ¿Querés registrar algo más?\n\n${OPCIONES_99_CHOFER}`, nextStep: 99 };
     }
     case 10: {
+      if (lower === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
       const parts = msg.split(/[,;]/);
-      if (parts.length < 2) return { reply: "Formato: *litros, monto* (ej: *45, 12500*)", nextStep: 10 };
+      if (parts.length < 2) return { reply: "Formato: *litros, monto* (ej: *45, 12500*)\n\n*0* - Volver", nextStep: 10 };
       const l = parseFloat(parts[0].trim().replace(',','.'));
       const m2 = parseFloat(parts[1].trim().replace(',','.'));
-      if (isNaN(l) || isNaN(m2)) return { reply: "Datos no válidos. Formato: *litros, monto* (ej: *45, 12500*)", nextStep: 10 };
+      if (isNaN(l) || isNaN(m2)) return { reply: "Datos no válidos. Formato: *litros, monto* (ej: *45, 12500*)\n\n*0* - Volver", nextStep: 10 };
       return {
         reply: `⛽ *Carga de combustible*\n\nLitros: *${l}*\nMonto: *$${m2.toLocaleString('es-AR')}*\n\n*1* - Confirmar | *2* - Corregir`,
         nextStep: 11, data: { litrosComb: l, montoComb: m2 }
@@ -1155,56 +1188,48 @@ function handleChofer(step, msg, lower) {
     case 11: {
       if (!['1','si','sí'].some(a => lower.includes(a))) return { reply: "Ingresá de nuevo: *litros, monto*", nextStep: 10 };
       return {
-        reply: "✅ *Combustible registrado*\n\nAhora enviá una *foto* del ticket de combustible. 📸\n\nSi no tenés foto, escribí *omitir*.",
+        reply: "✅ *Combustible registrado*\n\nAhora enviá una *foto* del ticket de combustible. 📸",
         nextStep: 12,
         notify: { target: 'admin', message: `⛽ *Combustible registrado*\nChofer: #${conversationState.data.codigoChofer}\nLitros: ${conversationState.data.litrosComb}\nMonto: $${conversationState.data.montoComb}` }
       };
     }
     case 12: {
-      if (lower.includes('omitir') || lower.includes('no tengo')) {
-        return { reply: `Foto omitida. ¿Querés registrar algo más?\n\n${OPCIONES_99_CHOFER}`, nextStep: 99 };
-      }
       return { reply: `📸 En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría. ¿Querés registrar algo más?\n\n${OPCIONES_99_CHOFER}`, nextStep: 99 };
     }
     case 20: {
+      if (lower === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
       const tiposInc = { '1': 'Accidente en el tránsito', '2': 'Retraso significativo', '3': 'Avería del camión', '4': 'Intento de robo o robo', '5': 'Otro' };
       const t = tiposInc[msg.trim()];
-      if (!t) return { reply: "Respondé con el número del tipo de incidente (1-5):", nextStep: 20 };
+      if (!t) return { reply: "Respondé con el número del tipo de incidente (1-5):\n\n*0* - Volver", nextStep: 20 };
       let pregunta = "Describí brevemente qué pasó:";
       if (msg === '2') pregunta = "¿De cuánto tiempo es la demora estimada?";
       else if (msg === '3') pregunta = "¿Qué avería tiene el camión? Describilo brevemente:";
       else if (msg === '4') pregunta = "¿Qué pasó y dónde fue? Contanos brevemente:";
-      return { reply: `Tipo: *${t}*\n\n${pregunta}`, nextStep: 21, data: { tipoIncidente: t } };
+      return { reply: `Tipo: *${t}*\n\n${pregunta}\n\n*0* - Volver`, nextStep: 21, data: { tipoIncidente: t } };
     }
     case 21: {
-      if (msg.length < 3) return { reply: "Necesitamos más detalle. ¿Qué pasó?", nextStep: 21 };
+      if (lower === '0') return { reply: "🚨 *Reportar Incidente*\n\n¿Qué tipo de incidente?\n\n*1* - Accidente en el tránsito\n*2* - Retraso significativo\n*3* - Avería del camión\n*4* - Intento de robo o robo\n*5* - Otro\n\n*0* - Volver", nextStep: 20 };
+      if (msg.length < 3) return { reply: "Necesitamos más detalle. ¿Qué pasó?\n\n*0* - Volver", nextStep: 21 };
       return {
-        reply: "¿Qué tan grave es la situación?\n\n*1* - Baja (informativo, no afecta la operación)\n*2* - Media (afecta parcialmente el recorrido)\n*3* - Alta (no se puede continuar el recorrido)\n*4* - Crítica (emergencia, se necesita asistencia)",
-        nextStep: 22, data: { descripcionIncidente: msg }
-      };
-    }
-    case 22: {
-      const gravs = { '1': 'baja', '2': 'media', '3': 'alta', '4': 'critica' };
-      const emojis = { baja: '🟢', media: '🟡', alta: '🟠', critica: '🔴' };
-      const g = gravs[msg.trim()] || 'media';
-      const e = emojis[g];
-      return {
-        reply: `${e} *Incidente registrado*\n\nSe notificó a la dirección de forma inmediata.\nTipo: *${conversationState.data.tipoIncidente}*\nGravedad: *${g}*\n\n¿Necesitás registrar algo más?\n\n${OPCIONES_99_CHOFER}`,
+        reply: `🚨 *Incidente registrado*\n\nSe notificó a la dirección de forma inmediata.\nTipo: *${conversationState.data.tipoIncidente}*\nDescripción: ${msg}\n\n¿Necesitás registrar algo más?\n\n${OPCIONES_99_CHOFER}`,
         nextStep: 99,
-        notify: { target: 'admin', message: `${e} *INCIDENTE REPORTADO*\n\nChofer: *#${conversationState.data.codigoChofer}*\nTipo: *${conversationState.data.tipoIncidente}*\nGravedad: *${g.toUpperCase()}*\nDescripción: ${conversationState.data.descripcionIncidente}` }
+        data: { descripcionIncidente: msg },
+        notify: { target: 'admin', message: `🚨 *INCIDENTE REPORTADO*\n\nChofer: *#${conversationState.data.codigoChofer}*\nTipo: *${conversationState.data.tipoIncidente}*\nDescripción: ${msg}` }
       };
     }
     case 30: {
-      if (msg.length < 3) return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
+      if (lower === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá el nombre y/o dirección de la donante:\n\n*0* - Volver", nextStep: 30 };
       return {
-        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\nElegí una opción:`,
+        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\n*0* - Volver`,
         nextStep: 31, data: { bajaDonante: msg }
       };
     }
     case 31: {
+      if (lower === '0') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
       const motivos = { '1': 'No dona más', '2': 'Se mudó', '3': 'Falleció', '4': 'Dona muy poco', '5': 'Otro' };
       const m3 = motivos[msg];
-      if (!m3) return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
+      if (!m3) return { reply: "Opción no válida. Elegí del *1* al *5*:\n\n*0* - Volver", nextStep: 31 };
       return {
         reply: `📋 *Confirmar reporte de baja*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${m3}\n\n⚠️ Se notificará a los administradores y *se contactará automáticamente a la donante* para confirmar la situación.\n\n*1* - Confirmar\n*2* - Cancelar`,
         nextStep: 32, data: { bajaMotivo: m3 }
@@ -1220,44 +1245,58 @@ function handleChofer(step, msg, lower) {
       };
     }
     case 50: {
-      const vehiculos = { '1': 'Camión', '2': 'Peón 1', '3': 'Peón 2', '4': 'Peón 3' };
+      if (lower === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
+      const vehiculos = { '1': 'Camión', '2': 'Peón' };
       const v = vehiculos[msg.trim()];
       if (!v) {
         return {
-          reply: "Opción no válida. ¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón 1\n*3* - Peón 2\n*4* - Peón 3",
+          reply: "Opción no válida. ¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón\n*0* - Volver",
           nextStep: 50
         };
       }
-      const esPeon = msg.trim() !== '1';
+      const esPeon = msg.trim() === '2';
       if (esPeon) {
         return {
-          reply: `Registrando regalos para *${v}*.\n\n¿Cuál es el *nombre* del peón?`,
+          reply: `Registrando regalos para *${v}*.\n\n¿Cuál es el *nombre* del peón?\n\n*0* - Volver`,
           nextStep: 51, data: { regalosVehiculo: v, regalosEsPeon: true }
         };
       }
       return {
-        reply: `Registrando regalos para *${v}*.\n\n¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n\nRespondé con el número.`,
+        reply: `Registrando regalos para *${v}*.\n\n¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver\n\nRespondé con el número.`,
         nextStep: 52, data: { regalosVehiculo: v, regalosEsPeon: false, regalosNombrePeon: null }
       };
     }
     case 51: {
-      if (msg.length < 2) return { reply: "Ingresá el nombre del peón:", nextStep: 51 };
+      if (lower === '0') return { reply: "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón\n*0* - Volver", nextStep: 50 };
+      if (msg.length < 2) return { reply: "Ingresá el nombre del peón:\n\n*0* - Volver", nextStep: 51 };
       return {
-        reply: `Peón: *${msg}*\n\n¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n\nRespondé con el número.`,
+        reply: `Peón: *${msg}*\n\n¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver\n\nRespondé con el número.`,
         nextStep: 52, data: { regalosNombrePeon: msg }
       };
     }
     case 52: {
+      if (lower === '0') {
+        if (conversationState.data.regalosEsPeon) {
+          return { reply: "Ingresá el *nombre* del peón:\n\n*0* - Volver", nextStep: 51 };
+        }
+        return { reply: "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón\n*0* - Volver", nextStep: 50 };
+      }
       const subtipos = { '1': 'Entregados', '2': 'Faltantes', '3': 'Sobrantes', '4': 'Cambios' };
       const s = subtipos[msg.trim()];
       if (!s) {
-        return { reply: "Opción no válida.\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios", nextStep: 52 };
+        return { reply: "Opción no válida.\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver", nextStep: 52 };
       }
-      return { reply: `¿Cuántos regalos *${s.toLowerCase()}*?`, nextStep: 53, data: { regalosSubTipo: s } };
+      const pregunta = s === 'Cambios'
+        ? '¿Cuántos regalos *cambian*?'
+        : `¿Cuántos regalos *${s.toLowerCase()}*?`;
+      return { reply: `${pregunta}\n\n*0* - Volver`, nextStep: 53, data: { regalosSubTipo: s } };
     }
     case 53: {
+      if (lower === '0') {
+        return { reply: "¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver", nextStep: 52 };
+      }
       const cantidad = parseInt(msg, 10);
-      if (isNaN(cantidad) || cantidad < 0) return { reply: "Ingresá un número válido (ej: *5*, *0*):", nextStep: 53 };
+      if (isNaN(cantidad) || cantidad < 0) return { reply: "Ingresá un número válido (ej: *5*, *0* para volver):", nextStep: 53 };
       const vehiculo = conversationState.data.regalosVehiculo || '?';
       const nombre = conversationState.data.regalosNombrePeon || null;
       const subtipo = conversationState.data.regalosSubTipo || '?';
@@ -1273,7 +1312,7 @@ function handleChofer(step, msg, lower) {
     case 54: {
       if (msg === '1') {
         return {
-          reply: "🎁 ¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón 1\n*3* - Peón 2\n*4* - Peón 3\n\nRespondé con el número.",
+          reply: "🎁 ¿Para quién es el registro?\n\n*1* - Camión\n*2* - Peón\n*0* - Volver\n\nRespondé con el número.",
           nextStep: 50
         };
       }
@@ -1288,10 +1327,9 @@ function handleChofer(step, msg, lower) {
       };
     }
     case 99: {
-      if (msg === '1') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
-      if (msg === '0') return { reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
+      if (msg === '1' || msg === '0') return { reply: `¿Qué querés registrar?\n\n${MENU_CHOFER}\n\nRespondé con el número.`, nextStep: 1 };
       return {
-        reply: "No entendí. Respondé con:\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
+        reply: "No entendí. Respondé con:\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú de chofer",
         nextStep: 99
       };
     }
@@ -1306,12 +1344,13 @@ function handleChofer(step, msg, lower) {
 function handlePeon(step, msg, lower) {
   const MENU_PEON =
     "*1* - Reportar reclamo de donante\n" +
-    "*2* - Marcar entrega de regalo 🎁\n" +
-    "*3* - Reportar donante de baja\n" +
-    "*4* - Enviar foto/comprobante 📸\n" +
-    "*5* - Finalizar\n" +
-    "*0* - Volver al menú principal";
-  const OPCIONES_99 = "*1* - Sí, seguir registrando\n*2* - Finalizar jornada\n*0* - Volver al menú principal";
+    "*2* - Entrega de regalo 🎁\n" +
+    "*3* - Donante complicada\n" +
+    "*4* - No tengo lugar para el regalo\n" +
+    "*5* - Entrega donante nueva\n" +
+    "*6* - Reportar donante de baja\n" +
+    "*0* - Salir";
+  const OPCIONES_99 = "*1* - Sí, volver al menú\n*0* - Volver al menú de peón";
 
   switch (step) {
     case 0: {
@@ -1321,28 +1360,32 @@ function handlePeon(step, msg, lower) {
       return { reply: `✅ Identificado como *Peón #${code}*\n\n¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1, data: { codigoPeon: code } };
     }
     case 1: {
-      if (msg === '1') return { reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:", nextStep: 10 };
-      if (msg === '2') return { reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante:", nextStep: 20 };
-      if (msg === '3') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y/o dirección* de la donante:", nextStep: 30 };
-      if (msg === '4') return { reply: "📸 *Enviar comprobante*\n\n¿Qué tipo de comprobante?\n\n*1* - Foto de recolección\n*2* - Combustible\n*3* - Lavado de camión\n\nElegí una opción:", nextStep: 40 };
-      if (msg === '5') return { reply: "📦 *Cierre de jornada*\n\n¿Cuántos regalos tenías al *inicio* del día?\n(ej: *30*)", nextStep: 60 };
-      if (msg === '0') return { reply: "👋 Volviendo al menú principal...", endFlow: true };
-      return { reply: "Opción no válida. Elegí *1*, *2*, *3*, *4*, *5* o *0*:", nextStep: 1 };
+      if (msg === '1') return { reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:\n\n*0* - Volver", nextStep: 10 };
+      if (msg === '2') return { reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante a quien le entregaste el regalo:\n\n*0* - Volver", nextStep: 20 };
+      if (msg === '3') return { reply: "⚠️ *Donante complicada*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 25 };
+      if (msg === '4') return { reply: "📦 *No tengo lugar para el regalo*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
+      if (msg === '5') return { reply: "🆕 *Entrega donante nueva*\n\nIngresá el *nombre y dirección* de la donante nueva:\n\n*0* - Volver", nextStep: 35 };
+      if (msg === '6') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 40 };
+      if (msg === '0') return { reply: "Sesión de peón finalizada. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
+      return { reply: "Opción no válida. Elegí del *0* al *6*:\n\n" + MENU_PEON, nextStep: 1 };
     }
     case 10: {
-      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 10 };
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:\n\n*0* - Volver", nextStep: 10 };
       return {
-        reply: `📍 Donante: *${msg}*\n\n¿Qué tipo de reclamo?\n\n*1* - No le dejaron regalo\n*2* - Falta bidón\n*3* - Nueva pelela\n*4* - Otro\n\nElegí una opción:`,
+        reply: `📍 Donante: *${msg}*\n\n¿Qué tipo de reclamo?\n\n*1* - No le dejaron regalo\n*2* - Falta bidón\n*3* - Nueva pelela\n*4* - Otro\n\n*0* - Volver`,
         nextStep: 11, data: { reclamoDonante: msg }
       };
     }
     case 11: {
+      if (lower === '0') return { reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:\n\n*0* - Volver", nextStep: 10 };
       const tipos = { '1': 'regalo', '2': 'falta_bidon', '3': 'nueva_pelela', '4': 'otro' };
       const t = tipos[msg];
-      if (!t) return { reply: "Opción no válida. Elegí *1*, *2*, *3* o *4*:", nextStep: 11 };
-      return { reply: "Describí brevemente el reclamo (o escribí *-* si no hay más detalle):", nextStep: 12, data: { reclamoTipo: t } };
+      if (!t) return { reply: "Opción no válida. Elegí *1*, *2*, *3* o *4*:\n\n*0* - Volver", nextStep: 11 };
+      return { reply: "Describí brevemente el reclamo (o escribí *-* si no hay más detalle):\n\n*0* - Volver", nextStep: 12, data: { reclamoTipo: t } };
     }
     case 12: {
+      if (lower === '0') return { reply: `📍 Donante: *${conversationState.data.reclamoDonante}*\n\n¿Qué tipo de reclamo?\n\n*1* - No le dejaron regalo\n*2* - Falta bidón\n*3* - Nueva pelela\n*4* - Otro\n\n*0* - Volver`, nextStep: 11 };
       const desc = msg === '-' ? 'Sin detalle' : msg;
       return {
         reply: `✅ *Reclamo registrado*\n\n📍 Donante: ${conversationState.data.reclamoDonante}\n📋 Tipo: ${conversationState.data.reclamoTipo}\n📝 Detalle: ${desc}\n\nSe notificará a los administradores.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`,
@@ -1351,78 +1394,109 @@ function handlePeon(step, msg, lower) {
       };
     }
     case 20: {
-      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 20 };
-      return { reply: `🎁 Donante: *${msg}*\n\n¿Confirmás que se entregó el regalo?\n\n*1* - Sí, entregado\n*2* - No, cancelar`, nextStep: 21, data: { regaloDonante: msg } };
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá la dirección o nombre de la donante:\n\n*0* - Volver", nextStep: 20 };
+      return { reply: `🎁 Donante: *${msg}*\n\n¿Confirmás que se entregó el regalo?\n\n*1* - Sí, entregado\n*2* - No, cancelar\n*0* - Volver`, nextStep: 21, data: { regaloDonante: msg } };
     }
     case 21: {
-      if (msg === '2') return { reply: `Cancelado. ¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
-      if (msg !== '1') return { reply: "Elegí *1* (sí) o *2* (no):", nextStep: 21 };
-      return { reply: `✅ *Regalo entregado* a ${conversationState.data.regaloDonante}\n\n¿Querés registrar otro?\n${OPCIONES_99}`, nextStep: 99 };
+      if (lower === '0') return { reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante:\n\n*0* - Volver", nextStep: 20 };
+      if (msg === '2') return { reply: `Cancelado.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
+      if (msg !== '1') return { reply: "Elegí *1* (sí), *2* (no) o *0* (volver):", nextStep: 21 };
+      return { reply: `✅ *Regalo entregado* a ${conversationState.data.regaloDonante}\n\n📸 Enviá una *foto* como comprobante de que pasaste por la casa:\n\n*0* - Volver`, nextStep: 22, data: { regaloEntregado: true } };
+    }
+    case 22: {
+      if (lower === '0') return { reply: `🎁 Donante: *${conversationState.data.regaloDonante}*\n\n¿Confirmás que se entregó el regalo?\n\n*1* - Sí, entregado\n*2* - No, cancelar\n*0* - Volver`, nextStep: 21 };
+      return { reply: `📸 En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
+    }
+    case 25: {
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 25 };
+      return {
+        reply: `⚠️ Dirección: *${msg}*\n\nContanos *por qué es complicada*. Describí brevemente (ej: difícil acceso, perros, mal ambiente, etc):\n\n*0* - Volver`,
+        nextStep: 26, data: { complicadaDireccion: msg }
+      };
+    }
+    case 26: {
+      if (lower === '0') return { reply: "⚠️ *Donante complicada*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 25 };
+      if (msg.length < 3) return { reply: "Necesitamos un poco más de detalle. ¿Por qué es complicada?\n\n*0* - Volver", nextStep: 26 };
+      return {
+        reply: `⚠️ Explicación registrada.\n\n📸 Enviá una *foto* como comprobante de que pasaste por la casa:\n\n*0* - Volver`,
+        nextStep: 27,
+        data: { complicadaExplicacion: msg },
+        notify: { target: 'admin', message: `⚠️ *Donante complicada*\n\n📍 Dirección: ${conversationState.data.complicadaDireccion}\n📝 Motivo: ${msg}\n👷 Peón #${conversationState.data.codigoPeon}` }
+      };
+    }
+    case 27: {
+      if (lower === '0') return { reply: `⚠️ Dirección: *${conversationState.data.complicadaDireccion}*\n\nContanos *por qué es complicada*:\n\n*0* - Volver`, nextStep: 26 };
+      return {
+        reply: `📸 *Foto recibida* - Reporte de donante complicada registrado.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`,
+        nextStep: 99,
+        notify: { target: 'admin', message: `⚠️ *Donante complicada - Foto recibida*\n\n📍 Dirección: ${conversationState.data.complicadaDireccion}\n📝 Motivo: ${conversationState.data.complicadaExplicacion}\n👷 Peón #${conversationState.data.codigoPeon}` }
+      };
     }
     case 30: {
-      if (msg.length < 3) return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
       return {
-        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\nElegí una opción:`,
-        nextStep: 31, data: { bajaDonante: msg }
+        reply: `📦 Sin lugar para dejar regalo en: *${msg}*\n\n📸 Enviá una *foto* como comprobante de que pasaste por la casa:\n\n*0* - Volver`,
+        nextStep: 31, data: { sinLugarDireccion: msg },
+        notify: { target: 'admin', message: `📦 *Sin lugar para regalo*\n\n📍 Dirección: ${msg}\n👷 Peón #${conversationState.data.codigoPeon}` }
       };
     }
     case 31: {
-      const motivos = { '1': 'No dona más', '2': 'Se mudó', '3': 'Falleció', '4': 'Dona muy poco', '5': 'Otro' };
-      const m4 = motivos[msg];
-      if (!m4) return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
+      if (lower === '0') return { reply: "📦 *No tengo lugar para el regalo*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
       return {
-        reply: `📋 *Confirmar reporte de baja*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${m4}\n\n⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores para que contacten a la donante.\n\n*1* - Confirmar\n*2* - Cancelar`,
-        nextStep: 32, data: { bajaMotivo: m4 }
+        reply: `📸 *Foto recibida* - Reporte de sin lugar para regalo registrado.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`,
+        nextStep: 99,
+        notify: { target: 'admin', message: `📦 *Sin lugar para regalo - Foto recibida*\n\n📍 Dirección: ${conversationState.data.sinLugarDireccion}\n👷 Peón #${conversationState.data.codigoPeon}` }
       };
     }
-    case 32: {
-      if (msg === '2') return { reply: `Cancelado. ¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
-      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 32 };
+    case 35: {
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá el *nombre y dirección* de la donante nueva:\n\n*0* - Volver", nextStep: 35 };
+      return {
+        reply: `🆕 Donante nueva: *${msg}*\n\n📸 Enviá una *foto* como comprobante de que pasaste por la casa:\n\n*0* - Volver`,
+        nextStep: 36, data: { donanteNueva: msg },
+        notify: { target: 'admin', message: `🆕 *Entrega a donante nueva*\n\n📍 Donante: ${msg}\n👷 Peón #${conversationState.data.codigoPeon}` }
+      };
+    }
+    case 36: {
+      if (lower === '0') return { reply: "🆕 *Entrega donante nueva*\n\nIngresá el *nombre y dirección* de la donante nueva:\n\n*0* - Volver", nextStep: 35 };
+      return {
+        reply: `📸 *Foto recibida* - Entrega a donante nueva registrada.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`,
+        nextStep: 99,
+        notify: { target: 'admin', message: `🆕 *Entrega a donante nueva - Foto recibida*\n\n📍 Donante: ${conversationState.data.donanteNueva}\n👷 Peón #${conversationState.data.codigoPeon}` }
+      };
+    }
+    case 40: {
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 40 };
+      return {
+        reply: `⚠️ Donante: *${msg}*\n\n¿Cuál es el motivo de la baja?\n\n*1* - No dona más\n*2* - Se mudó\n*3* - Falleció\n*4* - Dona muy poco\n*5* - Otro motivo\n\n*0* - Volver`,
+        nextStep: 41, data: { bajaDonante: msg }
+      };
+    }
+    case 41: {
+      if (lower === '0') return { reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 40 };
+      const motivos = { '1': 'No dona más', '2': 'Se mudó', '3': 'Falleció', '4': 'Dona muy poco', '5': 'Otro' };
+      const m4 = motivos[msg];
+      if (!m4) return { reply: "Opción no válida. Elegí del *1* al *5*:\n\n*0* - Volver", nextStep: 41 };
+      return {
+        reply: `📋 *Confirmar reporte de baja*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${m4}\n\n⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores.\n\n*1* - Confirmar\n*2* - Cancelar`,
+        nextStep: 42, data: { bajaMotivo: m4 }
+      };
+    }
+    case 42: {
+      if (msg === '2') return { reply: `Cancelado.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
+      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 42 };
       return {
         reply: `✅ *Reporte de baja enviado a los administradores*\n\nEllos van a contactar a la donante para confirmar.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`,
         nextStep: 99,
         notify: { target: 'admin', message: `🔴 *Reporte de baja de donante*\n\n📍 Donante: ${conversationState.data.bajaDonante}\n📝 Motivo: ${conversationState.data.bajaMotivo}\n👷 Reportado por: Peón #${conversationState.data.codigoPeon}` }
       };
     }
-    case 40: {
-      const tipos = { '1': 'Foto de recolección', '2': 'Combustible', '3': 'Lavado de camión' };
-      const t2 = tipos[msg];
-      if (!t2) return { reply: "Opción no válida. Elegí *1*, *2* o *3*:", nextStep: 40 };
-      return { reply: "📸 Enviá la foto del comprobante:", nextStep: 41 };
-    }
-    case 41: {
-      return { reply: `📸 En este simulador no se pueden enviar fotos, pero en WhatsApp real funcionaría.\n\n¿Querés hacer algo más?\n${OPCIONES_99}`, nextStep: 99 };
-    }
-    case 60: {
-      const n = parseInt(msg, 10);
-      if (isNaN(n) || n < 0) return { reply: "Ingresá un número válido (ej: *30*, *0*):", nextStep: 60 };
-      return { reply: `Tenías *${n} regalos* al inicio.\n\n¿Cuántos regalos te *sobraron* (no entregaste)?\n(ej: *5*, *0* si entregaste todos)`, nextStep: 61, data: { regalosAlInicio: n } };
-    }
-    case 61: {
-      const sobraron = parseInt(msg, 10);
-      if (isNaN(sobraron) || sobraron < 0) return { reply: "Ingresá un número válido (ej: *5*, *0*):", nextStep: 61 };
-      const inicio = conversationState.data.regalosAlInicio || 0;
-      if (sobraron > inicio) return { reply: `No puede sobrar más de lo que tenías (${inicio}). ¿Cuántos sobraron?`, nextStep: 61 };
-      const entregados = inicio - sobraron;
-      return {
-        reply: `📦 *Resumen de regalos - Peón #${conversationState.data.codigoPeon}*\n\n• Regalos al inicio: *${inicio}*\n• Regalos entregados: *${entregados}*\n• Regalos sobrantes: *${sobraron}*\n\n*1* - Confirmar y cerrar | *2* - Corregir`,
-        nextStep: 62, data: { regalosEntregados: entregados, regalsobrantes: sobraron }
-      };
-    }
-    case 62: {
-      if (msg === '2') return { reply: "¿Cuántos regalos tenías al inicio del día?", nextStep: 60, data: { regalosAlInicio: undefined } };
-      const inicio = conversationState.data.regalosAlInicio || 0;
-      const entregados = conversationState.data.regalosEntregados || 0;
-      const sobraron = conversationState.data.regalsobrantes || 0;
-      return {
-        reply: `✅ *Jornada cerrada - Peón #${conversationState.data.codigoPeon}*\n\n📦 Regalos: ${entregados} entregados, ${sobraron} sobrantes.\n\n¡Buen trabajo hoy! 💪`,
-        endFlow: true,
-        notify: { target: 'admin', message: `📦 *Cierre de jornada - Peón #${conversationState.data.codigoPeon}*\n\nRegalos al inicio: ${inicio}\nRegalos entregados: ${entregados}\nRegalos sobrantes: ${sobraron}` }
-      };
-    }
     case 99: {
-      if (msg === '1') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
-      if (msg === '0') return { reply: "👋 Volviendo al menú principal...", endFlow: true };
+      if (msg === '1' || msg === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_PEON}\n\nElegí una opción:`, nextStep: 1 };
       return { reply: "✅ ¡Jornada registrada! Buen trabajo. 💪", endFlow: true };
     }
     default:
@@ -1442,7 +1516,7 @@ function handlePeon(step, msg, lower) {
  * step 13 - Nueva donante: confirmar
  * step 99 - Volver o finalizar
  */
-const MENU_VISITADORA = "*1* - Cargar nueva donante\n*0* - Volver al menú principal";
+const MENU_VISITADORA = "*1* - Cargar nueva donante\n*0* - Salir";
 
 function handleVisitadora(step, msg, lower) {
   switch (step) {
@@ -1456,43 +1530,55 @@ function handleVisitadora(step, msg, lower) {
       };
     }
     case 1: {
-      if (lower === '0' || lower.includes('volver')) {
-        return { reply: "Saliste del registro de visitadora. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
+      if (lower === '0') {
+        return { reply: "Sesión de visitadora finalizada. Escribí cualquier cosa para volver al menú principal.", endFlow: true };
       }
       if (lower === '1') {
-        return { reply: "📋 *Cargar nueva donante*\n\nIngresá el *nombre y apellido* de la nueva donante:", nextStep: 10 };
+        return { reply: "📋 *Cargar nueva donante*\n\nIngresá el *nombre y apellido* de la nueva donante:\n\n*0* - Volver", nextStep: 10 };
       }
       return { reply: "Opción no válida. Elegí *1* o *0*:", nextStep: 1 };
     }
     case 10: {
-      if (msg.length < 3) return { reply: "Ingresá el nombre y apellido completo:", nextStep: 10 };
+      if (lower === '0') return { reply: `¿Qué querés hacer?\n\n${MENU_VISITADORA}\n\nElegí una opción:`, nextStep: 1 };
+      if (msg.length < 3) return { reply: "Ingresá el nombre y apellido completo:\n\n*0* - Volver", nextStep: 10 };
       return {
-        reply: `Donante: *${msg}*\n\nIngresá la *dirección completa* (calle, número, barrio):`,
+        reply: `Donante: *${msg}*\n\nIngresá la *dirección completa* (calle, número, barrio):\n\n*0* - Volver`,
         nextStep: 11, data: { nuevaDonNombre: msg }
       };
     }
     case 11: {
-      if (msg.length < 5) return { reply: "Necesitamos una dirección más completa (calle y número):", nextStep: 11 };
+      if (lower === '0') return { reply: "📋 *Cargar nueva donante*\n\nIngresá el *nombre y apellido* de la nueva donante:\n\n*0* - Volver", nextStep: 10 };
+      if (msg.length < 5) return { reply: "Necesitamos una dirección más completa (calle y número):\n\n*0* - Volver", nextStep: 11 };
       return {
-        reply: `📍 Dirección: *${msg}*\n\nIngresá el *número de teléfono* de la donante (o escribí *no tiene*):`,
+        reply: `📍 Dirección: *${msg}*\n\nIngresá el *número de teléfono* de la donante (o escribí *no tiene*):\n\n*0* - Volver`,
         nextStep: 12, data: { nuevaDonDireccion: msg }
       };
     }
     case 12: {
+      if (lower === '0') return { reply: "Ingresá la *dirección completa* (calle, número, barrio):\n\n*0* - Volver", nextStep: 11 };
       const noTiene = ['no tiene', 'no', 'na', '-'].some(n => lower === n);
       const telefono = noTiene ? null : msg;
       return {
-        reply: `📋 *Confirmar nueva donante*\n\n👤 Nombre: ${conversationState.data.nuevaDonNombre}\n📍 Dirección: ${conversationState.data.nuevaDonDireccion}\n📱 Teléfono: ${telefono || "No tiene"}\n\n*1* - Confirmar | *2* - Cancelar`,
+        reply: `📱 Teléfono: *${telefono || "No tiene"}*\n\nIngresá la *fecha de nacimiento* de la donante (DD/MM/AAAA o DD/MM):\n(si no la sabés, escribí *no sabe*)\n\n*0* - Volver`,
         nextStep: 13, data: { nuevaDonTelefono: telefono }
       };
     }
     case 13: {
-      if (msg === '2') return { reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No, finalizar", nextStep: 99 };
-      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 13 };
+      if (lower === '0') return { reply: "Ingresá el *número de teléfono* de la donante (o escribí *no tiene*):\n\n*0* - Volver", nextStep: 12 };
+      const noSabe = ['no sabe', 'no se', 'no sé', 'no', 'na', '-', 'ns'].some(n => lower === n);
+      const fechaNac = noSabe ? null : msg;
       return {
-        reply: `✅ *Nueva donante registrada*\n\n👤 ${conversationState.data.nuevaDonNombre}\n📍 ${conversationState.data.nuevaDonDireccion}\n\nSe notificó a los administradores.\n\n¿Querés cargar otra donante?\n*1* - Sí\n*2* - No, finalizar`,
+        reply: `📋 *Confirmar nueva donante*\n\n👤 Nombre: ${conversationState.data.nuevaDonNombre}\n📍 Dirección: ${conversationState.data.nuevaDonDireccion}\n📱 Teléfono: ${conversationState.data.nuevaDonTelefono || "No tiene"}\n🎂 Fecha de nacimiento: ${fechaNac || "No sabe"}\n\n*1* - Confirmar | *2* - Cancelar`,
+        nextStep: 14, data: { nuevaDonFechaNac: fechaNac }
+      };
+    }
+    case 14: {
+      if (msg === '2') return { reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí\n*2* - No, finalizar", nextStep: 99 };
+      if (msg !== '1') return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 14 };
+      return {
+        reply: `✅ *Nueva donante registrada*\n\n👤 ${conversationState.data.nuevaDonNombre}\n📍 ${conversationState.data.nuevaDonDireccion}\n🎂 ${conversationState.data.nuevaDonFechaNac || "Sin fecha de nacimiento"}\n\nSe notificó a los administradores.\n\n¿Querés cargar otra donante?\n*1* - Sí\n*2* - No, finalizar`,
         nextStep: 99, data: { donanteRegistrada: true },
-        notify: { target: 'admin', message: `📋 *Nueva donante cargada por visitadora*\n\n👩‍⚕️ Visitadora: ${conversationState.data.nombreVisitadora}\n👤 Nombre: ${conversationState.data.nuevaDonNombre}\n📍 Dirección: ${conversationState.data.nuevaDonDireccion}\n📱 Teléfono: ${conversationState.data.nuevaDonTelefono || "No tiene"}` }
+        notify: { target: 'admin', message: `📋 *Nueva donante cargada por visitadora*\n\n👩‍⚕️ Visitadora: ${conversationState.data.nombreVisitadora}\n👤 Nombre: ${conversationState.data.nuevaDonNombre}\n📍 Dirección: ${conversationState.data.nuevaDonDireccion}\n📱 Teléfono: ${conversationState.data.nuevaDonTelefono || "No tiene"}\n🎂 Fecha nacimiento: ${conversationState.data.nuevaDonFechaNac || "No sabe"}` }
       };
     }
     case 99: {

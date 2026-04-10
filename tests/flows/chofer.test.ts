@@ -172,11 +172,12 @@ describe("choferFlow", () => {
             expect(res.nextStep).toBe(2);
         });
 
-        it("foto omitida → step 99", async () => {
+        it("foto pendiente si no hay media → permanece en step 4", async () => {
             const state = createState("chofer", 4, { ...baseData, bidones: 17 });
             const res = await choferFlow.handle(state, "omitir");
-            expect(res.reply).toContain("Foto omitida");
-            expect(res.nextStep).toBe(99);
+            // Sin media sigue pidiendo foto (no existe omitir en la versión actual)
+            expect(res.reply).toContain("foto");
+            expect(res.nextStep).toBe(4);
         });
     });
 
@@ -264,36 +265,14 @@ describe("choferFlow", () => {
             expect(res.nextStep).toBe(21);
         });
 
-        it("acepta descripción válida", async () => {
+        it("acepta descripción válida → registra directo y notifica admin", async () => {
             const state = createState("chofer", 21, { ...baseData, tipoIncidente: "accidente_transito" });
             const res = await choferFlow.handle(state, "Choqué con un auto estacionado en la esquina");
             expect(res.data?.descripcionIncidente).toBeTruthy();
-            expect(res.reply).toContain("¿Qué tan grave");
-            expect(res.nextStep).toBe(22);
-        });
-
-        it("registra gravedad y notifica admin", async () => {
-            const state = createState("chofer", 22, {
-                ...baseData,
-                tipoIncidente: "accidente_transito",
-                descripcionIncidente: "Choque con auto",
-            });
-            const res = await choferFlow.handle(state, "3");
-            expect(res.data?.gravedadIncidente).toBe("alta");
             expect(res.reply).toContain("Incidente registrado");
             expect(res.notify?.target).toBe("admin");
             expect(res.notify?.message).toContain("INCIDENTE REPORTADO");
             expect(res.nextStep).toBe(99);
-        });
-
-        it("gravedad por defecto es media", async () => {
-            const state = createState("chofer", 22, {
-                ...baseData,
-                tipoIncidente: "retraso",
-                descripcionIncidente: "Llegué tarde por tráfico",
-            });
-            const res = await choferFlow.handle(state, "xyz");
-            expect(res.data?.gravedadIncidente).toBe("media");
         });
 
         it("no tiene opción 'problema climático' en menú de incidentes", async () => {
@@ -373,17 +352,17 @@ describe("choferFlow", () => {
             expect(res.nextStep).toBe(52);
         });
 
-        it("opción 2 (Peón 1) → pide nombre del peón", async () => {
+        it("opción 2 (Peón) → pide nombre del peón", async () => {
             const state = createState("chofer", 50, baseData);
             const res = await choferFlow.handle(state, "2");
-            expect(res.data?.regalosVehiculo).toBe("Peón 1");
+            expect(res.data?.regalosVehiculo).toBe("Peón");
             expect(res.data?.regalosEsPeon).toBe(true);
             expect(res.reply).toContain("nombre");
             expect(res.nextStep).toBe(51);
         });
 
         it("nombre del peón → sub-tipo", async () => {
-            const state = createState("chofer", 51, { ...baseData, regalosVehiculo: "Peón 1", regalosEsPeon: true });
+            const state = createState("chofer", 51, { ...baseData, regalosVehiculo: "Peón", regalosEsPeon: true });
             const res = await choferFlow.handle(state, "Juan Pérez");
             expect(res.data?.regalosNombrePeon).toBe("Juan Pérez");
             expect(res.reply).toContain("Entregados");
@@ -445,11 +424,11 @@ describe("choferFlow", () => {
             expect(res.reply).toContain("Bidones recolectados");
         });
 
-        it("opción 0 → vuelve al menú principal (endFlow)", async () => {
+        it("opción 0 → vuelve al menú de chofer (step 1)", async () => {
             const state = createState("chofer", 99, baseData);
             const res = await choferFlow.handle(state, "0");
-            expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("menú principal");
+            expect(res.nextStep).toBe(1);
+            expect(res.endFlow).toBeFalsy();
         });
 
         it("opción 2 → re-pregunta (no hay finalizar jornada)", async () => {
@@ -468,7 +447,7 @@ describe("choferFlow", () => {
     });
 
     describe("ciclo completo", () => {
-        it("bidones → foto → step 99 → volver → combustible", async () => {
+        it("bidones → pide foto → volver al menú → combustible", async () => {
             const data = { codigoChofer: "01", choferId: 1 };
 
             // 1. Ingreso de bidones
@@ -481,17 +460,12 @@ describe("choferFlow", () => {
             res = await choferFlow.handle(state, "1");
             expect(res.nextStep).toBe(4);
 
-            // 3. Omitir foto → step 99
+            // 3. Sin media, sigue pidiendo foto
             state = createState("chofer", 4, { ...data, bidones: 17 });
-            res = await choferFlow.handle(state, "omitir");
-            expect(res.nextStep).toBe(99);
+            res = await choferFlow.handle(state, "cualquier texto");
+            expect(res.nextStep).toBe(4);
 
-            // 4. Volver al menú
-            state = createState("chofer", 99, { ...data, bidones: 17 });
-            res = await choferFlow.handle(state, "1");
-            expect(res.nextStep).toBe(1);
-
-            // 5. Combustible
+            // 4. Combustible: desde el menú
             state = createState("chofer", 1, { ...data, bidones: 17 });
             res = await choferFlow.handle(state, "2");
             expect(res.nextStep).toBe(10);

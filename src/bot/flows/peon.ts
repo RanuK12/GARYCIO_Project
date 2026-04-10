@@ -7,9 +7,11 @@ import { logger } from "../../config/logger";
  * El peón puede:
  * - Reportar reclamos de donantes en la zona
  * - Marcar entrega de regalo a donante
+ * - Reportar "donante complicada" (dirección + motivo)
+ * - Reportar "no tengo lugar para el regalo" (dirección donante)
+ * - Entrega donante nueva
  * - Reportar donante de baja (NO auto-desactiva, notifica admin)
- * - Enviar fotos/comprobantes
- * - Al finalizar: informar conteo de regalos (inicio, entregados, sobrantes)
+ * - Enviar foto/comprobante (se pide después de cada acción como prueba)
  *
  * Steps:
  * 0  - Identificación
@@ -19,15 +21,20 @@ import { logger } from "../../config/logger";
  * 12 - Reclamo: descripción + confirmar
  * 20 - Regalo: dirección donante
  * 21 - Regalo: confirmar entrega
- * 30 - Baja: nombre/dirección donante
- * 31 - Baja: motivo
- * 32 - Baja: confirmar
- * 40 - Foto: tipo comprobante
- * 41 - Foto: esperando foto
- * 42 - Foto: confirmar datos
- * 60 - Cierre de jornada: regalos al inicio
- * 61 - Cierre de jornada: regalos sobrantes
- * 62 - Cierre de jornada: confirmar resumen
+ * 22 - Regalo: enviar foto comprobante
+ * 25 - Donante complicada: dirección donante
+ * 26 - Donante complicada: explicación (por qué)
+ * 27 - Donante complicada: foto
+ * 30 - No tengo lugar: dirección donante
+ * 31 - No tengo lugar: confirmar + foto
+ * 35 - Entrega donante nueva: nombre/dirección
+ * 36 - Entrega donante nueva: confirmar + foto
+ * 40 - Baja: nombre/dirección donante
+ * 41 - Baja: motivo
+ * 42 - Baja: confirmar
+ * 50 - Foto: esperando foto
+ * 51 - Foto: confirmar datos
+ * 99 - Volver al menú o finalizar
  */
 export const peonFlow: FlowHandler = {
   name: "peon",
@@ -44,15 +51,19 @@ export const peonFlow: FlowHandler = {
       case 12: return handleReclamoDescripcion(respuesta, state);
       case 20: return handleRegaloDireccion(respuesta);
       case 21: return handleRegaloConfirmar(respuesta, state);
-      case 30: return handleBajaDonante(respuesta);
-      case 31: return handleBajaMotivo(respuesta, state);
-      case 32: return handleBajaConfirmar(respuesta, state);
-      case 40: return handleTipoComprobante(respuesta);
-      case 41: return handleRecibirFoto(respuesta, state, mediaInfo);
-      case 42: return handleConfirmarFoto(respuesta, state);
-      case 60: return handleCierreRegalosInicio(respuesta, state);
-      case 61: return handleCierreRegalosRestantes(respuesta, state);
-      case 62: return handleCierreConfirmar(respuesta, state);
+      case 22: return handleRegaloFoto(respuesta, state, mediaInfo);
+      case 25: return handleComplicadaDireccion(respuesta);
+      case 26: return handleComplicadaExplicacion(respuesta, state);
+      case 27: return handleComplicadaFoto(respuesta, state, mediaInfo);
+      case 30: return handleSinLugarDireccion(respuesta);
+      case 31: return handleSinLugarFoto(respuesta, state, mediaInfo);
+      case 35: return handleDonanteNueva(respuesta);
+      case 36: return handleDonanteNuevaFoto(respuesta, state, mediaInfo);
+      case 40: return handleBajaDonante(respuesta);
+      case 41: return handleBajaMotivo(respuesta, state);
+      case 42: return handleBajaConfirmar(respuesta, state);
+      case 50: return handleRecibirFoto(respuesta, state, mediaInfo);
+      case 51: return handleConfirmarFoto(respuesta, state);
       case 99: return handleVolverOFinalizar(respuesta);
       default:
         return { reply: "Sesión finalizada. Escribí *peón* para volver al menú.", endFlow: true };
@@ -91,66 +102,65 @@ function handleIdentificacion(respuesta: string): FlowResponse {
 
 const MENU_PEON =
   "*1* - Reportar reclamo de donante\n" +
-  "*2* - Marcar entrega de regalo 🎁\n" +
-  "*3* - Reportar donante de baja\n" +
-  "*4* - Enviar foto/comprobante 📸\n" +
-  "*5* - Finalizar\n" +
-  "*0* - Volver al menú principal";
+  "*2* - Entrega de regalo 🎁\n" +
+  "*3* - Donante complicada\n" +
+  "*4* - No tengo lugar para el regalo\n" +
+  "*5* - Entrega donante nueva\n" +
+  "*6* - Reportar donante de baja\n" +
+  "*0* - Salir";
 
 function handleMenu(respuesta: string): FlowResponse {
   switch (respuesta) {
     case "0":
       return {
-        reply: "Saliste del registro de peón. Escribí cualquier cosa para volver al menú principal.",
+        reply: "Sesión de peón finalizada. Escribí cualquier cosa para volver al menú principal.",
         endFlow: true,
       };
     case "1":
       return {
-        reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:",
+        reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:\n\n*0* - Volver",
         nextStep: 10,
       };
     case "2":
       return {
-        reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante a quien le entregaste el regalo:",
+        reply: "🎁 *Entrega de regalo*\n\nIngresá la *dirección o nombre* de la donante a quien le entregaste el regalo:\n\n*0* - Volver",
         nextStep: 20,
       };
     case "3":
       return {
-        reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y/o dirección* de la donante:",
-        nextStep: 30,
+        reply: "⚠️ *Donante complicada*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver",
+        nextStep: 25,
       };
     case "4":
       return {
-        reply:
-          "📸 *Enviar comprobante*\n\n" +
-          "¿Qué tipo de comprobante vas a enviar?\n\n" +
-          "*1* - Foto de recolección\n" +
-          "*2* - Combustible\n" +
-          "*3* - Lavado de camión\n\n" +
-          "Elegí una opción:",
-        nextStep: 40,
+        reply: "📦 *No tengo lugar para el regalo*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver",
+        nextStep: 30,
       };
     case "5":
       return {
-        reply:
-          "📦 *Cierre de jornada*\n\n" +
-          "Antes de cerrar, necesitamos el conteo de regalos.\n\n" +
-          "¿Cuántos regalos tenías al *inicio* del día?\n" +
-          "(ej: *30*)",
-        nextStep: 60,
+        reply: "🆕 *Entrega donante nueva*\n\nIngresá el *nombre y dirección* de la donante nueva:\n\n*0* - Volver",
+        nextStep: 35,
+      };
+    case "6":
+      return {
+        reply: "⚠️ *Reportar donante de baja*\n\nIngresá el *nombre y dirección* de la donante:\n\n*0* - Volver",
+        nextStep: 40,
       };
     default:
       return {
-        reply: "Opción no válida. Elegí *1*, *2*, *3*, *4*, *5* o *0*:",
+        reply: "Opción no válida. Elegí del *0* al *6*:\n\n" + MENU_PEON,
         nextStep: 1,
       };
   }
 }
 
-// ── Reclamo ──────────────────────────────────
+// ── Reclamo (steps 10-12) ──────────────────────────────────
 function handleReclamoDireccion(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
   if (respuesta.length < 3) {
-    return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 10 };
+    return { reply: "Ingresá la dirección o nombre de la donante:\n\n*0* - Volver", nextStep: 10 };
   }
   return {
     reply:
@@ -159,7 +169,8 @@ function handleReclamoDireccion(respuesta: string): FlowResponse {
       "*1* - No le dejaron regalo\n" +
       "*2* - Falta bidón\n" +
       "*3* - Nueva pelela\n" +
-      "*4* - Otro\n\n" +
+      "*4* - Otro\n" +
+      "*0* - Volver\n\n" +
       "Elegí una opción:",
     nextStep: 11,
     data: { reclamoDonante: respuesta },
@@ -167,19 +178,30 @@ function handleReclamoDireccion(respuesta: string): FlowResponse {
 }
 
 function handleReclamoTipo(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "📋 *Reclamo de donante*\n\nIngresá la *dirección o nombre* de la donante:\n\n*0* - Volver", nextStep: 10 };
+  }
   const tipos: Record<string, string> = { "1": "regalo", "2": "falta_bidon", "3": "nueva_pelela", "4": "otro" };
   const tipo = tipos[respuesta];
   if (!tipo) {
-    return { reply: "Opción no válida. Elegí *1*, *2*, *3* o *4*:", nextStep: 11 };
+    return { reply: "Opción no válida. Elegí *1*, *2*, *3* o *4*:\n\n*0* - Volver", nextStep: 11 };
   }
   return {
-    reply: "Describí brevemente el reclamo (o escribí *-* si no hay más detalle):",
+    reply: "Describí brevemente el reclamo (o escribí *-* si no hay más detalle):\n\n*0* - Volver",
     nextStep: 12,
     data: { reclamoTipo: tipo },
   };
 }
 
 function handleReclamoDescripcion(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return {
+      reply:
+        `📍 Donante: *${state.data.reclamoDonante}*\n\n¿Qué tipo de reclamo?\n\n` +
+        "*1* - No le dejaron regalo\n*2* - Falta bidón\n*3* - Nueva pelela\n*4* - Otro\n*0* - Volver\n\nElegí una opción:",
+      nextStep: 11,
+    };
+  }
   const descripcion = respuesta === "-" ? null : respuesta;
   const donante = state.data.reclamoDonante || "Desconocida";
   const tipo = state.data.reclamoTipo || "otro";
@@ -193,7 +215,7 @@ function handleReclamoDescripcion(respuesta: string, state: ConversationState): 
       "Se notificará a los administradores.\n\n" +
       "¿Querés hacer algo más?\n" +
       "*1* - Sí, volver al menú\n" +
-      "*2* - No, finalizar",
+      "*0* - Volver al menú de peón",
     nextStep: 99,
     data: {
       reclamoDescripcion: descripcion,
@@ -210,17 +232,20 @@ function handleReclamoDescripcion(respuesta: string, state: ConversationState): 
   };
 }
 
-// ── Entrega de regalo ──────────────────────────────────
+// ── Entrega de regalo (steps 20-22) ──────────────────────────────────
 function handleRegaloDireccion(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
   if (respuesta.length < 3) {
-    return { reply: "Ingresá la dirección o nombre de la donante:", nextStep: 20 };
+    return { reply: "Ingresá la dirección o nombre de la donante:\n\n*0* - Volver", nextStep: 20 };
   }
   return {
     reply:
       `🎁 Donante: *${respuesta}*\n\n` +
       "¿Confirmás que se entregó el regalo?\n\n" +
       "*1* - Sí, entregado\n" +
-      "*2* - No, cancelar\n",
+      "*2* - No, cancelar",
     nextStep: 21,
     data: { regaloDonante: respuesta },
   };
@@ -229,7 +254,7 @@ function handleRegaloDireccion(respuesta: string): FlowResponse {
 function handleRegaloConfirmar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "2") {
     return {
-      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
+      reply: "Cancelado.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
       nextStep: 99,
     };
   }
@@ -240,16 +265,263 @@ function handleRegaloConfirmar(respuesta: string, state: ConversationState): Flo
   return {
     reply:
       `✅ *Regalo entregado* a ${state.data.regaloDonante}\n\n` +
-      "¿Querés registrar otro?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
-    nextStep: 99,
+      "📸 Enviá una *foto* como comprobante de que pasaste por la casa:",
+    nextStep: 22,
     data: { regaloEntregado: true, regaloFecha: new Date().toISOString() },
   };
 }
 
-// ── Donante de baja ──────────────────────────────────
-function handleBajaDonante(respuesta: string): FlowResponse {
+async function handleRegaloFoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* como comprobante.",
+      nextStep: 22,
+    };
+  }
+
+  try {
+    await procesarComprobante(
+      mediaInfo.mediaId,
+      "recoleccion",
+      parseInt(state.data.codigoPeon || "0", 10),
+    );
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto de regalo peón");
+  }
+
+  return {
+    reply:
+      "📸 *Foto recibida*\n\n" +
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
+    nextStep: 99,
+    data: { fotoGuardada: true },
+  };
+}
+
+// ── Donante complicada (steps 25-27) ──────────────────────────────────
+function handleComplicadaDireccion(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
   if (respuesta.length < 3) {
-    return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
+    return { reply: "Ingresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 25 };
+  }
+  return {
+    reply:
+      `⚠️ Dirección: *${respuesta}*\n\n` +
+      "¿Por qué es complicada? Explicá brevemente:\n\n" +
+      "*0* - Volver",
+    nextStep: 26,
+    data: { complicadaDireccion: respuesta },
+  };
+}
+
+function handleComplicadaExplicacion(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return {
+      reply: "⚠️ *Donante complicada*\n\nIngresá la *dirección* de la donante:\n\n*0* - Volver",
+      nextStep: 25,
+    };
+  }
+  if (respuesta.length < 3) {
+    return { reply: "Explicá brevemente por qué es complicada:\n\n*0* - Volver", nextStep: 26 };
+  }
+
+  return {
+    reply:
+      `⚠️ Donante complicada reportada.\n\n` +
+      `📍 Dirección: ${state.data.complicadaDireccion}\n` +
+      `📝 Motivo: ${respuesta}\n\n` +
+      "📸 Enviá una *foto* como comprobante de que pasaste por la casa:\n\n*0* - Omitir foto",
+    nextStep: 27,
+    data: { complicadaMotivo: respuesta },
+    notify: {
+      target: "admin",
+      message:
+        `⚠️ *Donante complicada*\n\n` +
+        `📍 Dirección: ${state.data.complicadaDireccion}\n` +
+        `📝 Motivo: ${respuesta}\n` +
+        `👷 Reportado por: Peón #${state.data.codigoPeon}`,
+    },
+  };
+}
+
+async function handleComplicadaFoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (respuesta === "0") {
+    return {
+      reply:
+        "✅ Reporte de donante complicada registrado.\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
+      nextStep: 99,
+      data: { complicadaRegistrada: true },
+    };
+  }
+
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* como comprobante.\n\n*0* - Omitir foto",
+      nextStep: 27,
+    };
+  }
+
+  try {
+    await procesarComprobante(
+      mediaInfo.mediaId,
+      "recoleccion",
+      parseInt(state.data.codigoPeon || "0", 10),
+    );
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto complicada peón");
+  }
+
+  return {
+    reply:
+      "📸 *Foto recibida* - Reporte de donante complicada registrado.\n\n" +
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
+    nextStep: 99,
+    data: { fotoGuardada: true, complicadaRegistrada: true },
+  };
+}
+
+// ── No tengo lugar para el regalo (steps 30-31) ──────────────────────
+function handleSinLugarDireccion(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
+  if (respuesta.length < 3) {
+    return { reply: "Ingresá la *dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
+  }
+  return {
+    reply:
+      `📦 Sin lugar para dejar regalo en: *${respuesta}*\n\n` +
+      "📸 Enviá una *foto* como comprobante de que pasaste por la casa:",
+    nextStep: 31,
+    data: { sinLugarDireccion: respuesta },
+    notify: {
+      target: "admin",
+      message:
+        `📦 *Sin lugar para regalo*\n\n` +
+        `📍 Dirección: ${respuesta}\n` +
+        `👷 Peón #(ver contexto)`,
+    },
+  };
+}
+
+async function handleSinLugarFoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* como comprobante.",
+      nextStep: 31,
+    };
+  }
+
+  try {
+    await procesarComprobante(
+      mediaInfo.mediaId,
+      "recoleccion",
+      parseInt(state.data.codigoPeon || "0", 10),
+    );
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto sin lugar peón");
+  }
+
+  return {
+    reply:
+      "📸 *Foto recibida* - Reporte de sin lugar para regalo registrado.\n\n" +
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
+    nextStep: 99,
+    data: { fotoGuardada: true, sinLugarRegistrado: true },
+    notify: {
+      target: "admin",
+      message:
+        `📦 *Sin lugar para regalo - Foto recibida*\n\n` +
+        `📍 Dirección: ${state.data.sinLugarDireccion}\n` +
+        `👷 Peón #${state.data.codigoPeon}`,
+    },
+  };
+}
+
+// ── Entrega donante nueva (steps 35-36) ──────────────────────
+function handleDonanteNueva(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
+  if (respuesta.length < 3) {
+    return { reply: "Ingresá el *nombre y dirección* de la donante nueva:\n\n*0* - Volver", nextStep: 35 };
+  }
+  return {
+    reply:
+      `🆕 Donante nueva: *${respuesta}*\n\n` +
+      "📸 Enviá una *foto* como comprobante de que pasaste por la casa:",
+    nextStep: 36,
+    data: { donanteNueva: respuesta },
+    notify: {
+      target: "admin",
+      message:
+        `🆕 *Entrega a donante nueva*\n\n` +
+        `📍 Donante: ${respuesta}\n` +
+        `👷 Peón #(ver contexto)`,
+    },
+  };
+}
+
+async function handleDonanteNuevaFoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* como comprobante.",
+      nextStep: 36,
+    };
+  }
+
+  try {
+    await procesarComprobante(
+      mediaInfo.mediaId,
+      "recoleccion",
+      parseInt(state.data.codigoPeon || "0", 10),
+    );
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto donante nueva peón");
+  }
+
+  return {
+    reply:
+      "📸 *Foto recibida* - Entrega a donante nueva registrada.\n\n" +
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
+    nextStep: 99,
+    data: { fotoGuardada: true, donanteNuevaRegistrada: true },
+    notify: {
+      target: "admin",
+      message:
+        `🆕 *Entrega a donante nueva - Foto recibida*\n\n` +
+        `📍 Donante: ${state.data.donanteNueva}\n` +
+        `👷 Peón #${state.data.codigoPeon}`,
+    },
+  };
+}
+
+// ── Donante de baja (steps 40-42) ──────────────────────────────────
+function handleBajaDonante(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
+  if (respuesta.length < 3) {
+    return { reply: "Ingresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 40 };
   }
   return {
     reply:
@@ -259,14 +531,18 @@ function handleBajaDonante(respuesta: string): FlowResponse {
       "*2* - Se mudó\n" +
       "*3* - Falleció\n" +
       "*4* - Dona muy poco\n" +
-      "*5* - Otro motivo\n\n" +
+      "*5* - Otro motivo\n" +
+      "*0* - Volver\n\n" +
       "Elegí una opción:",
-    nextStep: 31,
+    nextStep: 41,
     data: { bajaDonante: respuesta },
   };
 }
 
 function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés hacer?\n\n" + MENU_PEON + "\n\nElegí una opción:", nextStep: 1 };
+  }
   const motivos: Record<string, string> = {
     "1": "No dona más",
     "2": "Se mudó",
@@ -276,17 +552,17 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
   };
   const motivo = motivos[respuesta];
   if (!motivo) {
-    return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
+    return { reply: "Opción no válida. Elegí del *1* al *5*:\n\n*0* - Volver", nextStep: 41 };
   }
   return {
     reply:
       `📋 *Confirmar reporte de baja*\n\n` +
       `📍 Donante: ${state.data.bajaDonante}\n` +
       `📝 Motivo: ${motivo}\n\n` +
-      "⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores para que contacten a la donante.\n\n" +
+      "⚠️ *No se dará de baja automáticamente.* Se notificará a los administradores.\n\n" +
       "*1* - Confirmar\n" +
       "*2* - Cancelar",
-    nextStep: 32,
+    nextStep: 42,
     data: { bajaMotivo: motivo },
   };
 }
@@ -294,12 +570,12 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
 function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "2") {
     return {
-      reply: "Cancelado. ¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
+      reply: "Cancelado.\n\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
       nextStep: 99,
     };
   }
   if (respuesta !== "1") {
-    return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 32 };
+    return { reply: "Elegí *1* (confirmar) o *2* (cancelar):", nextStep: 42 };
   }
 
   const donante = state.data.bajaDonante || "Desconocida";
@@ -309,7 +585,7 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
     reply:
       "✅ *Reporte de baja enviado a los administradores*\n\n" +
       "Ellos van a contactar a la donante para confirmar.\n\n" +
-      "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
     nextStep: 99,
     data: { bajaReportada: true },
     notify: {
@@ -324,132 +600,7 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
   };
 }
 
-// ── Cierre de jornada: conteo de regalos (steps 60-62) ───────────
-
-function handleCierreRegalosInicio(respuesta: string, _state: ConversationState): FlowResponse {
-  const n = parseInt(respuesta, 10);
-  if (isNaN(n) || n < 0) {
-    return {
-      reply: "Ingresá un número válido (ej: *30*, *0*):",
-      nextStep: 60,
-    };
-  }
-  return {
-    reply:
-      `Tenías *${n} regalos* al inicio.\n\n` +
-      "¿Cuántos regalos te *sobraron* (no entregaste)?\n" +
-      "(ej: *5*, *0* si entregaste todos)",
-    nextStep: 61,
-    data: { regalosAlInicio: n },
-  };
-}
-
-function handleCierreRegalosRestantes(respuesta: string, state: ConversationState): FlowResponse {
-  const sobraron = parseInt(respuesta, 10);
-  if (isNaN(sobraron) || sobraron < 0) {
-    return {
-      reply: "Ingresá un número válido (ej: *5*, *0*):",
-      nextStep: 61,
-    };
-  }
-
-  const inicio = state.data.regalosAlInicio ?? 0;
-  const entregados = inicio - sobraron;
-
-  if (sobraron > inicio) {
-    return {
-      reply:
-        `No puede sobrar más de lo que tenías. Tenías *${inicio}*, ingresá cuántos te sobraron:`,
-      nextStep: 61,
-    };
-  }
-
-  return {
-    reply:
-      `📦 *Resumen de regalos - Peón #${state.data.codigoPeon}*\n\n` +
-      `• Regalos al inicio: *${inicio}*\n` +
-      `• Regalos entregados: *${entregados}*\n` +
-      `• Regalos sobrantes: *${sobraron}*\n\n` +
-      "*1* - Confirmar y cerrar | *2* - Corregir",
-    nextStep: 62,
-    data: { regalosEntregados: entregados, regalsobrantes: sobraron },
-  };
-}
-
-function handleCierreConfirmar(respuesta: string, state: ConversationState): FlowResponse {
-  if (respuesta === "2") {
-    return {
-      reply: "¿Cuántos regalos tenías al inicio del día?",
-      nextStep: 60,
-      data: { regalosAlInicio: undefined, regalosEntregados: undefined, regalsobrantes: undefined },
-    };
-  }
-
-  const inicio = state.data.regalosAlInicio ?? 0;
-  const entregados = state.data.regalosEntregados ?? 0;
-  const sobraron = state.data.regalsobrantes ?? 0;
-
-  return {
-    reply:
-      `✅ *Jornada cerrada - Peón #${state.data.codigoPeon}*\n\n` +
-      `📦 Regalos: ${entregados} entregados, ${sobraron} sobrantes.\n\n` +
-      "¡Buen trabajo hoy! 💪",
-    endFlow: true,
-    data: { jornadaFinalizada: true },
-    notify: {
-      target: "admin",
-      message:
-        `📦 *Cierre de jornada - Peón #${state.data.codigoPeon}*\n\n` +
-        `Regalos al inicio: ${inicio}\n` +
-        `Regalos entregados: ${entregados}\n` +
-        `Regalos sobrantes: ${sobraron}\n` +
-        `Hora: ${new Date().toLocaleTimeString("es-AR")}`,
-    },
-  };
-}
-
-// ── Step 99: volver o finalizar ──────────────────────────────────
-function handleVolverOFinalizar(respuesta: string): FlowResponse {
-  if (respuesta === "1") {
-    return {
-      reply:
-        "¿Qué querés hacer?\n\n" +
-        MENU_PEON + "\n\n" +
-        "Elegí una opción:",
-      nextStep: 1,
-    };
-  }
-  if (respuesta === "0") {
-    return {
-      reply: "Saliste del registro de peón. Escribí cualquier cosa para volver al menú principal.",
-      endFlow: true,
-    };
-  }
-  return {
-    reply: "✅ ¡Jornada registrada! Buen trabajo. 💪",
-    endFlow: true,
-    data: { jornadaFinalizada: true },
-  };
-}
-
-// ── Foto/comprobante (reutiliza lógica de chofer) ──────────────
-function handleTipoComprobante(respuesta: string): FlowResponse {
-  const tipos: Record<string, TipoComprobante> = {
-    "1": "recoleccion",
-    "2": "combustible",
-    "3": "lavado",
-  };
-  const tipo = tipos[respuesta];
-  if (!tipo) {
-    return { reply: "Opción no válida. Elegí *1*, *2* o *3*:", nextStep: 40 };
-  }
-  return {
-    reply: "📸 Enviá la foto del comprobante:",
-    nextStep: 41,
-    data: { fotoTipo: tipo },
-  };
-}
-
+// ── Foto genérica (steps 50-51) — fallback si se necesita ──────────
 async function handleRecibirFoto(
   respuesta: string,
   state: ConversationState,
@@ -457,8 +608,8 @@ async function handleRecibirFoto(
 ): Promise<FlowResponse> {
   if (!mediaInfo || mediaInfo.type !== "image") {
     return {
-      reply: "📸 Necesito que envíes una *foto*. Tomá una foto del comprobante y enviala.",
-      nextStep: 41,
+      reply: "📸 Necesito que envíes una *foto*. Tomá una foto y enviala.",
+      nextStep: 50,
     };
   }
 
@@ -481,14 +632,14 @@ async function handleRecibirFoto(
 
     return {
       reply: resumen,
-      nextStep: 42,
+      nextStep: 51,
       data: { fotoResultado: resultado, fotoDatosExtraidos: datosExtraidos },
     };
   } catch (error) {
     logger.error({ error }, "Error procesando foto de peón");
     return {
       reply: "❌ No pude procesar la foto. ¿Querés intentar de nuevo?\n*1* - Sí\n*2* - No, volver al menú",
-      nextStep: 42,
+      nextStep: 51,
     };
   }
 }
@@ -498,13 +649,31 @@ function handleConfirmarFoto(respuesta: string, state: ConversationState): FlowR
     return {
       reply:
         "✅ *Comprobante guardado*\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
       nextStep: 99,
       data: { fotoGuardada: true },
     };
   }
   return {
-    reply: "¿Querés hacer algo más?\n*1* - Sí, seguir registrando\n*2* - No, finalizar\n*0* - Volver al menú principal",
+    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*0* - Volver al menú de peón",
     nextStep: 99,
+  };
+}
+
+// ── Step 99: volver al menú o finalizar ──────────────────────────────────
+function handleVolverOFinalizar(respuesta: string): FlowResponse {
+  if (respuesta === "1" || respuesta === "0") {
+    return {
+      reply:
+        "¿Qué querés hacer?\n\n" +
+        MENU_PEON + "\n\n" +
+        "Elegí una opción:",
+      nextStep: 1,
+    };
+  }
+  return {
+    reply: "✅ ¡Jornada registrada! Buen trabajo. 💪",
+    endFlow: true,
+    data: { jornadaFinalizada: true },
   };
 }

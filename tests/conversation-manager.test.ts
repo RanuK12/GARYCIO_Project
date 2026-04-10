@@ -90,9 +90,11 @@ describe("conversation-manager", () => {
             expect(result.reply).toContain("3");
         });
 
-        it("muestra opción 'hablar con persona'", async () => {
+        it("menú inicial NO muestra opción 'hablar con persona'", async () => {
             const result = await handleIncomingMessage("test-phone-1", "hola");
-            expect(result.reply).toContain("persona");
+            // Ya no exponemos esta opción en el menú para filtrar mejor
+            expect(result.reply).not.toContain("persona");
+            expect(result.reply).toContain("Otro motivo");
         });
 
         it("detecta 'hablar con una persona' y deriva", async () => {

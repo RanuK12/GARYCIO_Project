@@ -172,8 +172,7 @@ export async function handleIncomingMessage(
             "*1* - Tengo un reclamo\n" +
             "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
             "*3* - Otro motivo\n" +
-            "*4* - Panel de administración\n\n" +
-            "Escribí *persona* en cualquier momento para hablar con alguien del equipo.",
+            "*4* - Panel de administración",
         };
       }
 
@@ -183,8 +182,7 @@ export async function handleIncomingMessage(
           "¿En qué te puedo ayudar?\n\n" +
           "*1* - Tengo un reclamo\n" +
           "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
-          "*3* - Otro motivo\n\n" +
-          "Escribí *persona* en cualquier momento para hablar con alguien del equipo.",
+          "*3* - Otro motivo",
       };
     }
 
@@ -202,6 +200,21 @@ export async function handleIncomingMessage(
 
     state.step = 0;
     await updateConversation(phone, state);
+
+    // Cuando el usuario elige del menú numérico, mostrar el sub-menú del flow
+    // en vez de pasar el mismo número al handler (que lo interpretaría como opción)
+    const flowHandler = getFlowByName(state.currentFlow);
+    if (flowHandler) {
+      const response = await flowHandler.handle(state, "", undefined);
+      if (response.data) {
+        state.data = { ...state.data, ...response.data };
+      }
+      if (response.nextStep !== undefined) {
+        state.step = response.nextStep;
+        await updateConversation(phone, state);
+      }
+      return { reply: response.reply, notify: response.notify };
+    }
   }
 
   const flowHandler = getFlowByName(state.currentFlow);
@@ -224,6 +237,26 @@ export async function handleIncomingMessage(
 
     if (response.endFlow) {
       await endConversation(phone);
+
+      // Si el mensaje original es una keyword de otro flow, re-detectar
+      // para que el usuario no tenga que escribirlo dos veces
+      const redetected = detectFlow(message, phone);
+      if (redetected && redetected.name !== state.currentFlow) {
+        const newState = await startConversation(phone, redetected.name);
+        const newResponse = await redetected.handle(newState, "", undefined);
+        if (newResponse.data) {
+          newState.data = { ...newState.data, ...newResponse.data };
+        }
+        if (newResponse.nextStep !== undefined) {
+          newState.step = newResponse.nextStep;
+          await updateConversation(phone, newState);
+        }
+        return {
+          reply: response.reply + "\n\n" + newResponse.reply,
+          notify: response.notify || newResponse.notify,
+          flowData,
+        };
+      }
     } else if (response.nextStep !== undefined) {
       state.step = response.nextStep;
       await updateConversation(phone, state);
@@ -274,6 +307,7 @@ function detectarIntenciónBaja(message: string): boolean {
 }
 
 // ── Detección de "hablar con una persona" ───────────────
+// Solo se activa con frases MUY explícitas (no palabras sueltas como "persona")
 function detectarHablarConPersona(message: string): boolean {
   const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -282,13 +316,10 @@ function detectarHablarConPersona(message: string): boolean {
     "hablar con alguien",
     "quiero hablar con alguien",
     "necesito hablar con alguien",
-    "operador",
-    "agente",
-    "persona",
-    "humano",
-    "atencion humana",
     "quiero un humano",
+    "necesito atencion humana",
+    "quiero hablar con una persona",
   ];
 
-  return FRASES.some((frase) => lower === frase || lower.includes(frase));
+  return FRASES.some((frase) => lower.includes(frase));
 }

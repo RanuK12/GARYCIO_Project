@@ -1,4 +1,6 @@
-import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, MediaInfo } from "./types";
+import { procesarComprobante } from "../../services/image-processor";
+import { logger } from "../../config/logger";
 
 /**
  * Flow de reclamos de donantes.
@@ -15,12 +17,13 @@ import { FlowHandler, ConversationState, FlowResponse } from "./types";
  * 1 - Sub-menú regalo (falta / roto)
  * 2 - Detalle del reclamo (opcional)
  * 3 - Confirmación final → escala y notifica
+ * 4 - Foto del regalo roto
  */
 export const reclamoFlow: FlowHandler = {
   name: "reclamo",
   keyword: ["reclamo", "queja", "problema", "reclamos"],
 
-  async handle(state: ConversationState, message: string): Promise<FlowResponse> {
+  async handle(state: ConversationState, message: string, mediaInfo?: MediaInfo): Promise<FlowResponse> {
     const respuesta = message.trim();
 
     switch (state.step) {
@@ -32,6 +35,8 @@ export const reclamoFlow: FlowHandler = {
         return handleDetalleReclamo(respuesta, state);
       case 3:
         return handleConfirmacionFinal(respuesta, state);
+      case 4:
+        return handleFotoRegaloRoto(respuesta, state, mediaInfo);
       default:
         return { reply: "Gracias por reportar. ¡Lo vamos a resolver!", endFlow: true };
     }
@@ -64,7 +69,8 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
     return {
       reply:
         "Registramos tu reclamo: *no te dejaron bidón vacío*.\n\n" +
-        "¿Querés agregar algún detalle? Si no, respondé *no*.",
+        "¿Querés agregar algún detalle? Si no, respondé *no*.\n\n" +
+        "*0* - Volver",
       nextStep: 2,
       data: { tipoReclamo: "falta_bidon_vacio", labelReclamo: "No dejaron bidón vacío" },
     };
@@ -75,7 +81,8 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
     return {
       reply:
         "Registramos tu reclamo: *no pasaron hoy a retirar el bidón*.\n\n" +
-        "¿Querés agregar algún detalle? Si no, respondé *no*.",
+        "¿Querés agregar algún detalle? Si no, respondé *no*.\n\n" +
+        "*0* - Volver",
       nextStep: 2,
       data: { tipoReclamo: "no_pasaron", labelReclamo: "No pasaron a retirar" },
     };
@@ -148,11 +155,16 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
 function handleSubMenuRegalo(respuesta: string): FlowResponse {
   const lower = respuesta.toLowerCase();
 
+  if (lower === "0") {
+    return { reply: MENU_RECLAMO, nextStep: 0 };
+  }
+
   if (lower === "1") {
     return {
       reply:
         "Registramos tu reclamo: *falta el regalo*.\n\n" +
-        "¿Cuál es el regalo que te falta? (describilo brevemente o escribí *no sé*)",
+        "¿Cuál es el regalo que te falta? (describilo brevemente o escribí *no sé*)\n\n" +
+        "*0* - Volver",
       nextStep: 2,
       data: { subTipoRegalo: "falta", labelReclamo: "Falta regalo" },
     };
@@ -162,7 +174,8 @@ function handleSubMenuRegalo(respuesta: string): FlowResponse {
     return {
       reply:
         "Registramos tu reclamo: *regalo roto*.\n\n" +
-        "¿Querés agregar algún detalle de qué está roto? Si no, respondé *no*.",
+        "¿Querés agregar algún detalle de qué está roto? Si no, respondé *no*.\n\n" +
+        "*0* - Volver",
       nextStep: 2,
       data: { subTipoRegalo: "roto", labelReclamo: "Regalo roto" },
     };
@@ -172,17 +185,49 @@ function handleSubMenuRegalo(respuesta: string): FlowResponse {
     reply:
       "Opción no válida. ¿Qué pasó con el regalo?\n\n" +
       "*1* - Falta el regalo\n" +
-      "*2* - El regalo está roto",
+      "*2* - El regalo está roto\n" +
+      "*0* - Volver",
     nextStep: 1,
   };
 }
 
 function handleDetalleReclamo(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta.toLowerCase() === "0") {
+    // Volver: si estaba en regalo, volver al sub-menú; si no, al menú principal
+    if (state.data.tipoReclamo === "regalo") {
+      return {
+        reply:
+          "¿Qué pasó con el regalo?\n\n" +
+          "*1* - Falta el regalo (no me lo dejaron)\n" +
+          "*2* - El regalo está roto\n" +
+          "*0* - Volver",
+        nextStep: 1,
+      };
+    }
+    return { reply: MENU_RECLAMO, nextStep: 0 };
+  }
+
   const sinDetalle = ["no", "nop", "na", "nada", "no se", "no sé"].some(
     (n) => respuesta.toLowerCase() === n,
   );
 
   const label = state.data.labelReclamo || "general";
+  const detalle = sinDetalle ? null : respuesta;
+
+  // Si es regalo roto → pedir foto antes de confirmar
+  if (state.data.subTipoRegalo === "roto") {
+    return {
+      reply:
+        `Tu reclamo por *${label}* quedó registrado. ✅\n\n` +
+        "📸 Por favor enviá una *foto del regalo roto* para que podamos verificarlo:",
+      nextStep: 4,
+      data: { detalleReclamo: detalle },
+      notify: {
+        target: "chofer",
+        message: formatNotificacionChofer(state, detalle),
+      },
+    };
+  }
 
   return {
     reply:
@@ -193,10 +238,10 @@ function handleDetalleReclamo(respuesta: string, state: ConversationState): Flow
       "¿Hay algo más en lo que te podamos ayudar?\n" +
       "*1* - Sí\n*2* - No, gracias",
     nextStep: 3,
-    data: { detalleReclamo: sinDetalle ? null : respuesta },
+    data: { detalleReclamo: detalle },
     notify: {
       target: "chofer",
-      message: formatNotificacionChofer(state, sinDetalle ? null : respuesta),
+      message: formatNotificacionChofer(state, detalle),
     },
   };
 }
@@ -239,6 +284,50 @@ function handleConfirmacionFinal(respuesta: string, _state: ConversationState): 
   return {
     reply: "¡Perfecto! Cualquier cosa estamos por acá. ¡Buen día! 😊",
     endFlow: true,
+  };
+}
+
+// ── Foto regalo roto (step 4) ──────────────────────────────────
+async function handleFotoRegaloRoto(
+  respuesta: string,
+  state: ConversationState,
+  mediaInfo?: MediaInfo,
+): Promise<FlowResponse> {
+  if (respuesta === "0") {
+    return {
+      reply:
+        "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
+        "Se lo vamos a informar al recolector de tu zona. " +
+        "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
+        "¿Hay algo más en lo que te podamos ayudar?\n" +
+        "*1* - Sí\n*2* - No, gracias",
+      nextStep: 3,
+    };
+  }
+
+  if (!mediaInfo || mediaInfo.type !== "image") {
+    return {
+      reply: "📸 Enviá una *foto* del regalo roto.\n\n*0* - Omitir foto",
+      nextStep: 4,
+    };
+  }
+
+  try {
+    await procesarComprobante(mediaInfo.mediaId, "recoleccion", 0);
+  } catch (err) {
+    logger.error({ err }, "Error procesando foto de regalo roto");
+  }
+
+  return {
+    reply:
+      "📸 *Foto recibida*\n\n" +
+      "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
+      "Se lo vamos a informar al recolector de tu zona. " +
+      "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
+      "¿Hay algo más en lo que te podamos ayudar?\n" +
+      "*1* - Sí\n*2* - No, gracias",
+    nextStep: 3,
+    data: { fotoRegaloRoto: true },
   };
 }
 

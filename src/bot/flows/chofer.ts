@@ -23,8 +23,7 @@ import { logger } from "../../config/logger";
  * 12 - Foto de combustible
  * 13 - Confirmar foto combustible
  * 20 - Tipo de incidente
- * 21 - Detalle del incidente (descripción/tiempo/etc)
- * 22 - Gravedad del incidente
+ * 21 - Detalle del incidente (descripción) → registra directo
  * 30 - Baja donante: nombre/dirección
  * 31 - Baja donante: motivo
  * 32 - Baja donante: confirmar → auto-contacta donante
@@ -55,7 +54,6 @@ export const choferFlow: FlowHandler = {
       case 13: return handleConfirmarFotoCombustible(respuesta, state);
       case 20: return handleTipoIncidente(respuesta);
       case 21: return handleDetalleIncidente(respuesta, state);
-      case 22: return handleGravedadIncidente(respuesta, state);
       case 30: return handleBajaDonante(respuesta);
       case 31: return handleBajaMotivo(respuesta, state);
       case 32: return handleBajaConfirmar(respuesta, state);
@@ -106,14 +104,14 @@ const MENU_CHOFER =
   "*3* - Reportar incidente\n" +
   "*4* - Reportar donante de baja\n" +
   "*5* - Regalos 🎁\n" +
-  "*0* - Volver al menú principal";
+  "*0* - Salir";
 
 function handleMenuChofer(respuesta: string, state: ConversationState): FlowResponse {
   const lower = respuesta.toLowerCase();
 
-  if (lower === "0" || lower.includes("volver") || lower.includes("salir") || lower.includes("menu principal")) {
+  if (lower === "0" || lower.includes("salir")) {
     return {
-      reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.",
+      reply: "Sesión de chofer finalizada. Escribí cualquier cosa para volver al menú principal.",
       endFlow: true,
     };
   }
@@ -123,7 +121,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
       reply:
         "🛢️ *Registro de recolección*\n\n" +
         "¿Cuántos *bidones* recolectaste hoy?\n" +
-        "(ej: *17*, *25*)",
+        "(ej: *17*, *25*)\n\n" +
+        "*0* - Volver",
       nextStep: 2,
     };
   }
@@ -133,7 +132,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
       reply:
         "⛽ *Carga de combustible*\n\n" +
         "Ingresá los litros y el monto separados por coma:\n" +
-        "(ej: *45, 12500*)",
+        "(ej: *45, 12500*)\n\n" +
+        "*0* - Volver",
       nextStep: 10,
     };
   }
@@ -147,7 +147,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
         "*2* - Retraso significativo\n" +
         "*3* - Avería del camión\n" +
         "*4* - Intento de robo o robo\n" +
-        "*5* - Otro\n\n" +
+        "*5* - Otro\n" +
+        "*0* - Volver\n\n" +
         "Respondé con el número.",
       nextStep: 20,
     };
@@ -157,8 +158,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
     return {
       reply:
         "⚠️ *Reportar donante de baja*\n\n" +
-        "Ingresá el *nombre, dirección y motivo* de la donante:\n" +
-        "(podés escribirlo todo junto o primero el nombre)",
+        "Ingresá el *nombre y dirección* de la donante:\n\n" +
+        "*0* - Volver",
       nextStep: 30,
     };
   }
@@ -169,9 +170,8 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
         "🎁 *Regalos*\n\n" +
         "¿Para quién es el registro?\n\n" +
         "*1* - Camión\n" +
-        "*2* - Peón 1\n" +
-        "*3* - Peón 2\n" +
-        "*4* - Peón 3\n\n" +
+        "*2* - Peón\n" +
+        "*0* - Volver\n\n" +
         "Respondé con el número.",
       nextStep: 50,
     };
@@ -187,9 +187,12 @@ function handleMenuChofer(respuesta: string, state: ConversationState): FlowResp
 // ── Recolección (solo bidones) ─────────────────────────────────────
 
 function handleBidones(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.", nextStep: 1 };
+  }
   const bidones = parseInt(respuesta, 10);
   if (isNaN(bidones) || bidones <= 0) {
-    return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)", nextStep: 2 };
+    return { reply: "Ingresá un número válido de bidones. (ej: *17*, *25*)\n\n*0* - Volver", nextStep: 2 };
   }
   return {
     reply:
@@ -210,8 +213,7 @@ function handleConfirmacionBidones(respuesta: string, state: ConversationState):
   return {
     reply:
       "✅ *Bidones registrados*\n\n" +
-      "Ahora enviá una *foto* de los bidones recolectados. 📸\n\n" +
-      "Si no tenés foto, escribí *omitir*.",
+      "Ahora enviá una *foto* de los bidones recolectados. 📸",
     nextStep: 4,
     data: { recoleccionGuardada: true },
     notify: {
@@ -227,16 +229,9 @@ async function handleFotoBidones(
   state: ConversationState,
   mediaInfo?: MediaInfo,
 ): Promise<FlowResponse> {
-  if (respuesta.toLowerCase().includes("omitir") || respuesta.toLowerCase().includes("no tengo")) {
-    return {
-      reply: "Foto omitida. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
-      nextStep: 99,
-    };
-  }
-
   if (!mediaInfo || mediaInfo.type !== "image") {
     return {
-      reply: "📸 Enviá una *foto* de los bidones, o escribí *omitir* para saltar.",
+      reply: "📸 Enviá una *foto* de los bidones recolectados.",
       nextStep: 4,
     };
   }
@@ -271,9 +266,12 @@ function handleConfirmarFotoBidones(respuesta: string, _state: ConversationState
 
 // ── Combustible ─────────────────────────────────────
 function handleCombustible(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.", nextStep: 1 };
+  }
   const partes = respuesta.split(/[,;]/);
   if (partes.length < 2) {
-    return { reply: "Formato: *litros, monto* (ej: *45, 12500*)", nextStep: 10 };
+    return { reply: "Formato: *litros, monto* (ej: *45, 12500*)\n\n*0* - Volver", nextStep: 10 };
   }
   const litrosComb = parseFloat(partes[0].trim().replace(",", "."));
   const monto = parseFloat(partes[1].trim().replace(",", "."));
@@ -295,8 +293,7 @@ function handleConfirmacionCombustible(respuesta: string, state: ConversationSta
   return {
     reply:
       "✅ *Combustible registrado*\n\n" +
-      "Ahora enviá una *foto* del ticket de combustible. 📸\n\n" +
-      "Si no tenés foto, escribí *omitir*.",
+      "Ahora enviá una *foto* del ticket de combustible. 📸",
     nextStep: 12,
     notify: {
       target: "admin",
@@ -311,16 +308,9 @@ async function handleFotoCombustible(
   state: ConversationState,
   mediaInfo?: MediaInfo,
 ): Promise<FlowResponse> {
-  if (respuesta.toLowerCase().includes("omitir") || respuesta.toLowerCase().includes("no tengo")) {
-    return {
-      reply: "Foto omitida. ¿Querés registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
-      nextStep: 99,
-    };
-  }
-
   if (!mediaInfo || mediaInfo.type !== "image") {
     return {
-      reply: "📸 Enviá una *foto* del ticket, o escribí *omitir* para saltar.",
+      reply: "📸 Enviá una *foto* del ticket de combustible.",
       nextStep: 12,
     };
   }
@@ -371,10 +361,13 @@ const LABELS_INCIDENTE: Record<string, string> = {
 };
 
 function handleTipoIncidente(respuesta: string): FlowResponse {
+  if (respuesta.trim() === "0") {
+    return { reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.", nextStep: 1 };
+  }
   const tipo = TIPOS_INCIDENTE[respuesta.trim()];
   if (!tipo) {
     return {
-      reply: "Respondé con el número del tipo de incidente (1-5):",
+      reply: "Respondé con el número del tipo de incidente (1-5):\n\n*0* - Volver",
       nextStep: 20,
     };
   }
@@ -411,53 +404,37 @@ function handleTipoIncidente(respuesta: string): FlowResponse {
   };
 }
 
-function handleDetalleIncidente(respuesta: string, _state: ConversationState): FlowResponse {
-  if (respuesta.length < 3) {
-    return { reply: "Necesitamos más detalle. ¿Qué pasó?", nextStep: 21 };
+function handleDetalleIncidente(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return {
+      reply:
+        "🚨 *Reportar Incidente*\n\n¿Qué tipo de incidente?\n\n" +
+        "*1* - Accidente en el tránsito\n*2* - Retraso significativo\n*3* - Avería del camión\n*4* - Intento de robo o robo\n*5* - Otro\n*0* - Volver\n\nRespondé con el número.",
+      nextStep: 20,
+    };
   }
-  return {
-    reply:
-      "¿Qué tan grave es la situación?\n\n" +
-      "*1* - Baja (informativo, no afecta la operación)\n" +
-      "*2* - Media (afecta parcialmente el recorrido)\n" +
-      "*3* - Alta (no se puede continuar el recorrido)\n" +
-      "*4* - Crítica (emergencia, se necesita asistencia)",
-    nextStep: 22,
-    data: { descripcionIncidente: respuesta },
-  };
-}
+  if (respuesta.length < 3) {
+    return { reply: "Necesitamos más detalle. ¿Qué pasó?\n\n*0* - Volver", nextStep: 21 };
+  }
 
-const GRAVEDADES: Record<string, string> = {
-  "1": "baja", "2": "media", "3": "alta", "4": "critica",
-};
-
-const GRAVEDAD_EMOJI: Record<string, string> = {
-  baja: "🟢", media: "🟡", alta: "🟠", critica: "🔴",
-};
-
-function handleGravedadIncidente(respuesta: string, state: ConversationState): FlowResponse {
-  const gravedad = GRAVEDADES[respuesta.trim()] || "media";
   const tipo = state.data.tipoIncidente;
-  const desc = state.data.descripcionIncidente;
-  const emoji = GRAVEDAD_EMOJI[gravedad];
 
   return {
     reply:
-      `${emoji} *Incidente registrado*\n\n` +
+      `🚨 *Incidente registrado*\n\n` +
       `Se notificó a la dirección de forma inmediata.\n` +
       `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
-      `Gravedad: *${gravedad}*\n\n` +
+      `Descripción: ${respuesta}\n\n` +
       "¿Necesitás registrar algo más?\n\n*1* - Sí, seguir registrando\n*0* - Volver al menú principal",
     nextStep: 99,
-    data: { gravedadIncidente: gravedad, incidenteReportado: true },
+    data: { descripcionIncidente: respuesta, incidenteReportado: true },
     notify: {
       target: "admin",
       message:
-        `${emoji} *INCIDENTE REPORTADO*\n\n` +
+        `🚨 *INCIDENTE REPORTADO*\n\n` +
         `Chofer: *#${state.data.codigoChofer}*\n` +
         `Tipo: *${LABELS_INCIDENTE[tipo]}*\n` +
-        `Gravedad: *${gravedad.toUpperCase()}*\n` +
-        `Descripción: ${desc}\n` +
+        `Descripción: ${respuesta}\n` +
         `Hora: ${new Date().toLocaleTimeString("es-AR")}\n\n` +
         `_Notificación automática de GARYCIO_`,
     },
@@ -467,8 +444,11 @@ function handleGravedadIncidente(respuesta: string, state: ConversationState): F
 // ── Donante de baja (steps 30-32) ──────────────────────────────────
 
 function handleBajaDonante(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.", nextStep: 1 };
+  }
   if (respuesta.length < 3) {
-    return { reply: "Ingresá el nombre y/o dirección de la donante:", nextStep: 30 };
+    return { reply: "Ingresá el *nombre y dirección* de la donante:\n\n*0* - Volver", nextStep: 30 };
   }
   return {
     reply:
@@ -478,7 +458,8 @@ function handleBajaDonante(respuesta: string): FlowResponse {
       "*2* - Se mudó\n" +
       "*3* - Falleció\n" +
       "*4* - Dona muy poco\n" +
-      "*5* - Otro motivo\n\n" +
+      "*5* - Otro motivo\n" +
+      "*0* - Volver\n\n" +
       "Elegí una opción:",
     nextStep: 31,
     data: { bajaDonante: respuesta },
@@ -486,6 +467,9 @@ function handleBajaDonante(respuesta: string): FlowResponse {
 }
 
 function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.", nextStep: 1 };
+  }
   const motivos: Record<string, string> = {
     "1": "No dona más",
     "2": "Se mudó",
@@ -495,7 +479,7 @@ function handleBajaMotivo(respuesta: string, state: ConversationState): FlowResp
   };
   const motivo = motivos[respuesta];
   if (!motivo) {
-    return { reply: "Opción no válida. Elegí del *1* al *5*:", nextStep: 31 };
+    return { reply: "Opción no válida. Elegí del *1* al *5*:\n\n*0* - Volver", nextStep: 31 };
   }
   return {
     reply:
@@ -545,27 +529,32 @@ function handleBajaConfirmar(respuesta: string, state: ConversationState): FlowR
 
 const LABELS_VEHICULO: Record<string, string> = {
   "1": "Camión",
-  "2": "Peón 1",
-  "3": "Peón 2",
-  "4": "Peón 3",
+  "2": "Peón",
 };
 
 function handleRegalosVehiculo(respuesta: string, _state: ConversationState): FlowResponse {
+  if (respuesta.trim() === "0") {
+    return {
+      reply: "¿Qué querés registrar?\n\n" + MENU_CHOFER + "\n\nRespondé con el número.",
+      nextStep: 1,
+    };
+  }
+
   const label = LABELS_VEHICULO[respuesta.trim()];
   if (!label) {
     return {
       reply:
         "Opción no válida. ¿Para quién es el registro?\n\n" +
-        "*1* - Camión\n*2* - Peón 1\n*3* - Peón 2\n*4* - Peón 3",
+        "*1* - Camión\n*2* - Peón\n*0* - Volver",
       nextStep: 50,
     };
   }
 
-  const esPeon = respuesta.trim() !== "1";
+  const esPeon = respuesta.trim() === "2";
 
   if (esPeon) {
     return {
-      reply: `Registrando regalos para *${label}*.\n\n¿Cuál es el *nombre* del peón?`,
+      reply: `Registrando regalos para *Peón*.\n\n¿Cuál es el *nombre* del peón?\n\n*0* - Volver`,
       nextStep: 51,
       data: { regalosVehiculo: label, regalosEsPeon: true },
     };
@@ -574,12 +563,13 @@ function handleRegalosVehiculo(respuesta: string, _state: ConversationState): Fl
   // Camión → directo al sub-tipo
   return {
     reply:
-      `Registrando regalos para *${label}*.\n\n` +
+      `Registrando regalos para *Camión*.\n\n` +
       "¿Qué querés registrar?\n\n" +
       "*1* - Entregados\n" +
       "*2* - Faltantes\n" +
       "*3* - Sobrantes\n" +
-      "*4* - Cambios\n\n" +
+      "*4* - Cambios\n" +
+      "*0* - Volver\n\n" +
       "Respondé con el número.",
     nextStep: 52,
     data: { regalosVehiculo: label, regalosEsPeon: false, regalosNombrePeon: null },
@@ -587,8 +577,17 @@ function handleRegalosVehiculo(respuesta: string, _state: ConversationState): Fl
 }
 
 function handleRegalosNombrePeon(respuesta: string, _state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return {
+      reply:
+        "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n" +
+        "*1* - Camión\n*2* - Peón\n*0* - Volver\n\nRespondé con el número.",
+      nextStep: 50,
+    };
+  }
+
   if (respuesta.length < 2) {
-    return { reply: "Ingresá el nombre del peón:", nextStep: 51 };
+    return { reply: "Ingresá el nombre del peón:\n\n*0* - Volver", nextStep: 51 };
   }
 
   return {
@@ -598,7 +597,8 @@ function handleRegalosNombrePeon(respuesta: string, _state: ConversationState): 
       "*1* - Entregados\n" +
       "*2* - Faltantes\n" +
       "*3* - Sobrantes\n" +
-      "*4* - Cambios\n\n" +
+      "*4* - Cambios\n" +
+      "*0* - Volver\n\n" +
       "Respondé con el número.",
     nextStep: 52,
     data: { regalosNombrePeon: respuesta },
@@ -613,26 +613,48 @@ const LABELS_SUBTIPO_REGALO: Record<string, string> = {
 };
 
 function handleRegalosSubTipo(respuesta: string, _state: ConversationState): FlowResponse {
+  if (respuesta.trim() === "0") {
+    return {
+      reply:
+        "🎁 *Regalos*\n\n¿Para quién es el registro?\n\n" +
+        "*1* - Camión\n*2* - Peón\n*0* - Volver\n\nRespondé con el número.",
+      nextStep: 50,
+    };
+  }
+
   const label = LABELS_SUBTIPO_REGALO[respuesta.trim()];
   if (!label) {
     return {
       reply:
-        "Opción no válida.\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios",
+        "Opción no válida.\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver",
       nextStep: 52,
     };
   }
 
+  // "Cambios" → pregunta "cambian" en vez de "cambios"
+  const pregunta = label === "Cambios"
+    ? "¿Cuántos regalos *cambian*?"
+    : `¿Cuántos regalos *${label.toLowerCase()}*?`;
+
   return {
-    reply: `¿Cuántos regalos *${label.toLowerCase()}*?`,
+    reply: pregunta + "\n\n*0* - Volver",
     nextStep: 53,
     data: { regalosSubTipo: label },
   };
 }
 
 function handleRegalosCantidad(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta.trim() === "0") {
+    return {
+      reply:
+        "¿Qué querés registrar?\n\n*1* - Entregados\n*2* - Faltantes\n*3* - Sobrantes\n*4* - Cambios\n*0* - Volver\n\nRespondé con el número.",
+      nextStep: 52,
+    };
+  }
+
   const cantidad = parseInt(respuesta, 10);
   if (isNaN(cantidad) || cantidad < 0) {
-    return { reply: "Ingresá un número válido (ej: *5*, *0*):", nextStep: 53 };
+    return { reply: "Ingresá un número válido (ej: *5*, *0*):\n\n*0* - Volver", nextStep: 53 };
   }
 
   const vehiculo = state.data.regalosVehiculo || "?";
@@ -664,9 +686,8 @@ function handleRegalosOtroMas(respuesta: string, state: ConversationState): Flow
       reply:
         "🎁 ¿Para quién es el registro?\n\n" +
         "*1* - Camión\n" +
-        "*2* - Peón 1\n" +
-        "*3* - Peón 2\n" +
-        "*4* - Peón 3\n\n" +
+        "*2* - Peón\n" +
+        "*0* - Volver\n\n" +
         "Respondé con el número.",
       nextStep: 50,
     };
@@ -714,8 +735,11 @@ function handleVolverOFinalizar(respuesta: string, state: ConversationState): Fl
 
   if (respuesta === "0") {
     return {
-      reply: "Saliste del registro de chofer. Escribí cualquier cosa para volver al menú principal.",
-      endFlow: true,
+      reply:
+        `¿Qué querés registrar?\n\n` +
+        MENU_CHOFER + "\n\n" +
+        "Respondé con el número.",
+      nextStep: 1,
     };
   }
 
@@ -724,7 +748,7 @@ function handleVolverOFinalizar(respuesta: string, state: ConversationState): Fl
     reply:
       "No entendí. Respondé con:\n\n" +
       "*1* - Sí, seguir registrando\n" +
-      "*0* - Volver al menú principal",
+      "*0* - Volver al menú de chofer",
     nextStep: 99,
   };
 }

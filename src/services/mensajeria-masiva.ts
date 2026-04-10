@@ -463,15 +463,13 @@ export async function enviarDifusionPorRutas(opciones?: {
 function generarMensajeDifusionRuta(donante: DonantesRuta): string {
   const nombre = donante.nombre;
   const horario = donante.horarioEstimado
-    ? `El horario estimado de paso es alrededor de las *${donante.horarioEstimado} hs*.`
+    ? `El horario estimado de paso es alrededor de las *${donante.horarioEstimado}hs*.`
     : `El horario de paso es entre las *8 y 9 de la mañana*.`;
 
   return (
-    `Buen día *${nombre}*. Le hablamos de parte del laboratorio ` +
-    `para informarle que sus días de recolección son: *${donante.diasRecoleccion}*, ` +
-    `y le corresponde el *Camión #${donante.chofer}*.\n\n` +
-    `${horario}\n\n` +
-    `Confirme recepción apretando el número *1*.\n` +
-    `De lo contrario, si tiene alguna otra consulta oprima *2*.`
+    `Buen dia ${nombre}. Le hablamos de parte del laboratorio ` +
+    `para informarle que a partir de ahora sus días de recolección van a ser: *${donante.diasRecoleccion}*.\n` +
+    `${horario}\n` +
+    `Confirme recepción apretando el número *1*. De lo contrario, si tiene alguna otra consulta oprima *2*.`
   );
 }
