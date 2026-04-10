@@ -72,7 +72,8 @@ describe("nuevaDonanteFlow", () => {
             expect(res.reply).toContain("registrada como nueva donante");
             expect(res.endFlow).toBe(true);
             expect(res.data?.confirmado).toBe(true);
-            expect(res.notify?.target).toBe("chofer");
+            // Notifica al admin (quien asigna zona y chofer)
+            expect(res.notify?.target).toBe("admin");
             expect(res.notify?.message).toContain("María López");
         });
 

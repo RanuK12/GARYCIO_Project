@@ -40,14 +40,23 @@ jest.mock("../src/bot/client", () => ({
     sendDocument: jest.fn(),
 }));
 
-// Mock DB — conversation-manager reads/writes conversation states
-const mockDbSelect = jest.fn().mockReturnValue({
+// ── Mock de DB ──────────────────────────────────────────
+// Cola de respuestas: cada llamada a limit() consume el siguiente valor de la cola
+let dbResponseQueue: any[][] = [];
+
+const mockSelect = jest.fn().mockImplementation(() => ({
     from: jest.fn().mockReturnValue({
         where: jest.fn().mockReturnValue({
-            limit: jest.fn().mockResolvedValue([]),
+            limit: jest.fn().mockImplementation(async () => {
+                if (dbResponseQueue.length > 0) {
+                    return dbResponseQueue.shift()!;
+                }
+                return [];
+            }),
         }),
     }),
-});
+}));
+
 const mockDbInsert = jest.fn().mockReturnValue({
     values: jest.fn().mockReturnValue({
         onConflictDoUpdate: jest.fn().mockResolvedValue(undefined),
@@ -64,7 +73,7 @@ const mockDbDelete = jest.fn().mockReturnValue({
 
 jest.mock("../src/database", () => ({
     db: {
-        select: () => mockDbSelect(),
+        select: () => mockSelect(),
         insert: () => mockDbInsert(),
         update: () => mockDbUpdate(),
         delete: () => mockDbDelete(),
@@ -74,24 +83,52 @@ jest.mock("../src/database", () => ({
 import { handleIncomingMessage } from "../src/bot/conversation-manager";
 import { detectFlow } from "../src/bot/flows";
 
+// ── Helpers de rol ──────────────────────────────────────
+// lookupRolPorTelefono hace 4 queries en paralelo (Promise.all):
+// orden: [choferes, peones, visitadoras, donantes]
+// Además, getConversation hace 1 query a conversation_states al inicio.
+// Total de queries para primer mensaje: 1 (conv_states) + 4 (lookup) = 5
+
+function mockComoDonanteConocida() {
+    // 1. conversation_states → [] (sin sesión activa)
+    // 2-4. choferes, peones, visitadoras → []
+    // 5. donantes → [{id:1}]
+    dbResponseQueue = [[], [], [], [], [{ id: 1, estado: "activa" }]];
+}
+
+function mockComoDesconocido() {
+    // 1. conversation_states → [] (sin sesión activa)
+    // 2-5. todas las tablas de lookup → []
+    dbResponseQueue = [[], [], [], [], []];
+}
+
 describe("conversation-manager", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockComoDesconocido(); // Default: teléfono desconocido
     });
 
     describe("handleIncomingMessage", () => {
-        it("muestra menú inicial para mensaje desconocido", async () => {
-            const result = await handleIncomingMessage("test-phone-1", "hola buenas");
+        it("número desconocido → flow de registro nueva donante", async () => {
+            mockComoDesconocido();
+            const result = await handleIncomingMessage("test-phone-nuevo", "hola buenas");
+            // Un número desconocido ahora va al flow de nueva_donante automáticamente
+            expect(result.reply).toContain("Bienvenida");
+            expect(result.reply).toContain("registrarte");
+        });
+
+        it("donante conocida → muestra menú principal", async () => {
+            mockComoDonanteConocida();
+            const result = await handleIncomingMessage("test-phone-donante", "hola");
             expect(result.reply).toContain("¡Hola!");
-            expect(result.reply).toContain("1");
             expect(result.reply).toContain("reclamo");
-            expect(result.reply).toContain("2");
             expect(result.reply).toContain("aviso");
-            expect(result.reply).toContain("3");
+            expect(result.reply).toContain("Otro motivo");
         });
 
         it("menú inicial NO muestra opción 'hablar con persona'", async () => {
-            const result = await handleIncomingMessage("test-phone-1", "hola");
+            mockComoDonanteConocida();
+            const result = await handleIncomingMessage("test-phone-donante", "hola");
             // Ya no exponemos esta opción en el menú para filtrar mejor
             expect(result.reply).not.toContain("persona");
             expect(result.reply).toContain("Otro motivo");

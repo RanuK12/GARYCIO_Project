@@ -1,15 +1,22 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { db } from "../../database";
+import { donantes } from "../../database/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../../config/logger";
 
 /**
  * Flow para registrar nuevas donantes.
- * Se activa cuando una persona escribe por primera vez
- * o menciona que quiere empezar a donar.
+ *
+ * Se activa en dos escenarios:
+ *  A) Un número totalmente desconocido escribe por primera vez → el conversation-manager
+ *     lo redirige aquí automáticamente.
+ *  B) Una donante existente menciona keywords de registro ("quiero donar", etc.)
  *
  * Secuencia:
- * 0 - Presentación + pedir nombre completo
+ * 0 - Bienvenida + pedir nombre completo
  * 1 - Pedir dirección
  * 2 - Pedir días de preferencia para recolección
- * 3 - Confirmar datos → notifica al chofer de la zona
+ * 3 - Confirmar datos → guarda en DB + notifica admin
  */
 export const nuevaDonanteFlow: FlowHandler = {
   name: "nueva_donante",
@@ -22,11 +29,11 @@ export const nuevaDonanteFlow: FlowHandler = {
       case 0:
         return handleNombre(respuesta);
       case 1:
-        return handleDireccion(respuesta, state);
+        return handleDireccion(respuesta);
       case 2:
         return handleDiasPreferencia(respuesta, state);
       case 3:
-        return handleConfirmacion(respuesta, state);
+        return await handleConfirmacion(respuesta, state);
       default:
         return { reply: "¡Gracias por sumarte!", endFlow: true };
     }
@@ -34,14 +41,21 @@ export const nuevaDonanteFlow: FlowHandler = {
 };
 
 function handleNombre(respuesta: string): FlowResponse {
+  // step 0 con mensaje vacío = inicio automático desde conversation-manager
   if (respuesta.length < 3) {
     return {
       reply:
-        "¡Hola! Bienvenida a *GARYCIO*. 🎉\n\n" +
-        "Para registrarte como donante necesitamos algunos datos.\n\n" +
-        "¿Cuál es tu *nombre completo*?",
+        "¡Hola! 👋 Bienvenida a *GARYCIO*.\n\n" +
+        "Parece que es la primera vez que nos escribís. " +
+        "¿Querés registrarte como donante?\n\n" +
+        "Para empezar, decinos tu *nombre completo*.\n\n" +
+        "Si no querés registrarte, escribí *0* para ver el menú de opciones.",
       nextStep: 0,
     };
+  }
+
+  if (respuesta === "0") {
+    return { reply: "", endFlow: true }; // → menú principal
   }
 
   return {
@@ -53,10 +67,16 @@ function handleNombre(respuesta: string): FlowResponse {
   };
 }
 
-function handleDireccion(respuesta: string, _state: ConversationState): FlowResponse {
+function handleDireccion(respuesta: string): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "", endFlow: true }; // → menú principal
+  }
+
   if (respuesta.length < 5) {
     return {
-      reply: "Necesitamos una dirección más completa para poder ubicarte. ¿Cuál es tu dirección?",
+      reply:
+        "Necesitamos una dirección más completa para poder ubicarte. " +
+        "¿Cuál es tu dirección? (o escribí *0* para cancelar)",
       nextStep: 1,
     };
   }
@@ -72,6 +92,10 @@ function handleDireccion(respuesta: string, _state: ConversationState): FlowResp
 }
 
 function handleDiasPreferencia(respuesta: string, state: ConversationState): FlowResponse {
+  if (respuesta === "0") {
+    return { reply: "", endFlow: true }; // → menú principal
+  }
+
   const dias = respuesta.toLowerCase().includes("cualquier")
     ? "A coordinar"
     : respuesta;
@@ -82,24 +106,68 @@ function handleDiasPreferencia(respuesta: string, state: ConversationState): Flo
       `👤 Nombre: *${state.data.nombre}*\n` +
       `📍 Dirección: *${state.data.direccion}*\n` +
       `📅 Días preferidos: *${dias}*\n\n` +
-      `¿Está todo correcto? Respondé *1* para SÍ o *2* para corregir algo.`,
+      `¿Está todo correcto?\n*1* - Sí, confirmar\n*2* - No, corregir\n*0* - Cancelar`,
     nextStep: 3,
     data: { diasPreferencia: dias },
   };
 }
 
-function handleConfirmacion(respuesta: string, state: ConversationState): FlowResponse {
+async function handleConfirmacion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  if (respuesta === "0") {
+    return { reply: "", endFlow: true }; // → menú principal
+  }
+
   const confirma = ["1", "si", "sí", "sep", "sip", "correcto", "dale"].some(
     (a) => respuesta.toLowerCase().includes(a),
   );
 
   if (!confirma) {
     return {
-      reply:
-        "Sin problema, empecemos de nuevo.\n\n¿Cuál es tu *nombre completo*?",
+      reply: "Sin problema, empecemos de nuevo.\n\n¿Cuál es tu *nombre completo*?",
       nextStep: 0,
       data: {},
     };
+  }
+
+  // Guardar / actualizar en la tabla donantes
+  try {
+    const existing = await db
+      .select({ id: donantes.id })
+      .from(donantes)
+      .where(eq(donantes.telefono, state.phone))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Ya existe (auto-registrada antes) → actualizar con los datos reales
+      await db
+        .update(donantes)
+        .set({
+          nombre: state.data.nombre,
+          direccion: state.data.direccion,
+          diasRecoleccion: state.data.diasPreferencia,
+          estado: "nueva",
+          donandoActualmente: false,
+          notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(donantes.telefono, state.phone));
+    } else {
+      // Insertar nueva
+      await db.insert(donantes).values({
+        nombre: state.data.nombre,
+        telefono: state.phone,
+        direccion: state.data.direccion,
+        diasRecoleccion: state.data.diasPreferencia,
+        estado: "nueva",
+        donandoActualmente: false,
+        notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
+      });
+    }
+
+    logger.info({ phone: state.phone, nombre: state.data.nombre }, "Nueva donante registrada vía bot");
+  } catch (err) {
+    logger.error({ phone: state.phone, err }, "Error guardando nueva donante en DB");
+    // No fallar el flow por un error de DB — el admin igual recibe la notificación
   }
 
   return {
@@ -111,13 +179,14 @@ function handleConfirmacion(respuesta: string, state: ConversationState): FlowRe
     endFlow: true,
     data: { confirmado: true },
     notify: {
-      target: "chofer",
+      target: "admin",
       message:
-        `🆕 *Nueva donante registrada*\n\n` +
-        `Nombre: ${state.data.nombre}\n` +
-        `Dirección: ${state.data.direccion}\n` +
-        `Días preferidos: ${state.data.diasPreferencia}\n\n` +
-        `Por favor pasá por el domicilio en los próximos días.`,
+        `🆕 *Nueva donante registrada (autoflow)*\n\n` +
+        `📱 Teléfono: ${state.phone}\n` +
+        `👤 Nombre: ${state.data.nombre}\n` +
+        `📍 Dirección: ${state.data.direccion}\n` +
+        `📅 Días preferidos: ${state.data.diasPreferencia}\n\n` +
+        `✅ Guardada en DB con estado *nueva*. Asignar zona y chofer.`,
     },
   };
 }

@@ -400,7 +400,10 @@
   <div class="role-selector" id="roleSelector">
     <h3>¿Cómo querés probar el bot?</h3>
     <button class="role-btn" onclick="selectRole('donante')">
-      <span class="role-icon">👩</span> Donante
+      <span class="role-icon">👩</span> Donante (registrada)
+    </button>
+    <button class="role-btn" onclick="selectRole('donante_nuevo')">
+      <span class="role-icon">🆕</span> Número desconocido (nuevo)
     </button>
     <button class="role-btn" onclick="selectRole('donante_difusion')">
       <span class="role-icon">📢</span> Donante (recibió difusión)
@@ -468,14 +471,33 @@ function selectRole(role) {
     peon: '+5491155005678',
     visitadora: '+5491155009000',
     donante: '+5491155779900',
+    donante_nuevo: '+5491199887766',
     donante_difusion: '+5491155779900',
   };
   document.getElementById('infoRole').textContent = role;
   document.getElementById('infoPhone').textContent = phones[role] || '+5491155779900';
 
+  // Routing por rol: personal operativo y admin arrancan su flow directamente
+  // (simulando que la DB contiene su número → el bot los reconoce)
   if (role === 'donante') {
+    // Donante registrada: escribe hola → menú principal
     addMessage('Hola', 'sent');
-    setTimeout(() => processBot('hola'), 800);
+    showTyping();
+    setTimeout(() => { hideTyping(); addMessage(MENU_PRINCIPAL, 'received'); updateInfo(); }, 800);
+  } else if (role === 'donante_nuevo') {
+    // Número desconocido: el bot arranca el flow de registro automáticamente
+    addMessage('Hola', 'sent');
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      conversationState.flow = 'nueva_donante';
+      conversationState.step = 0;
+      // Mostrar primer mensaje del flow nueva_donante (bienvenida)
+      const result = handleNuevaDonante(0, '', '');
+      addMessage(result.reply, 'received');
+      if (result.nextStep !== undefined) conversationState.step = result.nextStep;
+      updateInfo();
+    }, 800);
   } else if (role === 'donante_difusion') {
     // Simulamos que el bot ya mandó un mensaje de difusión con ruta OptimoRoute
     conversationState.flow = 'difusion';
@@ -485,17 +507,48 @@ function selectRole(role) {
     document.getElementById('infoFlow').textContent = 'difusion';
     document.getElementById('infoStep').textContent = '0';
   } else if (role === 'chofer') {
-    addMessage('chofer', 'sent');
-    setTimeout(() => processBot('chofer'), 800);
+    // Chofer: routing directo por rol, sin necesidad de escribir "chofer"
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      conversationState.flow = 'chofer';
+      conversationState.step = 0;
+      const result = handleChofer(0, '', '');
+      addMessage(result.reply, 'received');
+      if (result.nextStep !== undefined) conversationState.step = result.nextStep;
+      updateInfo();
+    }, 500);
   } else if (role === 'peon') {
-    addMessage('peón', 'sent');
-    setTimeout(() => processBot('peón'), 800);
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      conversationState.flow = 'peon';
+      conversationState.step = 0;
+      const result = handlePeon(0, '', '');
+      addMessage(result.reply, 'received');
+      if (result.nextStep !== undefined) conversationState.step = result.nextStep;
+      updateInfo();
+    }, 500);
   } else if (role === 'visitadora') {
-    addMessage('visitadora', 'sent');
-    setTimeout(() => processBot('visitadora'), 800);
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      conversationState.flow = 'visitadora';
+      conversationState.step = 0;
+      const result = handleVisitadora(0, '', '');
+      addMessage(result.reply, 'received');
+      if (result.nextStep !== undefined) conversationState.step = result.nextStep;
+      updateInfo();
+    }, 500);
   } else if (role === 'admin') {
-    addMessage('admin', 'sent');
-    setTimeout(() => processBot('admin'), 800);
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      conversationState.flow = 'admin';
+      conversationState.step = 1;
+      addMessage(MENU_ADMIN_TEXT, 'received');
+      updateInfo();
+    }, 500);
   }
 }
 
@@ -608,9 +661,11 @@ function processBot(message) {
     }
   }
 
-  // ── If no active flow, detect ──────────────────
+  // ── If no active flow, detect por rol o keyword ─────────
   if (!conversationState.flow) {
-    if (['chofer', 'recolector', 'registro', 'litros'].some(k => lower.includes(k))) {
+    // Roles operativos: el flow arranca directo (ya lo hace selectRole, pero por si
+    // el usuario llega acá de otra forma, guardamos la lógica como fallback de keywords)
+    if (['chofer', 'recolector', 'litros'].some(k => lower.includes(k))) {
       conversationState.flow = 'chofer';
       conversationState.step = 0;
     } else if (['peon', 'peón', 'acompañante'].some(k => lowerNorm.includes(k))) {
@@ -628,12 +683,16 @@ function processBot(message) {
     } else if (['aviso', 'vacaciones', 'ausencia', 'enfermedad', 'medicacion', 'medicación'].some(k => lowerNorm.includes(k))) {
       conversationState.flow = 'aviso';
       conversationState.step = 0;
+    } else if (['donar', 'registrar', 'inscribir', 'quiero donar'].some(k => lower.includes(k))) {
+      conversationState.flow = 'nueva_donante';
+      conversationState.step = 0;
+    } else if (currentRole === 'donante_nuevo') {
+      // Número desconocido sin keyword → flow de registro
+      conversationState.flow = 'nueva_donante';
+      conversationState.step = 0;
     } else {
-      // Default donante greeting → show main menu
-      addMessage(
-        "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n¿En qué te puedo ayudar?\n\n*1* - Tengo un reclamo\n*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n*3* - Otro motivo",
-        'received'
-      );
+      // Donante conocida o rol donante → menú principal
+      addMessage(MENU_PRINCIPAL, 'received');
       conversationState.flow = 'donante_menu';
       conversationState.step = 0;
       updateInfo();
@@ -703,14 +762,15 @@ function updateInfo() {
 // ── Flow dispatcher ──────────────────────────
 function handleFlow(flow, step, msg, lower) {
   switch (flow) {
-    case 'difusion':    return handleDifusion(step, msg, lower);
-    case 'reclamo':     return handleReclamo(step, msg, lower);
-    case 'aviso':       return handleAviso(step, msg, lower);
-    case 'consulta':    return handleConsulta(step, msg, lower);
-    case 'chofer':      return handleChofer(step, msg, lower);
-    case 'peon':        return handlePeon(step, msg, lower);
-    case 'visitadora':  return handleVisitadora(step, msg, lower);
-    case 'admin':       return handleAdmin(step, msg, lower);
+    case 'difusion':      return handleDifusion(step, msg, lower);
+    case 'reclamo':       return handleReclamo(step, msg, lower);
+    case 'aviso':         return handleAviso(step, msg, lower);
+    case 'consulta':      return handleConsulta(step, msg, lower);
+    case 'chofer':        return handleChofer(step, msg, lower);
+    case 'peon':          return handlePeon(step, msg, lower);
+    case 'visitadora':    return handleVisitadora(step, msg, lower);
+    case 'admin':         return handleAdmin(step, msg, lower);
+    case 'nueva_donante': return handleNuevaDonante(step, msg, lower);
     default: return { reply: "No entendí. Escribí *hola* para empezar.", endFlow: true };
   }
 }
@@ -1661,6 +1721,100 @@ function handleAdmin(step, msg, lower) {
     }
     default:
       return handleAdmin(0, msg, lower); // volver a bienvenida en vez de finalizar
+  }
+}
+
+// ════════════════════════════════════════════
+// ── NUEVA DONANTE (número desconocido) ───────
+// ════════════════════════════════════════════
+/*
+ * step 0 - Bienvenida + pedir nombre
+ * step 1 - Pedir dirección
+ * step 2 - Pedir días preferidos
+ * step 3 - Confirmación → notifica admin
+ * 0 en cualquier paso → vuelve al menú principal (endFlow)
+ */
+function handleNuevaDonante(step, msg, lower) {
+  switch (step) {
+    case 0: {
+      if (msg === '0') return { reply: '', endFlow: true };
+      if (msg.length < 3) {
+        return {
+          reply:
+            "¡Hola! 👋 Bienvenida a *GARYCIO*.\n\n" +
+            "Parece que es la primera vez que nos escribís. " +
+            "¿Querés registrarte como donante?\n\n" +
+            "Para empezar, decinos tu *nombre completo*.\n\n" +
+            "Si no querés registrarte, escribí *0* para ver el menú de opciones.",
+          nextStep: 0,
+        };
+      }
+      return {
+        reply: `Perfecto, *${msg}*. 👋\n\n¿Cuál es tu *dirección completa*? (calle, número, piso si aplica, localidad)`,
+        nextStep: 1,
+        data: { nombre: msg },
+      };
+    }
+    case 1: {
+      if (msg === '0') return { reply: '', endFlow: true };
+      if (msg.length < 5) {
+        return {
+          reply: "Necesitamos una dirección más completa para poder ubicarte. ¿Cuál es tu dirección? (o *0* para cancelar)",
+          nextStep: 1,
+        };
+      }
+      return {
+        reply: "¡Anotado! 📝\n\n¿Qué *días te quedan más cómodos* para la recolección?\n\nPodés decirnos los días (ej: lunes y jueves) o si te da igual decí *cualquier día*.",
+        nextStep: 2,
+        data: { direccion: msg },
+      };
+    }
+    case 2: {
+      if (msg === '0') return { reply: '', endFlow: true };
+      const dias = lower.includes('cualquier') ? 'A coordinar' : msg;
+      const nombre = conversationState.data.nombre || '?';
+      const direccion = conversationState.data.direccion || '?';
+      return {
+        reply:
+          `Confirmemos tus datos:\n\n` +
+          `👤 Nombre: *${nombre}*\n` +
+          `📍 Dirección: *${direccion}*\n` +
+          `📅 Días preferidos: *${dias}*\n\n` +
+          `¿Está todo correcto?\n*1* - Sí, confirmar\n*2* - No, corregir\n*0* - Cancelar`,
+        nextStep: 3,
+        data: { diasPreferencia: dias },
+      };
+    }
+    case 3: {
+      if (msg === '0') return { reply: '', endFlow: true };
+      const confirma = ['1','si','sí','sep','sip','correcto','dale'].some(a => lower.includes(a));
+      if (!confirma) {
+        return { reply: "Sin problema, empecemos de nuevo.\n\n¿Cuál es tu *nombre completo*?", nextStep: 0, data: {} };
+      }
+      const nombre = conversationState.data.nombre || '?';
+      const direccion = conversationState.data.direccion || '?';
+      const dias = conversationState.data.diasPreferencia || 'A coordinar';
+      return {
+        reply:
+          "¡Listo! Quedaste registrada como nueva donante. 🎉\n\n" +
+          "En los próximos días un recolector va a pasar por tu domicilio. " +
+          "Te vamos a avisar por acá cuándo.\n\n" +
+          "Si tenés alguna duda, escribinos cuando quieras. ¡Gracias por sumarte! 💪",
+        endFlow: true,
+        data: { confirmado: true },
+        notify: {
+          target: 'admin',
+          message:
+            `🆕 *Nueva donante registrada (autoflow)*\n\n` +
+            `👤 Nombre: ${nombre}\n` +
+            `📍 Dirección: ${direccion}\n` +
+            `📅 Días preferidos: ${dias}\n\n` +
+            `✅ Guardada en DB con estado *nueva*. Asignar zona y chofer.`,
+        },
+      };
+    }
+    default:
+      return { reply: '¡Gracias por sumarte!', endFlow: true };
   }
 }
 </script>

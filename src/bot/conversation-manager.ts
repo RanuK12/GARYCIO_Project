@@ -4,6 +4,7 @@ import { db } from "../database";
 import { conversationStates } from "../database/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../config/logger";
+import { lookupRolPorTelefono } from "../services/contacto-donante";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
@@ -127,6 +128,24 @@ function getMenuPrincipal(phone: string): string {
   );
 }
 
+// ── Arrancar un flow y devolver su primer mensaje ───────
+async function iniciarFlow(
+  phone: string,
+  flow: FlowType,
+): Promise<{ state: ConversationState; reply: string; notify?: FlowResponse["notify"] }> {
+  const state = await startConversation(phone, flow);
+  const flowHandler = getFlowByName(flow);
+  if (!flowHandler) return { state, reply: getMenuPrincipal(phone) };
+
+  const response = await flowHandler.handle(state, "", undefined);
+  if (response.data) state.data = { ...state.data, ...response.data };
+  if (response.nextStep !== undefined) {
+    state.step = response.nextStep;
+    await updateConversation(phone, state);
+  }
+  return { state, reply: response.reply, notify: response.notify };
+}
+
 // ── Procesar mensaje entrante ───────────────────────────
 export async function handleIncomingMessage(
   phone: string,
@@ -159,8 +178,9 @@ export async function handleIncomingMessage(
     };
   }
 
+  // ── Sin sesión activa: routing por rol ─────────────────
   if (!state) {
-    // Detectar intención de darse de baja antes de mostrar menú
+    // 1. Detectar intención de baja (solo para donantes)
     const bajaIntent = detectarIntenciónBaja(message);
     if (bajaIntent) {
       logger.info({ phone, message }, "Donante expresó intención de baja — derivando a atención personalizada");
@@ -181,16 +201,45 @@ export async function handleIncomingMessage(
       };
     }
 
-    const detectedFlow = detectFlow(message, phone);
+    // 2. Lookup de rol en DB → routing directo para personal operativo
+    const rol = await lookupRolPorTelefono(phone);
+    logger.debug({ phone, rol }, "Rol detectado por teléfono");
 
-    if (!detectedFlow) {
-      return { reply: getMenuPrincipal(phone) };
+    if (rol === "chofer") {
+      const { reply, notify } = await iniciarFlow(phone, "chofer");
+      return { reply, notify };
     }
 
-    state = await startConversation(phone, detectedFlow.name);
+    if (rol === "peon") {
+      const { reply, notify } = await iniciarFlow(phone, "peon");
+      return { reply, notify };
+    }
+
+    if (rol === "visitadora") {
+      const { reply, notify } = await iniciarFlow(phone, "visitadora");
+      return { reply, notify };
+    }
+
+    if (rol === "admin") {
+      const { reply, notify } = await iniciarFlow(phone, "admin");
+      return { reply, notify };
+    }
+
+    // 3. Para donantes (conocidas o desconocidas): detectar keyword primero
+    const detectedFlow = detectFlow(message, phone);
+    if (detectedFlow) {
+      state = await startConversation(phone, detectedFlow.name);
+    } else if (rol === "desconocido") {
+      // Número totalmente nuevo → flow de registro
+      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+      return { reply, notify };
+    } else {
+      // Donante conocida sin keyword → menú principal
+      return { reply: getMenuPrincipal(phone) };
+    }
   }
 
-  // Menú numérico (si no se detectó flow por keyword)
+  // ── Menú numérico (donante con sesión en donante_menu) ──
   if (!state.currentFlow) {
     const option = message.trim();
     if (option === "1") state.currentFlow = "reclamo";
@@ -202,8 +251,7 @@ export async function handleIncomingMessage(
     state.step = 0;
     await updateConversation(phone, state);
 
-    // Cuando el usuario elige del menú numérico, mostrar el sub-menú del flow
-    // en vez de pasar el mismo número al handler (que lo interpretaría como opción)
+    // Mostrar el sub-menú del flow en vez de pasar el número al handler
     const flowHandler = getFlowByName(state.currentFlow);
     if (flowHandler) {
       const response = await flowHandler.handle(state, "", undefined);

@@ -1,12 +1,11 @@
 /**
- * Auto-registro de contacto de donantes.
+ * Auto-registro de contacto de donantes y lookup de rol por teléfono.
  *
  * Cuando un donante envía un mensaje al bot:
  * - Si su teléfono ya está en la tabla donantes → actualiza updatedAt
  * - Si no existe → crea un registro mínimo con estado "nueva" para revisión admin
  *
- * Esto permite capturar automáticamente los teléfonos de donantes que
- * contactan al bot (incluyendo las 73 sin teléfono que podrían escribir).
+ * lookupRolPorTelefono: dado un número, devuelve "chofer" | "peon" | "visitadora" | "admin" | "donante" | "desconocido"
  */
 
 import { db } from "../database";
@@ -14,6 +13,36 @@ import { donantes, choferes, peones, visitadoras } from "../database/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { env } from "../config/env";
+
+export type RolUsuario = "admin" | "chofer" | "peon" | "visitadora" | "donante" | "desconocido";
+
+/**
+ * Determina el rol de un número de teléfono consultando la DB.
+ * Orden de prioridad: admin > chofer > peón > visitadora > donante > desconocido
+ *
+ * Nota: La consulta se hace en paralelo para minimizar latencia.
+ */
+export async function lookupRolPorTelefono(telefono: string): Promise<RolUsuario> {
+  // Admin: solo env vars, sin DB
+  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => p.trim()).filter(Boolean);
+  if (adminPhones.includes(telefono) || telefono === env.CEO_PHONE) {
+    return "admin";
+  }
+
+  // Consultar tablas de personal y donantes en paralelo
+  const [chofer, peon, visitadora, donante] = await Promise.all([
+    db.select({ id: choferes.id }).from(choferes).where(eq(choferes.telefono, telefono)).limit(1),
+    db.select({ id: peones.id }).from(peones).where(eq(peones.telefono, telefono)).limit(1),
+    db.select({ id: visitadoras.id }).from(visitadoras).where(eq(visitadoras.telefono, telefono)).limit(1),
+    db.select({ id: donantes.id, estado: donantes.estado }).from(donantes).where(eq(donantes.telefono, telefono)).limit(1),
+  ]);
+
+  if (chofer.length > 0) return "chofer";
+  if (peon.length > 0) return "peon";
+  if (visitadora.length > 0) return "visitadora";
+  if (donante.length > 0) return "donante";
+  return "desconocido";
+}
 
 /**
  * Registra o actualiza el contacto de un donante cuando envía un mensaje.
