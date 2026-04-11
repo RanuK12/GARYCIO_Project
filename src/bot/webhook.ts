@@ -42,6 +42,33 @@ export function createWebhookRouter(): Router {
           if (change.field !== "messages") continue;
 
           const value = change.value;
+
+          // ── Statuses de mensajes salientes (sent, delivered, read, failed) ──
+          if (value?.statuses) {
+            for (const status of value.statuses) {
+              if (status.status === "failed") {
+                logger.error(
+                  {
+                    phone: status.recipient_id,
+                    messageId: status.id,
+                    status: status.status,
+                    errors: status.errors,
+                  },
+                  "WhatsApp delivery FAILED",
+                );
+              } else {
+                logger.info(
+                  {
+                    phone: status.recipient_id,
+                    messageId: status.id,
+                    status: status.status,
+                  },
+                  "WhatsApp delivery status",
+                );
+              }
+            }
+          }
+
           if (!value?.messages) continue;
 
           for (const message of value.messages) {
