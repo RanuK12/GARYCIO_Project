@@ -146,7 +146,7 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
           nombre: state.data.nombre,
           direccion: state.data.direccion,
           diasRecoleccion: state.data.diasPreferencia,
-          estado: "pendiente",
+          estado: "inactiva",
           donandoActualmente: false,
           notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
           updatedAt: new Date(),
@@ -159,7 +159,7 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
         telefono: state.phone,
         direccion: state.data.direccion,
         diasRecoleccion: state.data.diasPreferencia,
-        estado: "pendiente",
+        estado: "inactiva",
         donandoActualmente: false,
         notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
       });

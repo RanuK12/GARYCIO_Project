@@ -1,7 +1,7 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
 import { db } from "../../database";
-import { donantes, reclamos, reportesBaja, encuestasRegalo } from "../../database/schema";
-import { eq, and, desc, sql, ilike } from "drizzle-orm";
+import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios } from "../../database/schema";
+import { eq, and, desc, sql, ilike, count } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
 import { enviarReportePDF, marcarReporteEnviado } from "../../services/reporte-diario";
@@ -61,6 +61,7 @@ const MENU_ADMIN =
   "*6* - 📊 Resultados de encuesta\n" +
   "*7* - 📖 Ver lista de comandos\n" +
   "*8* - 📄 Generar reporte diario (PDF)\n" +
+  "*10* - 📨 Estado difusión (confirmadas / pendientes)\n" +
   "*9* - Finalizar";
 
 function handleBienvenida(): FlowResponse {
@@ -98,8 +99,10 @@ async function handleMenu(respuesta: string): Promise<FlowResponse> {
       return await handleGenerarReporte();
     case "9":
       return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+    case "10":
+      return await handleEstadoDifusion();
     default:
-      return { reply: "Opción no válida. Elegí del *1* al *9*:", nextStep: 1 };
+      return { reply: "Opción no válida. Elegí del *1* al *10*:", nextStep: 1 };
   }
 }
 
@@ -433,6 +436,53 @@ async function handleGenerarReporte(): Promise<FlowResponse> {
       nextStep: 99,
     };
   }
+}
+
+// ── Estado de difusión ──────────────────────────────────
+async function handleEstadoDifusion(): Promise<FlowResponse> {
+  const stats = await db
+    .select({
+      total: count(),
+      confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
+      pendientes: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = false)`,
+    })
+    .from(difusionEnvios);
+
+  const s = stats[0] || { total: 0, confirmadas: 0, pendientes: 0 };
+  const pct = s.total > 0 ? Math.round((Number(s.confirmadas) / s.total) * 100) : 0;
+
+  // Últimas 5 que confirmaron
+  const ultimasConfirmadas = await db
+    .select({
+      nombre: difusionEnvios.nombre,
+      telefono: difusionEnvios.telefono,
+      fechaConfirmacion: difusionEnvios.fechaConfirmacion,
+    })
+    .from(difusionEnvios)
+    .where(eq(difusionEnvios.confirmado, true))
+    .orderBy(desc(difusionEnvios.fechaConfirmacion))
+    .limit(5);
+
+  let reply =
+    `📨 *Estado de difusión*\n\n` +
+    `📤 Total enviados: *${s.total}*\n` +
+    `✅ Confirmaron: *${s.confirmadas}* (${pct}%)\n` +
+    `⏳ Pendientes: *${Number(s.total) - Number(s.confirmadas)}*\n\n`;
+
+  if (ultimasConfirmadas.length > 0) {
+    reply += `*Últimas confirmaciones:*\n`;
+    for (const c of ultimasConfirmadas) {
+      const hora = c.fechaConfirmacion
+        ? new Date(c.fechaConfirmacion).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+        : "?";
+      reply += `• ${c.nombre ?? c.telefono} — ${hora}\n`;
+    }
+    reply += "\n";
+  }
+
+  reply += "*1* - Volver al menú\n*2* - Finalizar";
+
+  return { reply, nextStep: 99 };
 }
 
 // ── Lista de comandos ──────────────────────────────────
