@@ -31,11 +31,26 @@ export const difusionFlow: FlowHandler = {
 
 async function handleRespuestaDifusion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   if (respuesta === "1") {
-    // Registrar confirmación en la DB
-    await db
+    // Normalizar teléfono: algunos llegan con + y otros sin él
+    // Intentamos con el formato exacto y también sin el + inicial
+    const phoneExacto = state.phone;
+    const phoneSinPlus = state.phone.startsWith("+") ? state.phone.slice(1) : state.phone;
+    const phoneConPlus = state.phone.startsWith("+") ? state.phone : `+${state.phone}`;
+
+    // Actualizar por cualquiera de los formatos posibles
+    const updated = await db
       .update(difusionEnvios)
       .set({ confirmado: true, fechaConfirmacion: new Date() })
-      .where(eq(difusionEnvios.telefono, state.phone));
+      .where(eq(difusionEnvios.telefono, phoneExacto))
+      .returning({ telefono: difusionEnvios.telefono });
+
+    if (updated.length === 0) {
+      // Intentar sin/con el + si no encontró
+      await db
+        .update(difusionEnvios)
+        .set({ confirmado: true, fechaConfirmacion: new Date() })
+        .where(eq(difusionEnvios.telefono, phoneSinPlus.length > phoneExacto.length ? phoneSinPlus : phoneConPlus));
+    }
 
     return {
       reply:
