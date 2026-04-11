@@ -4,10 +4,10 @@ import fs from "fs";
 
 // Soporte para Meta Cloud API directa o 360dialog como proveedor
 // Meta:      https://graph.facebook.com/v22.0/{phone_number_id}  — Authorization: Bearer TOKEN
-// 360dialog: https://waba-v2.360dialog.io/v2/                    — D360-API-KEY: TOKEN
+// 360dialog: https://waba-v2.360dialog.io                        — Authorization: D360-API-KEY
 const is360 = env.WHATSAPP_PROVIDER === "360dialog";
 const API_BASE = is360
-  ? "https://waba-v2.360dialog.io/v2"
+  ? "https://waba-v2.360dialog.io"
   : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
 
 // ── Test mode whitelist ─────────────────────────────────
@@ -49,7 +49,7 @@ async function callWhatsAppAPI(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(is360
-      ? { "D360-API-KEY": env.WHATSAPP_TOKEN }
+      ? { Authorization: env.WHATSAPP_TOKEN }
       : { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` }),
   };
 
