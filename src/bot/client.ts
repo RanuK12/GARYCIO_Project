@@ -7,7 +7,7 @@ import fs from "fs";
 // 360dialog: https://waba-v2.360dialog.io/v2/                    — D360-API-KEY: TOKEN
 const is360 = env.WHATSAPP_PROVIDER === "360dialog";
 const API_BASE = is360
-  ? "https://waba-v2.360dialog.io"
+  ? "https://waba-v2.360dialog.io/v2"
   : `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`;
 
 // ── Test mode whitelist ─────────────────────────────────
