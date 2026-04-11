@@ -9,6 +9,7 @@ import { getDLQStats, retryDeadLetterQueue } from "./services/dead-letter-queue"
 import { geocodeBatch } from "./services/geocoding";
 import { asignarSubZonas, generarRutaParaSubZona } from "./services/route-optimizer";
 import { enviarAsignacionDias, enviarDifusionPorRutas } from "./services/mensajeria-masiva";
+import { sendMessage } from "./bot/client";
 import { generarResumenCEO, generarReporteCEOPDF } from "./services/reportes-ceo";
 import {
   obtenerPosiciones,
@@ -210,6 +211,21 @@ async function main(): Promise<void> {
     try {
       const result = await enviarDifusionPorRutas({ ruta, dias, chofer, limite, telefonos: telefonos ? new Set(telefonos) : undefined });
       res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Envío de mensaje de prueba a número específico ─────
+  app.post("/admin/test-mensaje", async (req, res) => {
+    const { telefono, mensaje } = req.body as { telefono: string; mensaje: string };
+    if (!telefono || !mensaje) {
+      res.status(400).json({ error: "Se requieren telefono y mensaje" });
+      return;
+    }
+    try {
+      await sendMessage(telefono, mensaje);
+      res.json({ status: "ok", telefono, mensaje });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }
