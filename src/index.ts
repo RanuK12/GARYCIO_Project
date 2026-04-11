@@ -9,7 +9,7 @@ import { getDLQStats, retryDeadLetterQueue } from "./services/dead-letter-queue"
 import { geocodeBatch } from "./services/geocoding";
 import { asignarSubZonas, generarRutaParaSubZona } from "./services/route-optimizer";
 import { enviarAsignacionDias, enviarDifusionPorRutas } from "./services/mensajeria-masiva";
-import { sendMessage } from "./bot/client";
+import { sendMessage, sendTemplate } from "./bot/client";
 import { generarResumenCEO, generarReporteCEOPDF } from "./services/reportes-ceo";
 import {
   obtenerPosiciones,
@@ -218,14 +218,30 @@ async function main(): Promise<void> {
 
   // ── Envío de mensaje de prueba a número específico ─────
   app.post("/admin/test-mensaje", async (req, res) => {
-    const { telefono, mensaje } = req.body as { telefono: string; mensaje: string };
-    if (!telefono || !mensaje) {
-      res.status(400).json({ error: "Se requieren telefono y mensaje" });
+    const { telefono, nombre, dias, horario, camion } = req.body as {
+      telefono: string;
+      nombre?: string;
+      dias?: string;
+      horario?: string;
+      camion?: string;
+    };
+    if (!telefono) {
+      res.status(400).json({ error: "Se requiere telefono" });
       return;
     }
     try {
-      await sendMessage(telefono, mensaje);
-      res.json({ status: "ok", telefono, mensaje });
+      await sendTemplate(telefono, env.DIFUSION_TEMPLATE_NAME, "es_AR", [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: nombre ?? "Donante" },
+            { type: "text", text: dias ?? "Lunes y Jueves" },
+            { type: "text", text: horario ?? "08:00" },
+            { type: "text", text: camion ?? "1" },
+          ],
+        },
+      ]);
+      res.json({ status: "ok", telefono, nombre, dias, horario, camion });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }
