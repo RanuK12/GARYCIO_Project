@@ -61,8 +61,8 @@ const MENU_ADMIN =
   "*6* - 📊 Resultados de encuesta\n" +
   "*7* - 📖 Ver lista de comandos\n" +
   "*8* - 📄 Generar reporte diario (PDF)\n" +
-  "*10* - 📨 Estado difusión (confirmadas / pendientes)\n" +
-  "*9* - Finalizar";
+  "*9* - Finalizar\n" +
+  "*10* - 📨 Estado difusión (confirmadas / pendientes)";
 
 function handleBienvenida(): FlowResponse {
   return {
