@@ -2,7 +2,7 @@ import { sendMessage, sendTemplate, WhatsAppAPIError } from "../bot/client";
 import { sendBulkWithProgress } from "../bot/queue";
 import { db } from "../database";
 import { donantes, subZonas, mensajesLog, conversationStates, difusionEnvios } from "../database/schema";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, inArray } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { env } from "../config/env";
 import { addToDeadLetterQueue } from "./dead-letter-queue";
@@ -329,6 +329,24 @@ export async function enviarDifusionPorRutas(opciones?: {
 
   donantesFiltrados = donantesFiltrados.filter((d) => d.celularWhatsApp);
 
+  // Excluir donantes que ya recibieron el mensaje (están en difusion_envios)
+  const telefonosConWhatsApp = donantesFiltrados.map((d) => d.celularWhatsApp);
+  const yaEnviados = telefonosConWhatsApp.length > 0
+    ? await db
+        .select({ telefono: difusionEnvios.telefono })
+        .from(difusionEnvios)
+        .where(inArray(difusionEnvios.telefono, telefonosConWhatsApp))
+    : [];
+  const yaEnviadosSet = new Set(yaEnviados.map((r) => r.telefono));
+  const antesDeExcluir = donantesFiltrados.length;
+  donantesFiltrados = donantesFiltrados.filter((d) => !yaEnviadosSet.has(d.celularWhatsApp));
+  if (antesDeExcluir !== donantesFiltrados.length) {
+    logger.info(
+      { excluidos: antesDeExcluir - donantesFiltrados.length },
+      "Donantes excluidos por ya haber recibido difusión",
+    );
+  }
+
   if (opciones?.limite && opciones.limite > 0) {
     donantesFiltrados = donantesFiltrados.slice(0, opciones.limite);
   }
@@ -383,11 +401,11 @@ export async function enviarDifusionPorRutas(opciones?: {
       throw err;
     }
   }, {
-    delayMs: 50,
-    batchSize: 500,
-    batchPauseMs: 5000,
+    delayMs: 1000,      // 1 mensaje por segundo — seguro para 360dialog
+    batchSize: 100,
+    batchPauseMs: 3000,
     onProgress: (sent, failed, total) => {
-      if ((sent + failed) % 200 === 0) {
+      if ((sent + failed) % 10 === 0 || sent + failed === total) {
         logger.info({ sent, failed, total }, "Progreso envío rutas OptimoRoute");
       }
     },
