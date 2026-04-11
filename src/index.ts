@@ -218,12 +218,11 @@ async function main(): Promise<void> {
 
   // ── Envío de mensaje de prueba a número específico ─────
   app.post("/admin/test-mensaje", async (req, res) => {
-    const { telefono, nombre, dias, horario, camion } = req.body as {
+    const { telefono, nombre, dias, horario } = req.body as {
       telefono: string;
       nombre?: string;
       dias?: string;
       horario?: string;
-      camion?: string;
     };
     if (!telefono) {
       res.status(400).json({ error: "Se requiere telefono" });
@@ -237,11 +236,10 @@ async function main(): Promise<void> {
             { type: "text", text: nombre ?? "Donante" },
             { type: "text", text: dias ?? "Lunes y Jueves" },
             { type: "text", text: horario ?? "08:00" },
-            { type: "text", text: camion ?? "1" },
           ],
         },
       ]);
-      res.json({ status: "ok", telefono, nombre, dias, horario, camion });
+      res.json({ status: "ok", telefono, nombre, dias, horario });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }

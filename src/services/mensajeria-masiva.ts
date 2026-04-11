@@ -371,8 +371,7 @@ export async function enviarDifusionPorRutas(opciones?: {
   const resultado = await sendBulkWithProgress(mensajes, async (phone, message) => {
     try {
       if (usarTemplate) {
-        // Modo utility: usa template aprobado por Meta (más barato, sin categoría marketing)
-        // El template debe tener parámetros: {{1}}=nombre, {{2}}=días, {{3}}=camión, {{4}}=horario
+        // Template recoleccion_aviso1: {{1}}=nombre, {{2}}=días, {{3}}=horario
         const donante = donantesFiltrados.find((d) => d.celularWhatsApp === phone);
         const horario = donante?.horarioEstimado ?? "a determinar";
         await sendTemplate(phone, templateName, "es_AR", [
@@ -381,7 +380,6 @@ export async function enviarDifusionPorRutas(opciones?: {
             parameters: [
               { type: "text", text: donante?.nombre ?? "" },
               { type: "text", text: donante?.diasRecoleccion ?? "" },
-              { type: "text", text: String(donante?.chofer ?? "") },
               { type: "text", text: horario },
             ],
           },

@@ -139,13 +139,14 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
 
     if (existing.length > 0) {
       // Ya existe (auto-registrada antes) → actualizar con los datos reales
+      // Estado "pendiente" para distinguir de "nueva" (auto-registrada sin completar)
       await db
         .update(donantes)
         .set({
           nombre: state.data.nombre,
           direccion: state.data.direccion,
           diasRecoleccion: state.data.diasPreferencia,
-          estado: "nueva",
+          estado: "pendiente",
           donandoActualmente: false,
           notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
           updatedAt: new Date(),
@@ -158,7 +159,7 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
         telefono: state.phone,
         direccion: state.data.direccion,
         diasRecoleccion: state.data.diasPreferencia,
-        estado: "nueva",
+        estado: "pendiente",
         donandoActualmente: false,
         notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
       });

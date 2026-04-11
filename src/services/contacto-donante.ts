@@ -40,7 +40,12 @@ export async function lookupRolPorTelefono(telefono: string): Promise<RolUsuario
   if (chofer.length > 0) return "chofer";
   if (peon.length > 0) return "peon";
   if (visitadora.length > 0) return "visitadora";
-  if (donante.length > 0) return "donante";
+  if (donante.length > 0) {
+    // Si es un contacto auto-registrado (estado="nueva") que aún no completó
+    // sus datos, tratarlo como desconocido para que entre al flow de registro.
+    if (donante[0].estado === "nueva") return "desconocido";
+    return "donante";
+  }
   return "desconocido";
 }
 

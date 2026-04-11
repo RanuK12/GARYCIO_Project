@@ -45,7 +45,7 @@ const envSchema = z.object({
   // Difusión: usar template aprobado por Meta (categoría utility = más barato)
   // false = texto libre (marketing, más caro), true = template "recoleccion_aviso" (utility)
   DIFUSION_USE_TEMPLATE: booleanFromEnv,
-  DIFUSION_TEMPLATE_NAME: z.string().default("recoleccion_aviso"),
+  DIFUSION_TEMPLATE_NAME: z.string().default("recoleccion_aviso1"),
 
   // Rate limiting & queue
   SEND_RATE_PER_SECOND: z.coerce.number().default(30),

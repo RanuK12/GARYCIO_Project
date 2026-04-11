@@ -33,7 +33,7 @@ export const adminFlow: FlowHandler = {
 
     switch (state.step) {
       case 0: return handleBienvenida();
-      case 1: return handleMenu(respuesta);
+      case 1: return await handleMenu(respuesta);
       case 10: return await handleContactosNuevos();
       case 11: return await handleDetalleContacto(respuesta, state);
       case 20: return await handleBuscarDonante(respuesta);
@@ -75,27 +75,27 @@ function handleBienvenida(): FlowResponse {
 }
 
 // ── Menú ──────────────────────────────────
-function handleMenu(respuesta: string): FlowResponse {
+async function handleMenu(respuesta: string): Promise<FlowResponse> {
   switch (respuesta) {
     case "1":
-      return { reply: "Buscando contactos nuevos...", nextStep: 10 };
+      return await handleContactosNuevos();
     case "2":
       return {
         reply: "🔍 *Buscar donante*\n\nIngresá el nombre, teléfono o dirección a buscar:",
         nextStep: 20,
       };
     case "3":
-      return { reply: "Buscando reclamos pendientes...", nextStep: 30 };
+      return await handleReclamosPendientes();
     case "4":
-      return { reply: "Buscando reportes de baja...", nextStep: 40 };
+      return await handleBajasPendientes();
     case "5":
-      return { reply: "Consultando progreso de rutas...", nextStep: 50 };
+      return handleProgresoRutas();
     case "6":
-      return { reply: "Consultando encuestas...", nextStep: 60 };
+      return await handleResultadosEncuesta();
     case "7":
       return handleListaComandos();
     case "8":
-      return { reply: "📄 Generando reporte diario PDF...", nextStep: 70 };
+      return await handleGenerarReporte();
     case "9":
       return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
     default:
