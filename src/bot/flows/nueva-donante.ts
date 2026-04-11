@@ -15,8 +15,7 @@ import { logger } from "../../config/logger";
  * Secuencia:
  * 0 - Bienvenida + pedir nombre completo
  * 1 - Pedir dirección
- * 2 - Pedir días de preferencia para recolección
- * 3 - Confirmar datos → guarda en DB + notifica admin
+ * 2 - Confirmar datos → guarda en DB + notifica admin
  */
 export const nuevaDonanteFlow: FlowHandler = {
   name: "nueva_donante",
@@ -29,10 +28,8 @@ export const nuevaDonanteFlow: FlowHandler = {
       case 0:
         return handleNombre(respuesta);
       case 1:
-        return handleDireccion(respuesta);
+        return handleDireccion(respuesta, state);
       case 2:
-        return handleDiasPreferencia(respuesta, state);
-      case 3:
         return await handleConfirmacion(respuesta, state);
       default:
         return { reply: "¡Gracias por sumarte!", endFlow: true };
@@ -67,7 +64,7 @@ function handleNombre(respuesta: string): FlowResponse {
   };
 }
 
-function handleDireccion(respuesta: string): FlowResponse {
+function handleDireccion(respuesta: string, state: ConversationState): FlowResponse {
   if (respuesta === "0") {
     return { reply: "", endFlow: true }; // → menú principal
   }
@@ -84,31 +81,12 @@ function handleDireccion(respuesta: string): FlowResponse {
   return {
     reply:
       "¡Anotado! 📝\n\n" +
-      "¿Qué *días te quedan más cómodos* para la recolección?\n\n" +
-      "Podés decirnos los días (ej: lunes y jueves) o si te da igual decí *cualquier día*.",
-    nextStep: 2,
-    data: { direccion: respuesta },
-  };
-}
-
-function handleDiasPreferencia(respuesta: string, state: ConversationState): FlowResponse {
-  if (respuesta === "0") {
-    return { reply: "", endFlow: true }; // → menú principal
-  }
-
-  const dias = respuesta.toLowerCase().includes("cualquier")
-    ? "A coordinar"
-    : respuesta;
-
-  return {
-    reply:
       `Confirmemos tus datos:\n\n` +
       `👤 Nombre: *${state.data.nombre}*\n` +
-      `📍 Dirección: *${state.data.direccion}*\n` +
-      `📅 Días preferidos: *${dias}*\n\n` +
+      `📍 Dirección: *${respuesta}*\n\n` +
       `¿Está todo correcto?\n*1* - Sí, confirmar\n*2* - No, corregir\n*0* - Cancelar`,
-    nextStep: 3,
-    data: { diasPreferencia: dias },
+    nextStep: 2,
+    data: { direccion: respuesta },
   };
 }
 
@@ -139,16 +117,14 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
 
     if (existing.length > 0) {
       // Ya existe (auto-registrada antes) → actualizar con los datos reales
-      // Estado "pendiente" para distinguir de "nueva" (auto-registrada sin completar)
       await db
         .update(donantes)
         .set({
           nombre: state.data.nombre,
           direccion: state.data.direccion,
-          diasRecoleccion: state.data.diasPreferencia,
           estado: "inactiva",
           donandoActualmente: false,
-          notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
+          notas: `Registrada por autoflow WhatsApp.`,
           updatedAt: new Date(),
         })
         .where(eq(donantes.telefono, state.phone));
@@ -158,10 +134,9 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
         nombre: state.data.nombre,
         telefono: state.phone,
         direccion: state.data.direccion,
-        diasRecoleccion: state.data.diasPreferencia,
         estado: "inactiva",
         donandoActualmente: false,
-        notas: `Registrada por autoflow WhatsApp. Días preferidos: ${state.data.diasPreferencia}`,
+        notas: `Registrada por autoflow WhatsApp.`,
       });
     }
 
@@ -185,9 +160,8 @@ async function handleConfirmacion(respuesta: string, state: ConversationState): 
         `🆕 *Nueva donante registrada (autoflow)*\n\n` +
         `📱 Teléfono: ${state.phone}\n` +
         `👤 Nombre: ${state.data.nombre}\n` +
-        `📍 Dirección: ${state.data.direccion}\n` +
-        `📅 Días preferidos: ${state.data.diasPreferencia}\n\n` +
-        `✅ Guardada en DB con estado *nueva*. Asignar zona y chofer.`,
+        `📍 Dirección: ${state.data.direccion}\n\n` +
+        `✅ Guardada en DB con estado *inactiva*. Asignar zona y chofer.`,
     },
   };
 }

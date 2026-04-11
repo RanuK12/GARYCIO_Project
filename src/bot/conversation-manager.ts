@@ -1,8 +1,8 @@
 import { ConversationState, FlowType, FlowResponse, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
-import { conversationStates } from "../database/schema";
-import { eq } from "drizzle-orm";
+import { conversationStates, difusionEnvios } from "../database/schema";
+import { eq, and } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
 
@@ -234,7 +234,47 @@ export async function handleIncomingMessage(
       const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
       return { reply, notify };
     } else {
-      // Donante conocida sin keyword → menú principal
+      // Donante conocida sin keyword
+      // Caso especial: si envía "1" y tiene difusion_envios pendiente → confirmar difusión
+      if (message.trim() === "1") {
+        const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
+        const phoneConPlus = phone.startsWith("+") ? phone : `+${phone}`;
+        const pendiente = await db
+          .select({ id: difusionEnvios.id })
+          .from(difusionEnvios)
+          .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phone)))
+          .limit(1)
+          .then(async (rows) => {
+            if (rows.length > 0) return rows;
+            // Intentar con el otro formato de teléfono
+            return db
+              .select({ id: difusionEnvios.id })
+              .from(difusionEnvios)
+              .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phone.startsWith("+") ? phoneSinPlus : phoneConPlus)))
+              .limit(1);
+          });
+
+        if (pendiente.length > 0) {
+          await db
+            .update(difusionEnvios)
+            .set({ confirmado: true, fechaConfirmacion: new Date() })
+            .where(eq(difusionEnvios.id, pendiente[0].id));
+
+          logger.info({ phone }, "Confirmación de difusión registrada (sin sesión activa)");
+          return {
+            reply:
+              "✅ *Recepción confirmada*\n\n" +
+              "¡Gracias por confirmar! Te esperamos en los días indicados.\n" +
+              "Recordá tener el bidón listo antes del horario indicado.\n\n" +
+              "Si necesitás algo más, escribinos por acá. ¡Buen día!",
+            notify: {
+              target: "admin",
+              message: `✅ Donante ${phone} confirmó recepción del mensaje de difusión.`,
+            },
+          };
+        }
+      }
+      // → menú principal
       return { reply: getMenuPrincipal(phone) };
     }
   }

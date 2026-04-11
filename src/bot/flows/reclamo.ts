@@ -1,6 +1,9 @@
 import { FlowHandler, ConversationState, FlowResponse, MediaInfo } from "./types";
 import { procesarComprobante } from "../../services/image-processor";
 import { logger } from "../../config/logger";
+import { db } from "../../database";
+import { donantes, reclamos } from "../../database/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Flow de reclamos de donantes.
@@ -28,7 +31,7 @@ export const reclamoFlow: FlowHandler = {
 
     switch (state.step) {
       case 0:
-        return handleTipoReclamo(respuesta);
+        return handleTipoReclamo(respuesta, state);
       case 1:
         return handleSubMenuRegalo(respuesta);
       case 2:
@@ -53,7 +56,7 @@ const MENU_RECLAMO =
   "*0* - Volver al menú principal\n\n" +
   "Respondé con el número correspondiente.";
 
-function handleTipoReclamo(respuesta: string): FlowResponse {
+async function handleTipoReclamo(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const lower = respuesta.toLowerCase();
 
   // Opción 0: Volver al menú principal → endFlow con reply vacío para que el manager muestre el menú
@@ -87,6 +90,8 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
 
   // Opción 3: Bidón sucio → respuesta directa
   if (lower === "3") {
+    const stateConTipo = { ...state, data: { ...state.data, tipoReclamo: "bidon_sucio", labelReclamo: "Bidón sucio" } };
+    await guardarReclamoEnDB(stateConTipo, null);
     return {
       reply:
         "Tomamos nota de tu reclamo por *bidón sucio*. 🧹\n\n" +
@@ -101,15 +106,17 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
         target: "admin",
         message:
           `📋 *Reclamo: Bidón sucio*\n\n` +
-          `📱 Donante: (ver contexto)\n` +
+          `📱 Donante: ${state.phone}\n` +
           `Tipo: bidón sucio\n\n` +
-          `_Reclamo automático_`,
+          `_Reclamo guardado en DB_`,
       },
     };
   }
 
   // Opción 4: Necesito pelela → respuesta directa
   if (lower === "4") {
+    const stateConTipo = { ...state, data: { ...state.data, tipoReclamo: "pelela", labelReclamo: "Necesita pelela" } };
+    await guardarReclamoEnDB(stateConTipo, null);
     return {
       reply:
         "Tomamos nota de tu pedido de *pelela*. 🪣\n\n" +
@@ -123,7 +130,7 @@ function handleTipoReclamo(respuesta: string): FlowResponse {
         target: "chofer",
         message:
           `🪣 *Pedido de pelela*\n\n` +
-          `📱 Donante: (ver contexto)\n\n` +
+          `📱 Donante: ${state.phone}\n\n` +
           `Llevar pelela en la próxima visita.`,
       },
     };
@@ -188,7 +195,7 @@ function handleSubMenuRegalo(respuesta: string): FlowResponse {
   };
 }
 
-function handleDetalleReclamo(respuesta: string, state: ConversationState): FlowResponse {
+async function handleDetalleReclamo(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   if (respuesta.toLowerCase() === "0") {
     // Volver: si estaba en regalo, volver al sub-menú; si no, al menú principal
     if (state.data.tipoReclamo === "regalo") {
@@ -210,6 +217,8 @@ function handleDetalleReclamo(respuesta: string, state: ConversationState): Flow
 
   const label = state.data.labelReclamo || "general";
   const detalle = sinDetalle ? null : respuesta;
+
+  await guardarReclamoEnDB(state, detalle);
 
   // Si es regalo roto → pedir foto antes de confirmar
   if (state.data.subTipoRegalo === "roto") {
@@ -320,6 +329,44 @@ async function handleFotoRegaloRoto(
     nextStep: 3,
     data: { fotoRegaloRoto: true },
   };
+}
+
+// ── Guardar reclamo en DB ──────────────────────────────────────
+async function guardarReclamoEnDB(state: ConversationState, detalle: string | null): Promise<void> {
+  try {
+    const tipo = state.data.tipoReclamo as string;
+    // Mapear tipo interno al enum de DB
+    const tipoEnum =
+      tipo === "regalo" || tipo?.startsWith("regalo") ? "regalo"
+      : tipo === "falta_bidon_vacio" ? "falta_bidon"
+      : tipo === "no_pasaron" ? "falta_bidon"
+      : tipo === "pelela" ? "nueva_pelela"
+      : tipo === "bidon_sucio" ? "otro"
+      : "otro";
+
+    const donanteRow = await db
+      .select({ id: donantes.id })
+      .from(donantes)
+      .where(eq(donantes.telefono, state.phone))
+      .limit(1);
+
+    if (donanteRow.length === 0) {
+      logger.warn({ phone: state.phone }, "No se encontró donante para guardar reclamo");
+      return;
+    }
+
+    await db.insert(reclamos).values({
+      donanteId: donanteRow[0].id,
+      tipo: tipoEnum as "regalo" | "falta_bidon" | "nueva_pelela" | "otro",
+      descripcion: [state.data.labelReclamo, detalle].filter(Boolean).join(" - ") || null,
+      estado: "pendiente",
+      gravedad: "leve",
+    });
+
+    logger.info({ phone: state.phone, tipo: tipoEnum }, "Reclamo guardado en DB");
+  } catch (err) {
+    logger.error({ phone: state.phone, err }, "Error guardando reclamo en DB");
+  }
 }
 
 function formatNotificacionChofer(state: ConversationState, detalle: string | null): string {
