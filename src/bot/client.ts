@@ -49,7 +49,7 @@ async function callWhatsAppAPI(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(is360
-      ? { Authorization: env.WHATSAPP_TOKEN }
+      ? { "D360-API-KEY": env.WHATSAPP_TOKEN }
       : { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` }),
   };
 
