@@ -405,34 +405,25 @@ async function handleResultadosEncuesta(): Promise<FlowResponse> {
 
 // ── Generar reporte PDF ──────────────────────────────────
 async function handleGenerarReporte(): Promise<FlowResponse> {
-  try {
-    await enviarReportePDF();
+  // Disparar generación en background — el PDF se envía como documento separado
+  enviarReportePDF().then(() => {
     marcarReporteEnviado();
-
-    return {
-      reply:
-        "📄 *Reporte diario generado y enviado* ✅\n\n" +
-        "El PDF incluye:\n" +
-        "• KPIs de recolección (litros, bidones, promedio)\n" +
-        "• Gráfico de progreso mensual\n" +
-        "• Distribución de donantes\n" +
-        "• Litros por día del mes\n" +
-        "• Incidentes del día\n" +
-        "• Resumen operativo (reclamos, avisos, flota, mensajes)\n" +
-        "• Barra de progreso hacia los 260.000 litros\n\n" +
-        "📎 Ya te lo envié como PDF.\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
-      nextStep: 99,
-    };
-  } catch (err) {
+    logger.info("Reporte PDF generado y enviado desde admin");
+  }).catch((err) => {
     logger.error({ err }, "Error al generar reporte desde admin");
-    return {
-      reply:
-        "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
-      nextStep: 99,
-    };
-  }
+  });
+
+  return {
+    reply:
+      "📄 *Generando reporte diario...*\n\n" +
+      "⏳ En unos segundos te llega el PDF con:\n" +
+      "• KPIs de recolección\n" +
+      "• Gráfico de progreso mensual\n" +
+      "• Distribución de donantes\n" +
+      "• Resumen operativo\n\n" +
+      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+    nextStep: 99,
+  };
 }
 
 // ── Estado de difusión ──────────────────────────────────
