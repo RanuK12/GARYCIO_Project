@@ -4,7 +4,9 @@ import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios } fro
 import { eq, and, desc, sql, ilike, count } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
-import { enviarReportePDF, marcarReporteEnviado } from "../../services/reporte-diario";
+import { marcarReporteEnviado } from "../../services/reporte-diario";
+import { generarReportePDF } from "../../services/reporte-pdf";
+import { sendDocument } from "../../bot/client";
 
 /**
  * Flujo para administradores.
@@ -33,7 +35,7 @@ export const adminFlow: FlowHandler = {
 
     switch (state.step) {
       case 0: return handleBienvenida();
-      case 1: return await handleMenu(respuesta);
+      case 1: return await handleMenu(respuesta, state.phone);
       case 10: return await handleContactosNuevos();
       case 11: return await handleDetalleContacto(respuesta, state);
       case 20: return await handleBuscarDonante(respuesta);
@@ -42,7 +44,7 @@ export const adminFlow: FlowHandler = {
       case 40: return await handleBajasPendientes();
       case 50: return handleProgresoRutas();
       case 60: return await handleResultadosEncuesta();
-      case 70: return await handleGenerarReporte();
+      case 70: return await handleGenerarReporte(state.phone);
       case 99: return handleVolverOFinalizar(respuesta);
       default:
         return handleBienvenida();
@@ -76,7 +78,7 @@ function handleBienvenida(): FlowResponse {
 }
 
 // ── Menú ──────────────────────────────────
-async function handleMenu(respuesta: string): Promise<FlowResponse> {
+async function handleMenu(respuesta: string, adminPhone: string): Promise<FlowResponse> {
   switch (respuesta) {
     case "1":
       return await handleContactosNuevos();
@@ -96,7 +98,7 @@ async function handleMenu(respuesta: string): Promise<FlowResponse> {
     case "7":
       return handleListaComandos();
     case "8":
-      return await handleGenerarReporte();
+      return await handleGenerarReporte(adminPhone);
     case "9":
       return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
     case "10":
@@ -404,26 +406,35 @@ async function handleResultadosEncuesta(): Promise<FlowResponse> {
 }
 
 // ── Generar reporte PDF ──────────────────────────────────
-async function handleGenerarReporte(): Promise<FlowResponse> {
-  // Disparar generación en background — el PDF se envía como documento separado
-  enviarReportePDF().then(() => {
-    marcarReporteEnviado();
-    logger.info("Reporte PDF generado y enviado desde admin");
-  }).catch((err) => {
-    logger.error({ err }, "Error al generar reporte desde admin");
-  });
+async function handleGenerarReporte(adminPhone: string): Promise<FlowResponse> {
+  try {
+    const filePath = await generarReportePDF();
+    const fecha = new Date().toLocaleDateString("es-AR");
 
-  return {
-    reply:
-      "📄 *Generando reporte diario...*\n\n" +
-      "⏳ En unos segundos te llega el PDF con:\n" +
-      "• KPIs de recolección\n" +
-      "• Gráfico de progreso mensual\n" +
-      "• Distribución de donantes\n" +
-      "• Resumen operativo\n\n" +
-      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
-    nextStep: 99,
-  };
+    await sendDocument(
+      adminPhone,
+      filePath,
+      `GARYCIO_Reporte_${fecha.replace(/\//g, "-")}.pdf`,
+      `📊 Reporte diario GARYCIO - ${fecha}`,
+    );
+
+    marcarReporteEnviado();
+
+    return {
+      reply:
+        "📄 *Reporte diario enviado* ✅\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      nextStep: 99,
+    };
+  } catch (err) {
+    logger.error({ err }, "Error al generar reporte desde admin");
+    return {
+      reply:
+        "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      nextStep: 99,
+    };
+  }
 }
 
 // ── Estado de difusión ──────────────────────────────────
