@@ -8,7 +8,7 @@ import { initReporteDiario } from "./services/reporte-diario";
 import { getDLQStats, retryDeadLetterQueue } from "./services/dead-letter-queue";
 import { geocodeBatch } from "./services/geocoding";
 import { asignarSubZonas, generarRutaParaSubZona } from "./services/route-optimizer";
-import { enviarAsignacionDias, enviarDifusionPorRutas } from "./services/mensajeria-masiva";
+import { enviarAsignacionDias, enviarDifusionPorRutas, enviarDifusionNueva } from "./services/mensajeria-masiva";
 import { sendMessage, sendTemplate } from "./bot/client";
 import { generarResumenCEO, generarReporteCEOPDF } from "./services/reportes-ceo";
 import {
@@ -480,6 +480,16 @@ async function main(): Promise<void> {
         .where(and(...condiciones))
         .orderBy(difusionEnvios.fechaEnvio);
       res.json({ status: "ok", horas_desde_envio: horas, total: pendientes.length, pendientes });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Difusión nueva: templates sin parámetros a todas las donantes ──
+  app.post("/admin/difusion/nueva", async (_req, res) => {
+    try {
+      const result = await enviarDifusionNueva();
+      res.json({ status: "ok", ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }

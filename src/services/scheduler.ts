@@ -12,6 +12,7 @@ import { sendMessage } from "../bot/client";
 import { logger } from "../config/logger";
 import { retryDeadLetterQueue } from "./dead-letter-queue";
 import { verificarProgresoRutas } from "./progreso-ruta";
+import { enviarDifusionNueva } from "./mensajeria-masiva";
 
 /**
  * Tareas programadas del sistema.
@@ -55,7 +56,22 @@ export function initScheduler(): void {
     }
   });
 
+  // Difusión nueva: enviar templates a TODAS las donantes
+  // Se ejecuta el 13 de abril a las 6:00 AM hora Argentina (America/Argentina/Buenos_Aires)
+  cron.schedule("0 6 13 4 *", async () => {
+    logger.info("Ejecutando: difusión nueva programada (6:00 AM Argentina)");
+    try {
+      const resultado = await enviarDifusionNueva();
+      logger.info(resultado, "Difusión nueva completada");
+    } catch (err) {
+      logger.error({ err }, "Error en difusión nueva programada");
+    }
+  }, {
+    timezone: "America/Argentina/Buenos_Aires",
+  });
+
   logger.info("Scheduler inicializado con tareas programadas");
+  logger.info("Difusión nueva programada para el 13/04 a las 06:00 AM (Argentina)");
 }
 
 /**

@@ -406,16 +406,13 @@ async function handleResultadosEncuesta(): Promise<FlowResponse> {
 // ── Generar reporte PDF ──────────────────────────────────
 async function handleGenerarReporte(): Promise<FlowResponse> {
   try {
-    enviarReportePDF().then(() => {
-      marcarReporteEnviado();
-    }).catch((err) => {
-      logger.error({ err }, "Error al generar reporte desde admin");
-    });
+    await enviarReportePDF();
+    marcarReporteEnviado();
 
     return {
       reply:
-        "📄 *Generando reporte diario...*\n\n" +
-        "El PDF se está generando con los datos de hoy:\n" +
+        "📄 *Reporte diario generado y enviado* ✅\n\n" +
+        "El PDF incluye:\n" +
         "• KPIs de recolección (litros, bidones, promedio)\n" +
         "• Gráfico de progreso mensual\n" +
         "• Distribución de donantes\n" +
@@ -423,12 +420,12 @@ async function handleGenerarReporte(): Promise<FlowResponse> {
         "• Incidentes del día\n" +
         "• Resumen operativo (reclamos, avisos, flota, mensajes)\n" +
         "• Barra de progreso hacia los 260.000 litros\n\n" +
-        "⏳ Te lo envío como PDF en unos segundos.\n\n" +
+        "📎 Ya te lo envié como PDF.\n\n" +
         "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
       nextStep: 99,
     };
   } catch (err) {
-    logger.error({ err }, "Error al iniciar reporte desde admin");
+    logger.error({ err }, "Error al generar reporte desde admin");
     return {
       reply:
         "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.\n\n" +

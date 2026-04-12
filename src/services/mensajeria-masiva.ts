@@ -366,34 +366,57 @@ export async function enviarDifusionPorRutas(opciones?: {
   }));
 
   const usarTemplate = env.DIFUSION_USE_TEMPLATE;
-  const templateName = env.DIFUSION_TEMPLATE_NAME;
+  const templateManana = env.DIFUSION_TEMPLATE_NAME;
+  const templateTarde = env.DIFUSION_TEMPLATE_NAME_TARDE;
+
+  // Construir mapa rápido phone → donante para evitar find() en cada envío
+  const donantesPorPhone = new Map(donantesFiltrados.map((d) => [d.celularWhatsApp, d]));
 
   const resultado = await sendBulkWithProgress(mensajes, async (phone, message) => {
     try {
       if (usarTemplate) {
-        // Template recoleccion_aviso1: {{1}}=nombre, {{2}}=días, {{3}}=horario
-        const donante = donantesFiltrados.find((d) => d.celularWhatsApp === phone);
-        const horario = donante?.horarioEstimado ?? "a determinar";
-        await sendTemplate(phone, templateName, "es_AR", [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: donante?.nombre ?? "" },
-              { type: "text", text: donante?.diasRecoleccion ?? "" },
-              { type: "text", text: horario },
-            ],
-          },
-        ]);
+        const donante = donantesPorPhone.get(phone);
+        const horario = donante?.horarioEstimado;
+        // Horario < 12:00 → template mañana (3 vars: nombre, días, horario)
+        // Horario >= 12:00 o sin horario → template tarde (2 vars: nombre, días)
+        const esMañana = horario && horario < "12:00";
+        if (esMañana) {
+          await sendTemplate(phone, templateManana, "es_AR", [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: donante?.nombre ?? "" },
+                { type: "text", text: donante?.diasRecoleccion ?? "" },
+                { type: "text", text: `${horario}h` },
+              ],
+            },
+          ]);
+        } else {
+          await sendTemplate(phone, templateTarde, "es_AR", [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: donante?.nombre ?? "" },
+                { type: "text", text: donante?.diasRecoleccion ?? "" },
+              ],
+            },
+          ]);
+        }
       } else {
         // Modo texto libre (funciona sin template pero Meta cobra como marketing)
         await sendMessage(phone, message);
       }
     } catch (err) {
+      const donante = donantesPorPhone.get(phone);
+      const horario = donante?.horarioEstimado;
+      const templateUsado = usarTemplate
+        ? (horario && horario < "12:00" ? templateManana : templateTarde)
+        : undefined;
       await addToDeadLetterQueue({
         telefono: phone,
         tipo: usarTemplate ? "template" : "texto",
         contenido: message,
-        templateName: usarTemplate ? templateName : undefined,
+        templateName: templateUsado,
         errorMessage: (err as Error).message,
       });
       throw err;
@@ -478,6 +501,240 @@ export async function enviarDifusionPorRutas(opciones?: {
     enviados: resultado.sent,
     fallidos: resultado.failed,
     porRuta,
+  };
+}
+
+// ============================================================
+// Difusión nueva: recoleccion_lj (sin params) y recoleccion_mvms (1 param: días)
+// ============================================================
+
+/**
+ * Mapeo de prefijo de archivo CSV → texto con emojis para la variable {{1}} de recoleccion_mvms.
+ * MV = "Miércoles y Viernes", MS = "Martes y Sábado" (según DIAS_MAP en importar-rutas)
+ */
+const DIAS_EMOJI_MAP: Record<string, string> = {
+  MV: "✅Miércoles y Viernes✅",
+  MS: "✅Martes y Sábado✅",
+};
+
+/**
+ * Envía difusión masiva a TODAS las donantes:
+ * - Donantes de LJ (Lunes y Jueves) → template "recoleccion_lj" (sin parámetros)
+ * - Donantes de MV (Miércoles y Viernes) → template "recoleccion_mvms" con {{1}} = "✅Miércoles y Viernes✅"
+ * - Donantes de MS (Martes y Sábado) → template "recoleccion_mvms" con {{1}} = "✅Martes y Sábado✅"
+ *
+ * No se bloquea por registros existentes en difusion_envios (hace upsert).
+ */
+export async function enviarDifusionNueva(): Promise<{
+  total: number;
+  enviados: number;
+  fallidos: number;
+  porGrupo: {
+    lj: { total: number; enviados: number; fallidos: number };
+    mv: { total: number; enviados: number; fallidos: number };
+    ms: { total: number; enviados: number; fallidos: number };
+  };
+}> {
+  const resumenRutas = importarRutas();
+  const todosConTelefono = resumenRutas.donantes.filter((d) => d.celularWhatsApp);
+
+  // Separar en tres grupos
+  const grupoLJ = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("LJ"));
+  const grupoMV = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MV"));
+  const grupoMS = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MS"));
+
+  logger.info(
+    {
+      totalLJ: grupoLJ.length,
+      totalMV: grupoMV.length,
+      totalMS: grupoMS.length,
+      totalGeneral: todosConTelefono.length,
+    },
+    "Iniciando difusión nueva",
+  );
+
+  const TEMPLATE_LJ = "recoleccion_lj";
+  const TEMPLATE_MVMS = "recoleccion_mvms";
+
+  // ── Función auxiliar para enviar grupo LJ (sin parámetros) ──
+  async function enviarGrupoLJ(
+    donantesList: DonantesRuta[],
+  ): Promise<{ total: number; enviados: number; fallidos: number }> {
+    if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
+
+    const mensajes = donantesList.map((d) => ({
+      phone: d.celularWhatsApp,
+      message: "LJ",
+    }));
+
+    const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
+      try {
+        // recoleccion_lj: template sin parámetros
+        await sendTemplate(phone, TEMPLATE_LJ, "es_AR");
+      } catch (err) {
+        await addToDeadLetterQueue({
+          telefono: phone,
+          tipo: "template",
+          contenido: `Template: ${TEMPLATE_LJ}`,
+          templateName: TEMPLATE_LJ,
+          errorMessage: (err as Error).message,
+        });
+        throw err;
+      }
+    }, {
+      delayMs: 1000,
+      batchSize: 100,
+      batchPauseMs: 3000,
+      onProgress: (sent, failed, total) => {
+        if ((sent + failed) % 10 === 0 || sent + failed === total) {
+          logger.info({ sent, failed, total, grupo: "LJ" }, "Progreso difusión nueva");
+        }
+      },
+    });
+
+    return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
+  }
+
+  // ── Función auxiliar para enviar grupo MV o MS (con parámetro {{1}} = días) ──
+  async function enviarGrupoMVMS(
+    donantesList: DonantesRuta[],
+    prefijoDias: string,
+  ): Promise<{ total: number; enviados: number; fallidos: number }> {
+    if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
+
+    const diasConEmoji = DIAS_EMOJI_MAP[prefijoDias] || prefijoDias;
+
+    const mensajes = donantesList.map((d) => ({
+      phone: d.celularWhatsApp,
+      message: prefijoDias,
+    }));
+
+    const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
+      try {
+        // recoleccion_mvms: 1 variable {{1}} = días con emojis
+        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR", [
+          {
+            type: "body",
+            parameters: [{ type: "text", text: diasConEmoji }],
+          },
+        ]);
+      } catch (err) {
+        await addToDeadLetterQueue({
+          telefono: phone,
+          tipo: "template",
+          contenido: `Template: ${TEMPLATE_MVMS} | dias: ${diasConEmoji}`,
+          templateName: TEMPLATE_MVMS,
+          errorMessage: (err as Error).message,
+        });
+        throw err;
+      }
+    }, {
+      delayMs: 1000,
+      batchSize: 100,
+      batchPauseMs: 3000,
+      onProgress: (sent, failed, total) => {
+        if ((sent + failed) % 10 === 0 || sent + failed === total) {
+          logger.info({ sent, failed, total, grupo: prefijoDias }, "Progreso difusión nueva");
+        }
+      },
+    });
+
+    return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
+  }
+
+  // ── Registrar en DB (conversation_states + difusion_envios) ──
+  async function registrarEnviados(donantesList: DonantesRuta[]): Promise<void> {
+    for (const d of donantesList) {
+      await db
+        .insert(conversationStates)
+        .values({
+          phone: d.celularWhatsApp,
+          currentFlow: "difusion",
+          step: 0,
+          data: { diasAsignados: d.diasRecoleccion, chofer: d.chofer },
+          lastInteraction: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: conversationStates.phone,
+          set: {
+            currentFlow: "difusion",
+            step: 0,
+            data: { diasAsignados: d.diasRecoleccion, chofer: d.chofer },
+            lastInteraction: new Date(),
+          },
+        });
+
+      await db
+        .insert(difusionEnvios)
+        .values({
+          telefono: d.celularWhatsApp,
+          nombre: d.nombre,
+          diasRecoleccion: d.diasRecoleccion,
+          chofer: d.chofer,
+          horarioEstimado: d.horarioEstimado ?? null,
+          confirmado: false,
+          fechaEnvio: new Date(),
+          fechaConfirmacion: null,
+        })
+        .onConflictDoUpdate({
+          target: difusionEnvios.telefono,
+          set: {
+            nombre: d.nombre,
+            diasRecoleccion: d.diasRecoleccion,
+            chofer: d.chofer,
+            horarioEstimado: d.horarioEstimado ?? null,
+            confirmado: false,
+            fechaEnvio: new Date(),
+            fechaConfirmacion: null,
+          },
+        });
+    }
+  }
+
+  // ── Ejecutar en orden: LJ → MV → MS ──
+  const resultadoLJ = await enviarGrupoLJ(grupoLJ);
+  await registrarEnviados(grupoLJ);
+
+  const resultadoMV = await enviarGrupoMVMS(grupoMV, "MV");
+  await registrarEnviados(grupoMV);
+
+  const resultadoMS = await enviarGrupoMVMS(grupoMS, "MS");
+  await registrarEnviados(grupoMS);
+
+  const totalEnviados = resultadoLJ.enviados + resultadoMV.enviados + resultadoMS.enviados;
+  const totalFallidos = resultadoLJ.fallidos + resultadoMV.fallidos + resultadoMS.fallidos;
+
+  logger.info(
+    {
+      total: todosConTelefono.length,
+      enviados: totalEnviados,
+      fallidos: totalFallidos,
+      lj: resultadoLJ,
+      mv: resultadoMV,
+      ms: resultadoMS,
+    },
+    "Difusión nueva completada",
+  );
+
+  // Notificar al CEO
+  try {
+    await sendMessage(
+      env.CEO_PHONE,
+      `📨 *Difusión nueva completada*\n\n` +
+        `✅ Lunes y Jueves: ${resultadoLJ.enviados}/${resultadoLJ.total}\n` +
+        `✅ Miércoles y Viernes: ${resultadoMV.enviados}/${resultadoMV.total}\n` +
+        `✅ Martes y Sábado: ${resultadoMS.enviados}/${resultadoMS.total}\n\n` +
+        `Total: ${totalEnviados} enviados, ${totalFallidos} fallidos`,
+    );
+  } catch (err) {
+    logger.error({ err }, "Error notificando al CEO sobre difusión nueva");
+  }
+
+  return {
+    total: todosConTelefono.length,
+    enviados: totalEnviados,
+    fallidos: totalFallidos,
+    porGrupo: { lj: resultadoLJ, mv: resultadoMV, ms: resultadoMS },
   };
 }
 

@@ -45,7 +45,10 @@ const envSchema = z.object({
   // Difusión: usar template aprobado por Meta (categoría utility = más barato)
   // false = texto libre (marketing, más caro), true = template "recoleccion_aviso" (utility)
   DIFUSION_USE_TEMPLATE: booleanFromEnv,
+  // Template mañana (3 vars: {{1}}=nombre, {{2}}=días, {{3}}=horario) — para horario < 12:00
   DIFUSION_TEMPLATE_NAME: z.string().default("recoleccion_aviso1"),
+  // Template tarde (2 vars: {{1}}=nombre, {{2}}=días) — para horario >= 12:00 o sin horario
+  DIFUSION_TEMPLATE_NAME_TARDE: z.string().default("recoleccion_aviso_tarde"),
 
   // Rate limiting & queue
   SEND_RATE_PER_SECOND: z.coerce.number().default(30),
