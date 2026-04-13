@@ -552,7 +552,7 @@ export async function enviarDifusionNueva(opciones?: {
 
   const TEMPLATE_LJ = "recoleccion_lj";
   const TEMPLATE_MV = "recoleccion_martesyviernes";   // MV = Martes y Viernes, sin parámetros
-  const TEMPLATE_MS = "recoleccion_miercolesysabado"; // MS = Miércoles y Sábado, sin parámetros
+  const TEMPLATE_MS = "recoleccion_miercolesysabados"; // MS = Miércoles y Sábado, sin parámetros
 
   // ── Función auxiliar genérica para enviar un grupo con un template sin parámetros ──
   async function enviarGrupoSinParams(
