@@ -140,7 +140,7 @@ export async function sendTemplate(
   languageCode = "es_AR",
   components?: Array<{
     type: "body" | "header";
-    parameters: Array<{ type: "text"; text: string }>;
+    parameters: Array<{ type: "text"; text: string; parameter_name?: string }>;
   }>,
 ): Promise<any> {
   const to = formatPhone(phone);

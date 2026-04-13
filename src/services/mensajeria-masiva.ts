@@ -509,19 +509,20 @@ export async function enviarDifusionPorRutas(opciones?: {
 // ============================================================
 
 /**
- * Mapeo de prefijo de archivo CSV → texto con emojis para la variable {{1}} de recoleccion_mvms.
+ * Mapeo de prefijo de archivo CSV → texto plano para la variable {{1}} de recoleccion_mvms.
  * MV = "Miércoles y Viernes", MS = "Martes y Sábado" (según DIAS_MAP en importar-rutas)
+ * IMPORTANTE: sin emojis — Meta rechaza caracteres especiales en parámetros de templates.
  */
 const DIAS_EMOJI_MAP: Record<string, string> = {
-  MV: "✅Miércoles y Viernes✅",
-  MS: "✅Martes y Sábado✅",
+  MV: "Miércoles y Viernes",
+  MS: "Martes y Sábado",
 };
 
 /**
  * Envía difusión masiva a TODAS las donantes:
  * - Donantes de LJ (Lunes y Jueves) → template "recoleccion_lj" (sin parámetros)
- * - Donantes de MV (Miércoles y Viernes) → template "recoleccion_mvms" con {{1}} = "✅Miércoles y Viernes✅"
- * - Donantes de MS (Martes y Sábado) → template "recoleccion_mvms" con {{1}} = "✅Martes y Sábado✅"
+ * - Donantes de MV (Miércoles y Viernes) → template "recoleccion_mvms" con {{1}} = "Miércoles y Viernes"
+ * - Donantes de MS (Martes y Sábado) → template "recoleccion_mvms" con {{1}} = "Martes y Sábado"
  *
  * No se bloquea por registros existentes en difusion_envios (hace upsert).
  */
@@ -617,11 +618,11 @@ export async function enviarDifusionNueva(opciones?: {
 
     const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
       try {
-        // recoleccion_mvms: template con {{1}} = días con emojis
+        // recoleccion_mvms: template con {{variable_1}} = días
         await sendTemplate(phone, TEMPLATE_MVMS, "es_AR", [
           {
             type: "body",
-            parameters: [{ type: "text", text: diasTexto }],
+            parameters: [{ type: "text", text: diasTexto, parameter_name: "variable_1" }],
           },
         ]);
       } catch (err) {
