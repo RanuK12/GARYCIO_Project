@@ -23,7 +23,7 @@ export { reporteFlow } from "./reporte";
 export { adminFlow } from "./admin";
 export { visitadoraFlow } from "./visitadora";
 export { difusionFlow } from "./difusion";
-export type { ConversationState, FlowType, FlowHandler, FlowResponse } from "./types";
+export type { ConversationState, FlowType, FlowHandler, FlowResponse, InteractiveMessage } from "./types";
 
 const flows: FlowHandler[] = [
   adminFlow,

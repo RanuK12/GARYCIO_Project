@@ -28,8 +28,25 @@ export interface FlowHandler {
   handle(state: ConversationState, message: string, mediaInfo?: MediaInfo): Promise<FlowResponse>;
 }
 
+export type InteractiveMessage =
+  | {
+      type: "buttons";
+      body: string;
+      buttons: Array<{ id: string; title: string }>;
+    }
+  | {
+      type: "list";
+      body: string;
+      buttonText: string;
+      sections: Array<{
+        title?: string;
+        rows: Array<{ id: string; title: string; description?: string }>;
+      }>;
+    };
+
 export interface FlowResponse {
   reply: string;
+  interactive?: InteractiveMessage;
   nextStep?: number;
   endFlow?: boolean;
   data?: Record<string, any>;

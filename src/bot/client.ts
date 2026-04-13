@@ -172,6 +172,78 @@ export async function sendTemplate(
   }
 }
 
+// ── Mensajes interactivos: botones (hasta 3) ───────────
+export async function sendInteractiveButtons(
+  phone: string,
+  body: string,
+  buttons: Array<{ id: string; title: string }>,
+): Promise<any> {
+  const to = formatPhone(phone);
+  assertTestWhitelist(to);
+  await rateLimitWait();
+
+  try {
+    const result = await callWhatsAppAPI("/messages", {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: body },
+        action: {
+          buttons: buttons.map((b) => ({
+            type: "reply",
+            reply: { id: b.id, title: b.title },
+          })),
+        },
+      },
+    });
+    logger.debug({ phone: to, buttons: buttons.map((b) => b.id) }, "Botones enviados");
+    return result;
+  } catch (err) {
+    logger.error({ phone: to, err }, "Error al enviar botones interactivos");
+    throw err;
+  }
+}
+
+// ── Mensajes interactivos: lista desplegable (hasta 10) ──
+export async function sendInteractiveList(
+  phone: string,
+  body: string,
+  buttonText: string,
+  sections: Array<{
+    title?: string;
+    rows: Array<{ id: string; title: string; description?: string }>;
+  }>,
+): Promise<any> {
+  const to = formatPhone(phone);
+  assertTestWhitelist(to);
+  await rateLimitWait();
+
+  try {
+    const result = await callWhatsAppAPI("/messages", {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: body },
+        action: {
+          button: buttonText,
+          sections,
+        },
+      },
+    });
+    logger.debug({ phone: to, sections: sections.length }, "Lista interactiva enviada");
+    return result;
+  } catch (err) {
+    logger.error({ phone: to, err }, "Error al enviar lista interactiva");
+    throw err;
+  }
+}
+
 // ── Envío de documento ──────────────────────────────────
 export async function sendDocument(
   phone: string,

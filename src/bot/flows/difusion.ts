@@ -1,4 +1,4 @@
-import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 import { db } from "../../database";
 import { difusionEnvios } from "../../database/schema";
 import { eq } from "drizzle-orm";
@@ -13,6 +13,16 @@ import { eq } from "drizzle-orm";
  * Steps:
  * 0 - Esperando respuesta (1 o 2)
  */
+const MENU_PRINCIPAL_INTERACTIVE: InteractiveMessage = {
+  type: "buttons",
+  body: "¿En qué más te podemos ayudar?",
+  buttons: [
+    { id: "1", title: "Tengo un reclamo" },
+    { id: "2", title: "Dar un aviso" },
+    { id: "3", title: "Otra consulta" },
+  ],
+};
+
 export const difusionFlow: FlowHandler = {
   name: "difusion",
   keyword: [],
@@ -32,12 +42,10 @@ export const difusionFlow: FlowHandler = {
 async function handleRespuestaDifusion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   if (respuesta === "1") {
     // Normalizar teléfono: algunos llegan con + y otros sin él
-    // Intentamos con el formato exacto y también sin el + inicial
     const phoneExacto = state.phone;
     const phoneSinPlus = state.phone.startsWith("+") ? state.phone.slice(1) : state.phone;
     const phoneConPlus = state.phone.startsWith("+") ? state.phone : `+${state.phone}`;
 
-    // Actualizar por cualquiera de los formatos posibles
     const updated = await db
       .update(difusionEnvios)
       .set({ confirmado: true, fechaConfirmacion: new Date() })
@@ -45,7 +53,6 @@ async function handleRespuestaDifusion(respuesta: string, state: ConversationSta
       .returning({ telefono: difusionEnvios.telefono });
 
     if (updated.length === 0) {
-      // Intentar sin/con el + si no encontró
       await db
         .update(difusionEnvios)
         .set({ confirmado: true, fechaConfirmacion: new Date() })
@@ -53,38 +60,36 @@ async function handleRespuestaDifusion(respuesta: string, state: ConversationSta
     }
 
     return {
-      reply:
-        "✅ *Recepción confirmada*\n\n" +
-        "¡Gracias por confirmar! Te esperamos en los días indicados.\n" +
-        "Recordá tener el bidón listo antes del horario indicado.\n\n" +
-        "Si necesitás algo más, escribinos por acá. ¡Buen día!",
+      reply: "✅ *Recepción confirmada* ¡Gracias! Te esperamos en los días indicados.\nRecordá tener el bidón listo antes del horario indicado.",
+      interactive: MENU_PRINCIPAL_INTERACTIVE,
       endFlow: true,
       data: { confirmado: true },
       notify: {
         target: "admin",
-        message:
-          `✅ Donante ${state.phone} confirmó recepción del mensaje de difusión.`,
+        message: `✅ Donante ${state.phone} confirmó recepción del mensaje de difusión.`,
       },
     };
   }
 
   if (respuesta === "2") {
     return {
-      reply:
-        "¿En qué te podemos ayudar?\n\n" +
-        "*1* - Tengo un reclamo\n" +
-        "*2* - Quiero dar un aviso (suspender donación, enfermedad, etc.)\n" +
-        "*3* - Otro motivo\n\n" +
-        "Escribí *persona* en cualquier momento para hablar con alguien del equipo.",
+      reply: "",
+      interactive: MENU_PRINCIPAL_INTERACTIVE,
       endFlow: true,
     };
   }
 
+  // No entendió → mostrar botones de confirmación
   return {
-    reply:
-      "No entendí tu respuesta.\n\n" +
-      "Apretá *1* para confirmar recepción del mensaje.\n" +
-      "Apretá *2* si tenés alguna otra consulta.",
+    reply: "No entendí tu respuesta.",
+    interactive: {
+      type: "buttons",
+      body: "¿Qué querés hacer?",
+      buttons: [
+        { id: "1", title: "Confirmar recepción" },
+        { id: "2", title: "Otra consulta" },
+      ],
+    },
     nextStep: 0,
   };
 }

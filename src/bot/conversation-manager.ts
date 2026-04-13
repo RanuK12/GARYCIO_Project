@@ -1,4 +1,4 @@
-import { ConversationState, FlowType, FlowResponse, detectFlow, getFlowByName, isAdminPhone } from "./flows";
+import { ConversationState, FlowType, FlowResponse, InteractiveMessage, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
 import { conversationStates, difusionEnvios } from "../database/schema";
@@ -107,8 +107,42 @@ async function endConversation(phone: string): Promise<void> {
   await db.delete(conversationStates).where(eq(conversationStates.phone, phone));
 }
 
-// ── Menú principal donante ───────────────────────────────
-function getMenuPrincipal(phone: string): string {
+// ── Menú principal donante (interactivo con botones) ────
+function getMenuPrincipalInteractive(phone: string): { reply: string; interactive: InteractiveMessage } {
+  if (isAdminPhone(phone)) {
+    return {
+      reply: "",
+      interactive: {
+        type: "list",
+        body: "¡Hola! 👋 Soy el asistente de GARYCIO.\n¿Qué querés hacer?",
+        buttonText: "Ver opciones",
+        sections: [{
+          rows: [
+            { id: "1", title: "Tengo un reclamo" },
+            { id: "2", title: "Dar un aviso", description: "Vacaciones, enfermedad, etc." },
+            { id: "3", title: "Otra consulta" },
+            { id: "4", title: "Panel de admin" },
+          ],
+        }],
+      },
+    };
+  }
+  return {
+    reply: "",
+    interactive: {
+      type: "buttons",
+      body: "¡Hola! 👋 Soy el asistente de GARYCIO.\n¿En qué te puedo ayudar?",
+      buttons: [
+        { id: "1", title: "Tengo un reclamo" },
+        { id: "2", title: "Dar un aviso" },
+        { id: "3", title: "Otra consulta" },
+      ],
+    },
+  };
+}
+
+// ── Menú principal como texto (fallback) ────────────────
+function getMenuPrincipalTexto(phone: string): string {
   if (isAdminPhone(phone)) {
     return (
       "¡Hola! 👋 Soy el asistente de GARYCIO.\n\n" +
@@ -132,10 +166,13 @@ function getMenuPrincipal(phone: string): string {
 async function iniciarFlow(
   phone: string,
   flow: FlowType,
-): Promise<{ state: ConversationState; reply: string; notify?: FlowResponse["notify"] }> {
+): Promise<{ state: ConversationState; reply: string; interactive?: InteractiveMessage; notify?: FlowResponse["notify"] }> {
   const state = await startConversation(phone, flow);
   const flowHandler = getFlowByName(flow);
-  if (!flowHandler) return { state, reply: getMenuPrincipal(phone) };
+  if (!flowHandler) {
+    const menu = getMenuPrincipalInteractive(phone);
+    return { state, reply: menu.reply, interactive: menu.interactive };
+  }
 
   const response = await flowHandler.handle(state, "", undefined);
   if (response.data) state.data = { ...state.data, ...response.data };
@@ -143,7 +180,7 @@ async function iniciarFlow(
     state.step = response.nextStep;
     await updateConversation(phone, state);
   }
-  return { state, reply: response.reply, notify: response.notify };
+  return { state, reply: response.reply, interactive: response.interactive, notify: response.notify };
 }
 
 // ── Procesar mensaje entrante ───────────────────────────
@@ -153,6 +190,7 @@ export async function handleIncomingMessage(
   mediaInfo?: MediaInfo,
 ): Promise<{
   reply: string;
+  interactive?: InteractiveMessage;
   notify?: FlowResponse["notify"];
   flowData?: { flowName: string; data: Record<string, any> };
 }> {
@@ -206,23 +244,31 @@ export async function handleIncomingMessage(
     logger.debug({ phone, rol }, "Rol detectado por teléfono");
 
     if (rol === "chofer") {
-      const { reply, notify } = await iniciarFlow(phone, "chofer");
-      return { reply, notify };
+      // Menú de chofer deshabilitado hasta nueva orden
+      return {
+        reply:
+          "Hola 👋 El sistema para choferes todavía no está habilitado.\n\n" +
+          "Cuando esté listo te avisamos. ¡Gracias!",
+      };
     }
 
     if (rol === "peon") {
-      const { reply, notify } = await iniciarFlow(phone, "peon");
-      return { reply, notify };
+      // Menú de peón deshabilitado hasta nueva orden
+      return {
+        reply:
+          "Hola 👋 El sistema para el personal de recolección todavía no está habilitado.\n\n" +
+          "Cuando esté listo te avisamos. ¡Gracias!",
+      };
     }
 
     if (rol === "visitadora") {
-      const { reply, notify } = await iniciarFlow(phone, "visitadora");
-      return { reply, notify };
+      const { reply, interactive, notify } = await iniciarFlow(phone, "visitadora");
+      return { reply, interactive, notify };
     }
 
     if (rol === "admin") {
-      const { reply, notify } = await iniciarFlow(phone, "admin");
-      return { reply, notify };
+      const { reply, interactive, notify } = await iniciarFlow(phone, "admin");
+      return { reply, interactive, notify };
     }
 
     // 3. Para donantes (conocidas o desconocidas): detectar keyword primero
@@ -246,7 +292,6 @@ export async function handleIncomingMessage(
           .limit(1)
           .then(async (rows) => {
             if (rows.length > 0) return rows;
-            // Intentar con el otro formato de teléfono
             return db
               .select({ id: difusionEnvios.id })
               .from(difusionEnvios)
@@ -261,12 +306,10 @@ export async function handleIncomingMessage(
             .where(eq(difusionEnvios.id, pendiente[0].id));
 
           logger.info({ phone }, "Confirmación de difusión registrada (sin sesión activa)");
+          const menu = getMenuPrincipalInteractive(phone);
           return {
-            reply:
-              "✅ *Recepción confirmada*\n\n" +
-              "¡Gracias por confirmar! Te esperamos en los días indicados.\n" +
-              "Recordá tener el bidón listo antes del horario indicado.\n\n" +
-              "Si necesitás algo más, escribinos por acá. ¡Buen día!",
+            reply: "✅ *Recepción confirmada* ¡Gracias! Te esperamos en los días indicados.\nRecordá tener el bidón listo antes del horario indicado.",
+            interactive: menu.interactive,
             notify: {
               target: "admin",
               message: `✅ Donante ${phone} confirmó recepción del mensaje de difusión.`,
@@ -274,18 +317,19 @@ export async function handleIncomingMessage(
           };
         }
       }
-      // → menú principal
-      return { reply: getMenuPrincipal(phone) };
+      // → menú principal interactivo
+      const menu = getMenuPrincipalInteractive(phone);
+      return { reply: menu.reply, interactive: menu.interactive };
     }
   }
 
-  // ── Menú numérico (donante con sesión en donante_menu) ──
+  // ── Menú numérico o por botón (donante con sesión en donante_menu) ──
   if (!state.currentFlow) {
-    const option = message.trim();
-    if (option === "1") state.currentFlow = "reclamo";
-    else if (option === "2") state.currentFlow = "aviso";
-    else if (option === "3") state.currentFlow = "consulta_general";
-    else if (option === "4" && isAdminPhone(phone)) state.currentFlow = "admin";
+    const option = message.trim().toLowerCase();
+    if (option === "1" || option === "tengo un reclamo") state.currentFlow = "reclamo";
+    else if (option === "2" || option === "dar un aviso") state.currentFlow = "aviso";
+    else if (option === "3" || option === "otra consulta") state.currentFlow = "consulta_general";
+    else if ((option === "4" || option === "panel de admin") && isAdminPhone(phone)) state.currentFlow = "admin";
     else state.currentFlow = "consulta_general";
 
     state.step = 0;
@@ -302,7 +346,7 @@ export async function handleIncomingMessage(
         state.step = response.nextStep;
         await updateConversation(phone, state);
       }
-      return { reply: response.reply, notify: response.notify };
+      return { reply: response.reply, interactive: response.interactive, notify: response.notify };
     }
   }
 
@@ -351,7 +395,8 @@ export async function handleIncomingMessage(
 
       // Reply vacío → mostrar menú principal directamente
       if (!response.reply) {
-        return { reply: getMenuPrincipal(phone), notify: response.notify, flowData };
+        const menu = getMenuPrincipalInteractive(phone);
+        return { reply: menu.reply, interactive: menu.interactive, notify: response.notify, flowData };
       }
     } else if (response.nextStep !== undefined) {
       state.step = response.nextStep;
@@ -363,7 +408,7 @@ export async function handleIncomingMessage(
       "Mensaje procesado",
     );
 
-    return { reply: response.reply, notify: response.notify, flowData };
+    return { reply: response.reply, interactive: response.interactive, notify: response.notify, flowData };
   } catch (err) {
     logger.error({ phone, err }, "Error procesando mensaje");
     await endConversation(phone);

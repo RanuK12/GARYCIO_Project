@@ -3,8 +3,8 @@
  *
  * Los archivos siguen la convención: {DIAS}_{CHOFER}.csv
  *   - LJ = Lunes y Jueves
- *   - MS = Martes y Sábado
- *   - MV = Miércoles y Viernes
+ *   - MV = Martes y Viernes
+ *   - MS = Miércoles y Sábado
  *   - 1, 2, 3 = número de chofer/camión
  *
  * Cada CSV tiene columnas:
@@ -38,8 +38,8 @@ const RUTAS_DIR = path.join(__dirname, "../../data/rutas");
 
 const DIAS_MAP: Record<string, string> = {
   LJ: "Lunes y Jueves",
-  MS: "Martes y Sábado",
-  MV: "Miércoles y Viernes",
+  MV: "Martes y Viernes",
+  MS: "Miércoles y Sábado",
 };
 
 const ARCHIVOS = [

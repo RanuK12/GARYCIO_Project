@@ -496,6 +496,38 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Reset confirmaciones para grupos MV y MS (re-envío con nuevos templates) ──
+  app.post("/admin/difusion/reset-grupos", async (req, res) => {
+    const { grupos } = req.body as { grupos?: string[] };
+    const gruposAResetear = grupos || ["MV", "MS"];
+    try {
+      // Cubrir tanto los valores nuevos correctos como los viejos incorrectos
+      const diasPorGrupo: Record<string, string[]> = {
+        MV: ["Martes y Viernes", "Miércoles y Viernes"],
+        MS: ["Miércoles y Sábado", "Martes y Sábado"],
+      };
+
+      let totalReset = 0;
+
+      for (const grupo of gruposAResetear) {
+        const diasVariantes = diasPorGrupo[grupo] ?? [];
+        for (const dias of diasVariantes) {
+          const result = await db
+            .update(difusionEnvios)
+            .set({ confirmado: false, fechaConfirmacion: null })
+            .where(eq(difusionEnvios.diasRecoleccion, dias))
+            .returning({ id: difusionEnvios.id });
+          totalReset += result.length;
+        }
+      }
+
+      logger.info({ totalReset, grupos: gruposAResetear }, "Reset de confirmaciones de difusión");
+      res.json({ status: "ok", totalReset, grupos: gruposAResetear });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   app.post("/admin/difusion/reenviar-pendientes", async (req, res) => {
     const horas = parseInt(req.query.horas as string) || 48;
     try {

@@ -1,4 +1,4 @@
-import { FlowHandler, ConversationState, FlowResponse, MediaInfo } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage, MediaInfo } from "./types";
 import { procesarComprobante } from "../../services/image-processor";
 import { logger } from "../../config/logger";
 import { db } from "../../database";
@@ -56,50 +56,85 @@ const MENU_RECLAMO =
   "*0* - Volver al menú principal\n\n" +
   "Respondé con el número correspondiente.";
 
+const MENU_RECLAMO_INTERACTIVE: InteractiveMessage = {
+  type: "list",
+  body: "¿Qué tipo de reclamo querés hacer?",
+  buttonText: "Ver opciones",
+  sections: [{
+    rows: [
+      { id: "1", title: "No me dejaron bidón vacío" },
+      { id: "2", title: "No pasaron a retirar", description: "No pasaron hoy a retirar el bidón" },
+      { id: "3", title: "Bidón sucio" },
+      { id: "4", title: "Necesito pelela" },
+      { id: "5", title: "Problema con el regalo" },
+    ],
+  }],
+};
+
+const MENU_REGALO_INTERACTIVE: InteractiveMessage = {
+  type: "buttons",
+  body: "¿Qué pasó con el regalo?",
+  buttons: [
+    { id: "1", title: "Falta el regalo" },
+    { id: "2", title: "El regalo está roto" },
+  ],
+};
+
+const MENU_CONFIRMACION_INTERACTIVE: InteractiveMessage = {
+  type: "buttons",
+  body: "¿Hay algo más en lo que te podamos ayudar?",
+  buttons: [
+    { id: "1", title: "Sí, tengo otra consulta" },
+    { id: "2", title: "No, gracias" },
+  ],
+};
+
 async function handleTipoReclamo(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const lower = respuesta.toLowerCase();
 
-  // Opción 0: Volver al menú principal → endFlow con reply vacío para que el manager muestre el menú
+  // Primer acceso (mensaje vacío desde iniciarFlow) → mostrar lista interactiva
+  if (respuesta === "") {
+    return {
+      reply: "",
+      interactive: MENU_RECLAMO_INTERACTIVE,
+      nextStep: 0,
+    };
+  }
+
+  // Opción 0: Volver al menú principal
   if (lower === "0" || lower.includes("volver") || lower.includes("menu principal")) {
     return { reply: "", endFlow: true };
   }
 
   // Opción 1: No me dejaron bidón vacío
-  if (lower === "1") {
+  if (lower === "1" || lower.includes("bidon vacio") || lower.includes("bidón vacío") || lower.includes("no me dejaron")) {
     return {
       reply:
         "Registramos tu reclamo: *no te dejaron bidón vacío*.\n\n" +
-        "¿Querés agregar algún detalle? Si no, respondé *no*.\n\n" +
-        "*0* - Volver",
+        "¿Querés agregar algún detalle? Si no, respondé *no*.",
       nextStep: 2,
       data: { tipoReclamo: "falta_bidon_vacio", labelReclamo: "No dejaron bidón vacío" },
     };
   }
 
   // Opción 2: No pasaron hoy
-  if (lower === "2") {
+  if (lower === "2" || lower.includes("no pasaron") || lower.includes("no retiraron")) {
     return {
       reply:
         "Registramos tu reclamo: *no pasaron hoy a retirar el bidón*.\n\n" +
-        "¿Querés agregar algún detalle? Si no, respondé *no*.\n\n" +
-        "*0* - Volver",
+        "¿Querés agregar algún detalle? Si no, respondé *no*.",
       nextStep: 2,
       data: { tipoReclamo: "no_pasaron", labelReclamo: "No pasaron a retirar" },
     };
   }
 
-  // Opción 3: Bidón sucio → respuesta directa
-  if (lower === "3") {
+  // Opción 3: Bidón sucio
+  if (lower === "3" || lower.includes("bidon sucio") || lower.includes("bidón sucio")) {
     const stateConTipo = { ...state, data: { ...state.data, tipoReclamo: "bidon_sucio", labelReclamo: "Bidón sucio" } };
     await guardarReclamoEnDB(stateConTipo, null);
     return {
-      reply:
-        "Tomamos nota de tu reclamo por *bidón sucio*. 🧹\n\n" +
-        "Estamos trabajando para mejorar nuestro servicio de limpieza de bidones. " +
-        "Tu comentario nos ayuda a mejorar.\n\n" +
-        "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
-        "¿Hay algo más que te podamos ayudar?\n" +
-        "*1* - Sí\n*2* - No, gracias",
+      reply: "Tomamos nota de tu reclamo por *bidón sucio*. 🧹\n\nElevaremos un reclamo, pronto solucionaremos tu situación.",
+      interactive: MENU_CONFIRMACION_INTERACTIVE,
       nextStep: 3,
       data: { tipoReclamo: "bidon_sucio", labelReclamo: "Bidón sucio" },
       notify: {
@@ -113,17 +148,13 @@ async function handleTipoReclamo(respuesta: string, state: ConversationState): P
     };
   }
 
-  // Opción 4: Necesito pelela → respuesta directa
-  if (lower === "4") {
+  // Opción 4: Necesito pelela
+  if (lower === "4" || lower.includes("pelela")) {
     const stateConTipo = { ...state, data: { ...state.data, tipoReclamo: "pelela", labelReclamo: "Necesita pelela" } };
     await guardarReclamoEnDB(stateConTipo, null);
     return {
-      reply:
-        "Tomamos nota de tu pedido de *pelela*. 🪣\n\n" +
-        "Nos vamos a comunicar con los recolectores para que te lleven una pelela " +
-        "en la próxima visita.\n\n" +
-        "¿Hay algo más que te podamos ayudar?\n" +
-        "*1* - Sí\n*2* - No, gracias",
+      reply: "Tomamos nota de tu pedido de *pelela*. 🪣\n\nNos vamos a comunicar con los recolectores para que te lleven una pelela en la próxima visita.",
+      interactive: MENU_CONFIRMACION_INTERACTIVE,
       nextStep: 3,
       data: { tipoReclamo: "pelela", labelReclamo: "Necesita pelela" },
       notify: {
@@ -136,22 +167,20 @@ async function handleTipoReclamo(respuesta: string, state: ConversationState): P
     };
   }
 
-  // Opción 5: Regalo → sub-menú
-  if (lower === "5") {
+  // Opción 5: Regalo → sub-menú interactivo
+  if (lower === "5" || lower.includes("regalo") || lower.includes("problema con el regalo")) {
     return {
-      reply:
-        "¿Qué pasó con el regalo?\n\n" +
-        "*1* - Falta el regalo (no me lo dejaron)\n" +
-        "*2* - El regalo está roto\n\n" +
-        "Respondé con el número.",
+      reply: "",
+      interactive: MENU_REGALO_INTERACTIVE,
       nextStep: 1,
       data: { tipoReclamo: "regalo" },
     };
   }
 
-  // No entendió → mostrar menú
+  // No entendió → mostrar lista interactiva de nuevo
   return {
-    reply: MENU_RECLAMO,
+    reply: "",
+    interactive: MENU_RECLAMO_INTERACTIVE,
     nextStep: 0,
   };
 }
@@ -159,38 +188,33 @@ async function handleTipoReclamo(respuesta: string, state: ConversationState): P
 function handleSubMenuRegalo(respuesta: string): FlowResponse {
   const lower = respuesta.toLowerCase();
 
-  if (lower === "0") {
-    return { reply: MENU_RECLAMO, nextStep: 0 };
+  if (lower === "0" || lower.includes("volver")) {
+    return { reply: "", interactive: MENU_RECLAMO_INTERACTIVE, nextStep: 0 };
   }
 
-  if (lower === "1") {
+  if (lower === "1" || lower.includes("falta el regalo") || lower.includes("no me lo dejaron")) {
     return {
       reply:
         "Registramos tu reclamo: *falta el regalo*.\n\n" +
-        "¿Cuál es el regalo que te falta? (describilo brevemente o escribí *no sé*)\n\n" +
-        "*0* - Volver",
+        "¿Cuál es el regalo que te falta? (describilo brevemente o escribí *no sé*)",
       nextStep: 2,
       data: { subTipoRegalo: "falta", labelReclamo: "Falta regalo" },
     };
   }
 
-  if (lower === "2") {
+  if (lower === "2" || lower.includes("roto") || lower.includes("el regalo está roto")) {
     return {
       reply:
         "Registramos tu reclamo: *regalo roto*.\n\n" +
-        "¿Querés agregar algún detalle de qué está roto? Si no, respondé *no*.\n\n" +
-        "*0* - Volver",
+        "¿Querés agregar algún detalle de qué está roto? Si no, respondé *no*.",
       nextStep: 2,
       data: { subTipoRegalo: "roto", labelReclamo: "Regalo roto" },
     };
   }
 
   return {
-    reply:
-      "Opción no válida. ¿Qué pasó con el regalo?\n\n" +
-      "*1* - Falta el regalo\n" +
-      "*2* - El regalo está roto\n" +
-      "*0* - Volver",
+    reply: "",
+    interactive: MENU_REGALO_INTERACTIVE,
     nextStep: 1,
   };
 }
@@ -236,13 +260,8 @@ async function handleDetalleReclamo(respuesta: string, state: ConversationState)
   }
 
   return {
-    reply:
-      `Tu reclamo por *${label}* quedó registrado. ✅\n\n` +
-      "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
-      "Se lo vamos a informar al recolector de tu zona. " +
-      "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
-      "¿Hay algo más en lo que te podamos ayudar?\n" +
-      "*1* - Sí\n*2* - No, gracias",
+    reply: `Tu reclamo por *${label}* quedó registrado. ✅\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.`,
+    interactive: MENU_CONFIRMACION_INTERACTIVE,
     nextStep: 3,
     data: { detalleReclamo: detalle },
     notify: {
@@ -254,7 +273,7 @@ async function handleDetalleReclamo(respuesta: string, state: ConversationState)
 
 function handleConfirmacionFinal(respuesta: string, _state: ConversationState): FlowResponse {
   const lower = respuesta.toLowerCase();
-  const esAfirmativo = ["si", "sí", "sep", "sip", "1"].some(
+  const esAfirmativo = ["si", "sí", "sep", "sip", "1", "sí, tengo otra consulta"].some(
     (a) => lower === a || lower.startsWith(a + ",") || lower.startsWith(a + " "),
   );
 
@@ -264,7 +283,7 @@ function handleConfirmacionFinal(respuesta: string, _state: ConversationState): 
   }
 
   // Texto libre con suficiente contexto → escalar
-  if (respuesta.trim().length >= 8 && !["no", "nop", "na", "nah", "gracias", "2"].some((n) => lower === n)) {
+  if (respuesta.trim().length >= 8 && !["no", "nop", "na", "nah", "gracias", "2", "no, gracias"].some((n) => lower === n)) {
     return {
       reply:
         "Anotamos tu consulta y te respondemos a la brevedad. 📩\n\n" +
@@ -295,12 +314,8 @@ async function handleFotoRegaloRoto(
 ): Promise<FlowResponse> {
   if (respuesta === "0") {
     return {
-      reply:
-        "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
-        "Se lo vamos a informar al recolector de tu zona. " +
-        "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
-        "¿Hay algo más que te podamos ayudar?\n" +
-        "*1* - Sí\n*2* - No, gracias",
+      reply: "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.",
+      interactive: MENU_CONFIRMACION_INTERACTIVE,
       nextStep: 3,
     };
   }
@@ -319,13 +334,8 @@ async function handleFotoRegaloRoto(
   }
 
   return {
-    reply:
-      "📸 *Foto recibida*\n\n" +
-      "Elevaremos un reclamo, pronto solucionaremos tu situación.\n\n" +
-      "Se lo vamos a informar al recolector de tu zona. " +
-      "En *4 días* te vamos a escribir para saber si se resolvió.\n\n" +
-      "¿Hay algo más en lo que te podamos ayudar?\n" +
-      "*1* - Sí\n*2* - No, gracias",
+    reply: "📸 *Foto recibida*\n\nElevaremos un reclamo, pronto solucionaremos tu situación.\nSe lo vamos a informar al recolector de tu zona. En *4 días* te vamos a escribir para saber si se resolvió.",
+    interactive: MENU_CONFIRMACION_INTERACTIVE,
     nextStep: 3,
     data: { fotoRegaloRoto: true },
   };

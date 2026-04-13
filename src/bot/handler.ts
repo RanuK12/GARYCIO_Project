@@ -1,5 +1,5 @@
 import { handleIncomingMessage } from "./conversation-manager";
-import { sendMessage, markAsRead } from "./client";
+import { sendMessage, markAsRead, sendInteractiveButtons, sendInteractiveList } from "./client";
 import { withUserLock } from "./queue";
 import { db } from "../database";
 import {
@@ -60,17 +60,33 @@ export async function processIncomingMessage(
     // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
     const result = await handleIncomingMessage(phone, text, mediaInfo);
 
-    // Enviar respuesta
+    // Enviar respuesta (texto plano o mensaje interactivo)
     try {
-      await sendMessage(phone, result.reply);
-      logMessage(phone, "saliente", result.reply, true).catch(() => {});
+      if (result.interactive) {
+        // Primero enviar el texto previo si existe
+        if (result.reply) {
+          await sendMessage(phone, result.reply);
+        }
+        // Luego enviar el mensaje interactivo
+        const iv = result.interactive;
+        if (iv.type === "buttons") {
+          await sendInteractiveButtons(phone, iv.body, iv.buttons);
+        } else {
+          await sendInteractiveList(phone, iv.body, iv.buttonText, iv.sections);
+        }
+        logMessage(phone, "saliente", result.interactive.body, true).catch(() => {});
+      } else {
+        await sendMessage(phone, result.reply);
+        logMessage(phone, "saliente", result.reply, true).catch(() => {});
+      }
     } catch (err) {
       logger.error({ phone, err }, "Error al enviar respuesta");
-      logMessage(phone, "saliente", result.reply, false).catch(() => {});
+      const contenido = result.interactive?.body || result.reply;
+      logMessage(phone, "saliente", contenido, false).catch(() => {});
       addToDeadLetterQueue({
         telefono: phone,
         tipo: "texto",
-        contenido: result.reply,
+        contenido,
         errorMessage: (err as Error).message,
       }).catch(() => {});
     }

@@ -509,16 +509,6 @@ export async function enviarDifusionPorRutas(opciones?: {
 // ============================================================
 
 /**
- * Mapeo de prefijo de archivo CSV → texto plano para la variable {{1}} de recoleccion_mvms.
- * MV = "Miércoles y Viernes", MS = "Martes y Sábado" (según DIAS_MAP en importar-rutas)
- * IMPORTANTE: sin emojis — Meta rechaza caracteres especiales en parámetros de templates.
- */
-const DIAS_EMOJI_MAP: Record<string, string> = {
-  MV: "Miércoles y Viernes",
-  MS: "Martes y Sábado",
-};
-
-/**
  * Envía difusión masiva a TODAS las donantes:
  * - Donantes de LJ (Lunes y Jueves) → template "recoleccion_lj" (sin parámetros)
  * - Donantes de MV (Miércoles y Viernes) → template "recoleccion_mvms" con {{1}} = "Miércoles y Viernes"
@@ -561,29 +551,31 @@ export async function enviarDifusionNueva(opciones?: {
   );
 
   const TEMPLATE_LJ = "recoleccion_lj";
-  const TEMPLATE_MVMS = "recoleccion_mvms";
+  const TEMPLATE_MV = "recoleccion_martesyviernes";   // MV = Martes y Viernes, sin parámetros
+  const TEMPLATE_MS = "recoleccion_miercolesysabado"; // MS = Miércoles y Sábado, sin parámetros
 
-  // ── Función auxiliar para enviar grupo LJ (sin parámetros) ──
-  async function enviarGrupoLJ(
+  // ── Función auxiliar genérica para enviar un grupo con un template sin parámetros ──
+  async function enviarGrupoSinParams(
     donantesList: DonantesRuta[],
+    templateName: string,
+    grupo: string,
   ): Promise<{ total: number; enviados: number; fallidos: number }> {
     if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
 
     const mensajes = donantesList.map((d) => ({
       phone: d.celularWhatsApp,
-      message: "LJ",
+      message: grupo,
     }));
 
     const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
       try {
-        // recoleccion_lj: template sin parámetros
-        await sendTemplate(phone, TEMPLATE_LJ, "es_AR");
+        await sendTemplate(phone, templateName, "es_AR");
       } catch (err) {
         await addToDeadLetterQueue({
           telefono: phone,
           tipo: "template",
-          contenido: `Template: ${TEMPLATE_LJ}`,
-          templateName: TEMPLATE_LJ,
+          contenido: `Template: ${templateName}`,
+          templateName,
           errorMessage: (err as Error).message,
         });
         throw err;
@@ -594,7 +586,7 @@ export async function enviarDifusionNueva(opciones?: {
       batchPauseMs: 3000,
       onProgress: (sent, failed, total) => {
         if ((sent + failed) % 10 === 0 || sent + failed === total) {
-          logger.info({ sent, failed, total, grupo: "LJ" }, "Progreso difusión nueva");
+          logger.info({ sent, failed, total, grupo }, "Progreso difusión nueva");
         }
       },
     });
@@ -602,52 +594,10 @@ export async function enviarDifusionNueva(opciones?: {
     return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
   }
 
-  // ── Función auxiliar para enviar grupo MV o MS (con parámetro {{1}} = días) ──
-  async function enviarGrupoMVMS(
-    donantesList: DonantesRuta[],
-    prefijoDias: string,
-  ): Promise<{ total: number; enviados: number; fallidos: number }> {
-    if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
-
-    const diasTexto = DIAS_EMOJI_MAP[prefijoDias] ?? prefijoDias;
-
-    const mensajes = donantesList.map((d) => ({
-      phone: d.celularWhatsApp,
-      message: diasTexto,
-    }));
-
-    const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
-      try {
-        // recoleccion_mvms: template con {{variable_1}} = días
-        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR", [
-          {
-            type: "body",
-            parameters: [{ type: "text", text: diasTexto, parameter_name: "variable_1" }],
-          },
-        ]);
-      } catch (err) {
-        await addToDeadLetterQueue({
-          telefono: phone,
-          tipo: "template",
-          contenido: `Template: ${TEMPLATE_MVMS}`,
-          templateName: TEMPLATE_MVMS,
-          errorMessage: (err as Error).message,
-        });
-        throw err;
-      }
-    }, {
-      delayMs: 1000,
-      batchSize: 100,
-      batchPauseMs: 3000,
-      onProgress: (sent, failed, total) => {
-        if ((sent + failed) % 10 === 0 || sent + failed === total) {
-          logger.info({ sent, failed, total, grupo: prefijoDias }, "Progreso difusión nueva");
-        }
-      },
-    });
-
-    return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
-  }
+  // Aliases para claridad
+  const enviarGrupoLJ = (d: DonantesRuta[]) => enviarGrupoSinParams(d, TEMPLATE_LJ, "LJ");
+  const enviarGrupoMV = (d: DonantesRuta[]) => enviarGrupoSinParams(d, TEMPLATE_MV, "MV");
+  const enviarGrupoMS = (d: DonantesRuta[]) => enviarGrupoSinParams(d, TEMPLATE_MS, "MS");
 
   // ── Registrar en DB (conversation_states + difusion_envios) ──
   async function registrarEnviados(donantesList: DonantesRuta[]): Promise<void> {
@@ -702,10 +652,10 @@ export async function enviarDifusionNueva(opciones?: {
   const resultadoLJ = await enviarGrupoLJ(grupoLJ);
   await registrarEnviados(grupoLJ);
 
-  const resultadoMV = await enviarGrupoMVMS(grupoMV, "MV");
+  const resultadoMV = await enviarGrupoMV(grupoMV);
   await registrarEnviados(grupoMV);
 
-  const resultadoMS = await enviarGrupoMVMS(grupoMS, "MS");
+  const resultadoMS = await enviarGrupoMS(grupoMS);
   await registrarEnviados(grupoMS);
 
   const totalEnviados = resultadoLJ.enviados + resultadoMV.enviados + resultadoMS.enviados;

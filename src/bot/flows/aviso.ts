@@ -1,4 +1,4 @@
-import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 
 /**
  * Flow de avisos de donantes.
@@ -46,28 +46,49 @@ const MENU_AVISO =
   "*0* - Volver al menú principal\n\n" +
   "Respondé con el número correspondiente.";
 
+const MENU_AVISO_INTERACTIVE: InteractiveMessage = {
+  type: "list",
+  body: "¿Por qué motivo nos querés avisar?",
+  buttonText: "Ver motivos",
+  sections: [{
+    rows: [
+      { id: "1", title: "Me voy de vacaciones", description: "Ausencia por motivo personal 🏖️" },
+      { id: "2", title: "Aviso por enfermedad", description: "No puedo donar por salud 🤒" },
+      { id: "3", title: "Cambio de dirección", description: "Nueva dirección de recolección 📍" },
+      { id: "4", title: "Cambio de teléfono", description: "Actualizar número de contacto 📱" },
+    ],
+  }],
+};
+
 // ── Paso 0: Elegir motivo ────────────────────────────────
 function handleTipoAviso(respuesta: string): FlowResponse {
-  const map: Record<string, string> = {
-    "1": "vacaciones",
-    "2": "enfermedad",
-    "3": "cambio_direccion",
-    "4": "cambio_telefono",
-  };
-
-  // Opción 0: Volver al menú principal
-  if (respuesta.trim() === "0") {
+  // Primer acceso (mensaje vacío desde iniciarFlow) → mostrar lista interactiva
+  if (respuesta === "") {
     return {
-      reply: "Volviste al menú principal. Escribí cualquier cosa para ver las opciones.",
-      endFlow: true,
+      reply: "",
+      interactive: MENU_AVISO_INTERACTIVE,
+      nextStep: 0,
     };
   }
 
-  const tipo = map[respuesta.trim()];
+  const lower = respuesta.toLowerCase();
+
+  // Opción 0: Volver al menú principal
+  if (lower === "0" || lower.includes("volver") || lower.includes("menu principal")) {
+    return { reply: "", endFlow: true };
+  }
+
+  // Mapeo de número o título de botón → tipo
+  let tipo: string | null = null;
+  if (lower === "1" || lower.includes("vacaciones") || lower.includes("me voy")) tipo = "vacaciones";
+  else if (lower === "2" || lower.includes("enfermedad") || lower.includes("salud")) tipo = "enfermedad";
+  else if (lower === "3" || lower.includes("direccion") || lower.includes("dirección")) tipo = "cambio_direccion";
+  else if (lower === "4" || lower.includes("telefono") || lower.includes("teléfono") || lower.includes("numero")) tipo = "cambio_telefono";
 
   if (!tipo) {
     return {
-      reply: MENU_AVISO,
+      reply: "",
+      interactive: MENU_AVISO_INTERACTIVE,
       nextStep: 0,
     };
   }
