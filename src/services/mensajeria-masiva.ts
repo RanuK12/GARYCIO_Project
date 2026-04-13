@@ -601,22 +601,29 @@ export async function enviarDifusionNueva(opciones?: {
     return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
   }
 
-  // ── Función auxiliar para enviar grupo MV o MS (sin parámetros) ──
+  // ── Función auxiliar para enviar grupo MV o MS (con parámetro {{1}} = días) ──
   async function enviarGrupoMVMS(
     donantesList: DonantesRuta[],
     prefijoDias: string,
   ): Promise<{ total: number; enviados: number; fallidos: number }> {
     if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
 
+    const diasTexto = DIAS_EMOJI_MAP[prefijoDias] ?? prefijoDias;
+
     const mensajes = donantesList.map((d) => ({
       phone: d.celularWhatsApp,
-      message: prefijoDias,
+      message: diasTexto,
     }));
 
     const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
       try {
-        // recoleccion_mvms: template sin parámetros (texto fijo con ambos días)
-        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR");
+        // recoleccion_mvms: template con {{1}} = días con emojis
+        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR", [
+          {
+            type: "body",
+            parameters: [{ type: "text", text: diasTexto }],
+          },
+        ]);
       } catch (err) {
         await addToDeadLetterQueue({
           telefono: phone,
