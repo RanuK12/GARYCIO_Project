@@ -486,9 +486,10 @@ async function main(): Promise<void> {
   });
 
   // ── Difusión nueva: templates sin parámetros a todas las donantes ──
-  app.post("/admin/difusion/nueva", async (_req, res) => {
+  app.post("/admin/difusion/nueva", async (req, res) => {
+    const { soloGrupos } = req.body as { soloGrupos?: string[] };
     try {
-      const result = await enviarDifusionNueva();
+      const result = await enviarDifusionNueva(soloGrupos ? { soloGrupos } : undefined);
       res.json({ status: "ok", ...result });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });

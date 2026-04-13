@@ -525,7 +525,9 @@ const DIAS_EMOJI_MAP: Record<string, string> = {
  *
  * No se bloquea por registros existentes en difusion_envios (hace upsert).
  */
-export async function enviarDifusionNueva(): Promise<{
+export async function enviarDifusionNueva(opciones?: {
+  soloGrupos?: string[];  // ej: ["MV", "MS"] para reenviar solo esos grupos
+}): Promise<{
   total: number;
   enviados: number;
   fallidos: number;
@@ -537,11 +539,15 @@ export async function enviarDifusionNueva(): Promise<{
 }> {
   const resumenRutas = importarRutas();
   const todosConTelefono = resumenRutas.donantes.filter((d) => d.celularWhatsApp);
+  const filtro = opciones?.soloGrupos;
 
-  // Separar en tres grupos
-  const grupoLJ = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("LJ"));
-  const grupoMV = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MV"));
-  const grupoMS = todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MS"));
+  // Separar en tres grupos (vaciar si no está en el filtro)
+  const grupoLJ = (!filtro || filtro.includes("LJ"))
+    ? todosConTelefono.filter((d) => d.archivoOrigen.startsWith("LJ")) : [];
+  const grupoMV = (!filtro || filtro.includes("MV"))
+    ? todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MV")) : [];
+  const grupoMS = (!filtro || filtro.includes("MS"))
+    ? todosConTelefono.filter((d) => d.archivoOrigen.startsWith("MS")) : [];
 
   logger.info(
     {
@@ -595,14 +601,12 @@ export async function enviarDifusionNueva(): Promise<{
     return { total: donantesList.length, enviados: resultado.sent, fallidos: resultado.failed };
   }
 
-  // ── Función auxiliar para enviar grupo MV o MS (con parámetro {{1}} = días) ──
+  // ── Función auxiliar para enviar grupo MV o MS (sin parámetros) ──
   async function enviarGrupoMVMS(
     donantesList: DonantesRuta[],
     prefijoDias: string,
   ): Promise<{ total: number; enviados: number; fallidos: number }> {
     if (donantesList.length === 0) return { total: 0, enviados: 0, fallidos: 0 };
-
-    const diasConEmoji = DIAS_EMOJI_MAP[prefijoDias] || prefijoDias;
 
     const mensajes = donantesList.map((d) => ({
       phone: d.celularWhatsApp,
@@ -611,18 +615,13 @@ export async function enviarDifusionNueva(): Promise<{
 
     const resultado = await sendBulkWithProgress(mensajes, async (phone) => {
       try {
-        // recoleccion_mvms: 1 variable {{1}} = días con emojis
-        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR", [
-          {
-            type: "body",
-            parameters: [{ type: "text", text: diasConEmoji }],
-          },
-        ]);
+        // recoleccion_mvms: template sin parámetros (texto fijo con ambos días)
+        await sendTemplate(phone, TEMPLATE_MVMS, "es_AR");
       } catch (err) {
         await addToDeadLetterQueue({
           telefono: phone,
           tipo: "template",
-          contenido: `Template: ${TEMPLATE_MVMS} | dias: ${diasConEmoji}`,
+          contenido: `Template: ${TEMPLATE_MVMS}`,
           templateName: TEMPLATE_MVMS,
           errorMessage: (err as Error).message,
         });
