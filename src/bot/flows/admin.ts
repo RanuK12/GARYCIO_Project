@@ -1,7 +1,7 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
 import { db } from "../../database";
 import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios } from "../../database/schema";
-import { eq, and, desc, sql, ilike, count } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, count, like } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
 import { marcarReporteEnviado } from "../../services/reporte-diario";
@@ -439,22 +439,46 @@ async function handleGenerarReporte(adminPhone: string): Promise<FlowResponse> {
 
 // ── Estado de difusión ──────────────────────────────────
 async function handleEstadoDifusion(): Promise<FlowResponse> {
-  const stats = await db
+  // ── Stats globales ──
+  const statsGlobal = await db
     .select({
       total: count(),
       confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
-      pendientes: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = false)`,
     })
     .from(difusionEnvios);
 
-  const s = stats[0] || { total: 0, confirmadas: 0, pendientes: 0 };
-  const pct = s.total > 0 ? Math.round((Number(s.confirmadas) / s.total) * 100) : 0;
+  // ── Stats por grupo MV (Martes y Viernes) ──
+  const statsMV = await db
+    .select({
+      total: count(),
+      confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
+    })
+    .from(difusionEnvios)
+    .where(like(difusionEnvios.diasRecoleccion, "%Martes%"));
 
-  // Últimas 5 que confirmaron
+  // ── Stats por grupo MS (Miércoles y Sábados) ──
+  const statsMS = await db
+    .select({
+      total: count(),
+      confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
+    })
+    .from(difusionEnvios)
+    .where(like(difusionEnvios.diasRecoleccion, "%Mi%rcoles%"));
+
+  const g = statsGlobal[0] || { total: 0, confirmadas: 0 };
+  const mv = statsMV[0] || { total: 0, confirmadas: 0 };
+  const ms = statsMS[0] || { total: 0, confirmadas: 0 };
+
+  const pctGlobal = Number(g.total) > 0 ? Math.round((Number(g.confirmadas) / Number(g.total)) * 100) : 0;
+  const pctMV = Number(mv.total) > 0 ? Math.round((Number(mv.confirmadas) / Number(mv.total)) * 100) : 0;
+  const pctMS = Number(ms.total) > 0 ? Math.round((Number(ms.confirmadas) / Number(ms.total)) * 100) : 0;
+
+  // ── Últimas 5 confirmaciones ──
   const ultimasConfirmadas = await db
     .select({
       nombre: difusionEnvios.nombre,
       telefono: difusionEnvios.telefono,
+      diasRecoleccion: difusionEnvios.diasRecoleccion,
       fechaConfirmacion: difusionEnvios.fechaConfirmacion,
     })
     .from(difusionEnvios)
@@ -464,9 +488,15 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
 
   let reply =
     `📨 *Estado de difusión*\n\n` +
-    `📤 Total enviados: *${s.total}*\n` +
-    `✅ Confirmaron: *${s.confirmadas}* (${pct}%)\n` +
-    `⏳ Pendientes: *${Number(s.total) - Number(s.confirmadas)}*\n\n`;
+    `📤 *Total global:* ${g.total} enviados\n` +
+    `✅ Confirmaron: *${g.confirmadas}* (${pctGlobal}%)\n` +
+    `⏳ Pendientes: *${Number(g.total) - Number(g.confirmadas)}*\n\n` +
+    `━━━━━━━━━━━━━━━━━\n` +
+    `📅 *Martes y Viernes (MV)*\n` +
+    `   Enviados: ${mv.total} | ✅ ${mv.confirmadas} (${pctMV}%) | ⏳ ${Number(mv.total) - Number(mv.confirmadas)}\n\n` +
+    `📅 *Miércoles y Sábados (MS)*\n` +
+    `   Enviados: ${ms.total} | ✅ ${ms.confirmadas} (${pctMS}%) | ⏳ ${Number(ms.total) - Number(ms.confirmadas)}\n` +
+    `━━━━━━━━━━━━━━━━━\n\n`;
 
   if (ultimasConfirmadas.length > 0) {
     reply += `*Últimas confirmaciones:*\n`;
@@ -474,12 +504,13 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
       const hora = c.fechaConfirmacion
         ? new Date(c.fechaConfirmacion).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
         : "?";
-      reply += `• ${c.nombre ?? c.telefono} — ${hora}\n`;
+      const grupo = c.diasRecoleccion?.includes("Martes") ? "MV" : c.diasRecoleccion?.includes("iércoles") ? "MS" : "LJ";
+      reply += `• [${grupo}] ${c.nombre ?? c.telefono} — ${hora}\n`;
     }
     reply += "\n";
   }
 
-  reply += "*1* - Volver al menú\n*2* - Finalizar";
+  reply += "*1* - Volver al menú\n*2* - Finalizar\n*10* - 🔄 Actualizar";
 
   return { reply, nextStep: 99 };
 }
@@ -531,16 +562,19 @@ function handleListaComandos(): FlowResponse {
 }
 
 // ── Volver o finalizar ──────────────────────────────────
-function handleVolverOFinalizar(respuesta: string): FlowResponse {
+async function handleVolverOFinalizar(respuesta: string): Promise<FlowResponse> {
   if (respuesta === "1") {
     return handleBienvenida();
   }
   if (respuesta === "2") {
     return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
   }
+  if (respuesta === "10") {
+    return await handleEstadoDifusion();
+  }
   // Cualquier otra cosa (incluyendo keywords como "reclamo") → re-mostrar opciones
   return {
-    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar\n*10* - 📨 Estado difusión",
     nextStep: 99,
   };
 }
