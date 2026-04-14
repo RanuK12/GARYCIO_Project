@@ -36,7 +36,7 @@ export const adminFlow: FlowHandler = {
     switch (state.step) {
       case 0: return handleBienvenida();
       case 1: return await handleMenu(respuesta, state.phone);
-      case 10: return await handleContactosNuevos();
+      case 10: return await handleContactosNuevos(state);
       case 11: return await handleDetalleContacto(respuesta, state);
       case 20: return await handleBuscarDonante(respuesta);
       case 21: return await handleDetalleDonante(respuesta);
@@ -81,7 +81,7 @@ function handleBienvenida(): FlowResponse {
 async function handleMenu(respuesta: string, adminPhone: string): Promise<FlowResponse> {
   switch (respuesta) {
     case "1":
-      return await handleContactosNuevos();
+      return await handleContactosNuevos({ phone: adminPhone, currentFlow: "admin", step: 10, data: { pagina: 0 }, lastInteraction: new Date() });
     case "2":
       return {
         reply: "🔍 *Buscar donante*\n\nIngresá el nombre, teléfono o dirección a buscar:",
@@ -108,8 +108,28 @@ async function handleMenu(respuesta: string, adminPhone: string): Promise<FlowRe
   }
 }
 
-// ── Contactos nuevos ──────────────────────────────────
-async function handleContactosNuevos(): Promise<FlowResponse> {
+const PAGE_SIZE = 50;
+
+// ── Contactos nuevos (con paginación) ─────────────────
+async function handleContactosNuevos(state: ConversationState): Promise<FlowResponse> {
+  // La página actual se guarda en state.data.pagina (default 0)
+  const pagina: number = state.data?.pagina ?? 0;
+  const offset = pagina * PAGE_SIZE;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(donantes)
+    .where(and(eq(donantes.estado, "nueva"), eq(donantes.donandoActualmente, false)));
+
+  if (total === 0) {
+    return {
+      reply:
+        "✅ No hay contactos nuevos pendientes de revisión.\n\n" +
+        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      nextStep: 99,
+    };
+  }
+
   const nuevos = await db
     .select({
       id: donantes.id,
@@ -119,43 +139,37 @@ async function handleContactosNuevos(): Promise<FlowResponse> {
       createdAt: donantes.createdAt,
     })
     .from(donantes)
-    .where(
-      and(
-        eq(donantes.estado, "nueva"),
-        eq(donantes.donandoActualmente, false),
-      ),
-    )
+    .where(and(eq(donantes.estado, "nueva"), eq(donantes.donandoActualmente, false)))
     .orderBy(desc(donantes.createdAt))
-    .limit(20);
+    .limit(PAGE_SIZE)
+    .offset(offset);
 
-  if (nuevos.length === 0) {
-    return {
-      reply:
-        "✅ No hay contactos nuevos pendientes de revisión.\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
-      nextStep: 99,
-    };
-  }
+  const totalPaginas = Math.ceil(total / PAGE_SIZE);
+  const desde = offset + 1;
+  const hasta = offset + nuevos.length;
 
-  let lista = `📋 *Contactos nuevos pendientes* (${nuevos.length})\n\n`;
+  let lista = `📋 *Contactos nuevos* (${total} total) — Pág. ${pagina + 1}/${totalPaginas}\n`;
+  lista += `Mostrando ${desde}–${hasta}\n\n`;
+
   for (const [i, c] of nuevos.entries()) {
     const fecha = c.createdAt ? new Date(c.createdAt).toLocaleDateString("es-AR") : "?";
-    lista += `*${i + 1}.* 📱 ${c.telefono}\n`;
-    lista += `   📅 ${fecha}\n`;
+    lista += `*${i + 1}.* 📱 ${c.telefono} · ${fecha}\n`;
     if (c.notas) {
-      const nota = c.notas.length > 60 ? c.notas.slice(0, 60) + "..." : c.notas;
+      const nota = c.notas.length > 50 ? c.notas.slice(0, 50) + "..." : c.notas;
       lista += `   📝 ${nota}\n`;
     }
-    lista += "\n";
   }
 
-  lista += "Enviá el *número* del contacto para ver detalle, o:\n";
-  lista += "*0* - Volver al menú";
+  lista += "\n─────────────────\n";
+  lista += "Enviá el *número* para ver detalle";
+  if (pagina > 0) lista += " · *A* anterior";
+  if (pagina + 1 < totalPaginas) lista += " · *S* siguiente";
+  lista += " · *0* menú";
 
   return {
     reply: lista,
     nextStep: 11,
-    data: { contactosNuevos: nuevos.map((c) => c.id) },
+    data: { contactosNuevos: nuevos.map((c) => c.id), pagina, totalContactos: total },
   };
 }
 
@@ -164,11 +178,25 @@ async function handleDetalleContacto(respuesta: string, state: ConversationState
     return handleBienvenida();
   }
 
+  // Paginación: S = siguiente página, A = anterior página
+  const cmd = respuesta.toLowerCase();
+  if (cmd === "s" || cmd === "a") {
+    const paginaActual: number = state.data?.pagina ?? 0;
+    const totalContactos: number = state.data?.totalContactos ?? 0;
+    const totalPaginas = Math.ceil(totalContactos / PAGE_SIZE);
+    let nuevaPagina = paginaActual;
+    if (cmd === "s" && paginaActual + 1 < totalPaginas) nuevaPagina = paginaActual + 1;
+    if (cmd === "a" && paginaActual > 0) nuevaPagina = paginaActual - 1;
+    // Actualizar página en state y volver a mostrar lista
+    state.data = { ...state.data, pagina: nuevaPagina };
+    return handleContactosNuevos(state);
+  }
+
   const idx = parseInt(respuesta) - 1;
   const ids: number[] = state.data.contactosNuevos || [];
 
   if (isNaN(idx) || idx < 0 || idx >= ids.length) {
-    return { reply: "Número no válido. Elegí uno de la lista o *0* para volver:", nextStep: 11 };
+    return { reply: "Número no válido. Elegí uno de la lista, *S* siguiente, *A* anterior o *0* para volver:", nextStep: 11 };
   }
 
   const [contacto] = await db
