@@ -275,29 +275,26 @@ export async function handleIncomingMessage(
     const detectedFlow = detectFlow(message, phone);
     if (detectedFlow) {
       state = await startConversation(phone, detectedFlow.name);
-    } else if (rol === "desconocido") {
-      // Número totalmente nuevo → flow de registro
-      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
-      return { reply, notify };
     } else {
-      // Donante conocida sin keyword
-      // Caso especial: si envía "1" y tiene difusion_envios pendiente → confirmar difusión
+      // Caso especial prioritario: si envía "1" y tiene difusion_envios pendiente → confirmar difusión
+      // Se evalúa ANTES del check de rol desconocido para capturar también números nuevos que recibieron difusión
       if (message.trim() === "1") {
         const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
         const phoneConPlus = phone.startsWith("+") ? phone : `+${phone}`;
-        const pendiente = await db
+        // Buscar por variante sin + primero (formato habitual de WhatsApp), luego con +
+        let pendiente = await db
           .select({ id: difusionEnvios.id })
           .from(difusionEnvios)
-          .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phone)))
-          .limit(1)
-          .then(async (rows) => {
-            if (rows.length > 0) return rows;
-            return db
-              .select({ id: difusionEnvios.id })
-              .from(difusionEnvios)
-              .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phone.startsWith("+") ? phoneSinPlus : phoneConPlus)))
-              .limit(1);
-          });
+          .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneSinPlus)))
+          .limit(1);
+
+        if (pendiente.length === 0) {
+          pendiente = await db
+            .select({ id: difusionEnvios.id })
+            .from(difusionEnvios)
+            .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneConPlus)))
+            .limit(1);
+        }
 
         if (pendiente.length > 0) {
           await db
@@ -317,6 +314,13 @@ export async function handleIncomingMessage(
           };
         }
       }
+
+      if (rol === "desconocido") {
+        // Número totalmente nuevo sin difusión pendiente → flow de registro
+        const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+        return { reply, notify };
+      }
+
       // → menú principal interactivo
       const menu = getMenuPrincipalInteractive(phone);
       return { reply: menu.reply, interactive: menu.interactive };

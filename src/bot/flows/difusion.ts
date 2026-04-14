@@ -41,22 +41,21 @@ export const difusionFlow: FlowHandler = {
 
 async function handleRespuestaDifusion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   if (respuesta === "1") {
-    // Normalizar teléfono: algunos llegan con + y otros sin él
-    const phoneExacto = state.phone;
+    // Normalizar teléfono: WhatsApp siempre envía sin +, pero por las dudas probamos ambas variantes
     const phoneSinPlus = state.phone.startsWith("+") ? state.phone.slice(1) : state.phone;
     const phoneConPlus = state.phone.startsWith("+") ? state.phone : `+${state.phone}`;
 
     const updated = await db
       .update(difusionEnvios)
       .set({ confirmado: true, fechaConfirmacion: new Date() })
-      .where(eq(difusionEnvios.telefono, phoneExacto))
+      .where(eq(difusionEnvios.telefono, phoneSinPlus))
       .returning({ telefono: difusionEnvios.telefono });
 
     if (updated.length === 0) {
       await db
         .update(difusionEnvios)
         .set({ confirmado: true, fechaConfirmacion: new Date() })
-        .where(eq(difusionEnvios.telefono, phoneSinPlus.length > phoneExacto.length ? phoneSinPlus : phoneConPlus));
+        .where(eq(difusionEnvios.telefono, phoneConPlus));
     }
 
     return {
