@@ -166,14 +166,14 @@ El sistema corre en un servidor Hetzner (Ubuntu 24.04) con PM2.
 | Item | Valor |
 |---|---|
 | IP | `204.168.183.96` |
-| SSH | `ssh root@204.168.183.96` (pass: `Fletero91!`) |
+| SSH | `ssh root@204.168.183.96` (pass: ver credenciales privadas) |
 | Ruta en servidor | `/opt/garycio` |
 | PM2 proceso | `garycio-bot` |
 | PM2 script | `/opt/garycio/dist/index.js` |
 
 ```bash
 # Deploy completo
-ssh root@204.168.183.96          # pass: Fletero91!
+ssh root@204.168.183.96
 cd /opt/garycio                  # <-- el proyecto esta ACA
 git pull origin main
 npm install
@@ -182,7 +182,7 @@ pm2 restart garycio-bot
 pm2 logs garycio-bot --lines 20  # verificar arranque
 
 # Deploy con sshpass (desde local) — usar -f con archivo por el !
-echo 'Fletero91!' > /tmp/sshpw.txt
+echo 'TU_PASSWORD' > /tmp/sshpw.txt
 sshpass -f /tmp/sshpw.txt ssh root@204.168.183.96 'cd /opt/garycio && git pull && npm install && npm run build && pm2 restart garycio-bot'
 rm /tmp/sshpw.txt
 

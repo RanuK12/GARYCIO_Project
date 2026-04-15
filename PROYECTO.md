@@ -16,8 +16,7 @@ GARYCIO es un sistema de automatizacion logistica para una empresa de recoleccio
 |---|---|
 | Servidor | Hetzner VPS (Ubuntu 24.04 LTS) |
 | IP | `204.168.183.96` |
-| Acceso SSH | `ssh root@204.168.183.96` |
-| Password SSH | `Fletero91!` |
+| Acceso SSH | `ssh root@204.168.183.96` (pass: ver credenciales privadas) |
 | Ruta del proyecto en servidor | `/opt/garycio` |
 | Proceso PM2 | `garycio-bot` (id: 0) |
 | Script PM2 | `/opt/garycio/dist/index.js` |
@@ -33,7 +32,7 @@ GARYCIO es un sistema de automatizacion logistica para una empresa de recoleccio
 npm run build                    # Compila TypeScript a dist/
 
 # En el servidor:
-ssh root@204.168.183.96          # password: Fletero91!
+ssh root@204.168.183.96
 cd /opt/garycio                  # <-- RUTA DEL PROYECTO EN EL SERVIDOR
 pm2 restart garycio-bot          # Reiniciar el bot
 pm2 logs garycio-bot             # Ver logs en tiempo real
@@ -47,7 +46,7 @@ pm2 status                       # Estado de procesos
 git add . && git commit -m "descripcion" && git push origin main
 
 # 2. En el servidor:
-ssh root@204.168.183.96          # password: Fletero91!
+ssh root@204.168.183.96
 cd /opt/garycio                  # IMPORTANTE: el proyecto esta en /opt/garycio, NO en /root/
 git pull origin main
 npm install                      # solo si hay nuevas dependencias
@@ -60,12 +59,12 @@ pm2 logs garycio-bot --lines 20  # verificar que arranco bien
 
 ```bash
 # Crear archivo con password (evita problemas de escaping con !)
-echo 'Fletero91!' > /tmp/sshpw.txt
+echo 'TU_PASSWORD' > /tmp/sshpw.txt
 sshpass -f /tmp/sshpw.txt ssh root@204.168.183.96 'cd /opt/garycio && git pull && npm install && npm run build && pm2 restart garycio-bot'
 rm /tmp/sshpw.txt
 ```
 
-> **NOTA**: `sshpass -p 'Fletero91!'` NO funciona porque el `!` da problemas de escaping. Siempre usar `-f` con archivo.
+> **NOTA**: `sshpass -p 'password!'` NO funciona si la password tiene `!` porque da problemas de escaping. Siempre usar `-f` con archivo.
 
 ### Verificar que el bot esta corriendo
 
