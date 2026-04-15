@@ -1,6 +1,6 @@
 import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 import { db } from "../../database";
-import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios } from "../../database/schema";
+import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios, iaFeedback } from "../../database/schema";
 import { eq, and, desc, sql, ilike, count, like } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
@@ -48,6 +48,7 @@ export const adminFlow: FlowHandler = {
       case 50: return handleProgresoRutas();
       case 60: return await handleResultadosEncuesta();
       case 70: return await handleGenerarReporte(state.phone);
+      case 80: return await handleRevisarFeedbackIA(respuesta, state);
       case 99: return await handleVolverOFinalizar(respuesta);
       default:
         return handleBienvenida();
@@ -84,6 +85,7 @@ function handleBienvenida(): FlowResponse {
         rows: [
           { id: "8", title: "Reporte diario PDF", description: "Generar y enviar" },
           { id: "7", title: "Lista de comandos", description: "Todos los comandos" },
+          { id: "13", title: "Revisar IA feedback", description: "Ver fallos e interpretaciones IA" },
         ],
       }, {
         title: "Sesión",
@@ -113,6 +115,9 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
     "estado difusion": "10",
     "resumen rápido": "11",
     "resumen rapido": "11",
+    "revisar ia feedback": "13",
+    "ia feedback": "13",
+    "feedback ia": "13",
   };
   const choice = menuMap[opcion] || opcion;
 
@@ -144,6 +149,8 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
       return await handleResumenRapido();
     case "12":
       return await handleExportarXLS(state.phone);
+    case "13":
+      return await handleRevisarFeedbackIA("ver", state);
     default:
       return handleBienvenida();
   }
@@ -250,10 +257,8 @@ async function handleDetalleContacto(respuesta: string, state: ConversationState
   const ids: number[] = state.data?.contactosNuevos || [];
 
   if (isNaN(idx) || idx < 0 || idx >= ids.length) {
-    return {
-      reply: "Número no válido. Elegí uno de la lista, *S* siguiente, *A* anterior, *X* exportar o *0* menú:",
-      nextStep: 11,
-    };
+    // Texto no reconocido → re-mostrar la lista en lugar de mensaje de error
+    return await handleContactosNuevos(state);
   }
 
   const [contacto] = await db
@@ -860,6 +865,127 @@ async function handleResumenRapido(): Promise<FlowResponse> {
         `🔴 Bajas sin confirmar: *${bajasPendientes}*\n` +
         `📨 Difusión: *${dif.confirmadas}*/${dif.total} (${pctDif}%)`,
       buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
+}
+
+// ── Revisar feedback de IA ────────────────────────────────
+async function handleRevisarFeedbackIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  // Navegación
+  if (cmd === "1" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "volver") {
+    return handleBienvenida();
+  }
+  if (cmd === "2" || cmd === "finalizar" || cmd === "salir") {
+    return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
+  }
+
+  // Sub-comando: marcar todos los fallbacks como revisados
+  if (cmd === "marcar" || cmd === "marcar revisado" || cmd === "limpiar") {
+    await db.update(iaFeedback).set({ revisado: true }).where(eq(iaFeedback.revisado, false));
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "✅ Todos los registros de IA feedback marcados como revisados.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+    };
+  }
+
+  // Sub-comando: ver solo los fallbacks sin revisar
+  const soloPendientes = cmd === "pendientes" || cmd === "ver pendientes" || state.data?.iaPendientes;
+
+  // Stats globales
+  const [stats] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      fallbacks: sql<number>`COUNT(*) FILTER (WHERE ${iaFeedback.useFallback} = true)`,
+      revisados: sql<number>`COUNT(*) FILTER (WHERE ${iaFeedback.revisado} = true)`,
+      sinRevisar: sql<number>`COUNT(*) FILTER (WHERE ${iaFeedback.revisado} = false AND ${iaFeedback.useFallback} = true)`,
+    })
+    .from(iaFeedback);
+
+  const s = stats || { total: 0, fallbacks: 0, revisados: 0, sinRevisar: 0 };
+  const pctFallback = Number(s.total) > 0 ? Math.round((Number(s.fallbacks) / Number(s.total)) * 100) : 0;
+
+  // Últimos fallbacks sin revisar
+  const ultimosFallbacks = await db
+    .select({
+      id: iaFeedback.id,
+      telefono: iaFeedback.telefono,
+      mensajeOriginal: iaFeedback.mensajeOriginal,
+      intencionDetectada: iaFeedback.intencionDetectada,
+      errorDetalle: iaFeedback.errorDetalle,
+      createdAt: iaFeedback.createdAt,
+    })
+    .from(iaFeedback)
+    .where(and(eq(iaFeedback.useFallback, true), eq(iaFeedback.revisado, false)))
+    .orderBy(desc(iaFeedback.createdAt))
+    .limit(5);
+
+  // Intenciones más frecuentes (últimas 50)
+  const recientes = await db
+    .select({ intencion: iaFeedback.intencionDetectada })
+    .from(iaFeedback)
+    .where(eq(iaFeedback.useFallback, false))
+    .orderBy(desc(iaFeedback.createdAt))
+    .limit(50);
+
+  const conteoIntenciones: Record<string, number> = {};
+  for (const r of recientes) {
+    if (r.intencion) {
+      conteoIntenciones[r.intencion] = (conteoIntenciones[r.intencion] || 0) + 1;
+    }
+  }
+  const topIntenciones = Object.entries(conteoIntenciones)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([k, v]) => `  • ${k}: ${v}`)
+    .join("\n");
+
+  let body =
+    `🤖 *Reporte de IA feedback*\n\n` +
+    `📊 Total interacciones: ${s.total}\n` +
+    `⚠️ Con fallback (IA falló): ${s.fallbacks} (${pctFallback}%)\n` +
+    `👀 Sin revisar: *${s.sinRevisar}*\n` +
+    `✅ Revisados: ${s.revisados}\n`;
+
+  if (topIntenciones) {
+    body += `\n📈 *Top intenciones (últimas 50):*\n${topIntenciones}\n`;
+  }
+
+  if (ultimosFallbacks.length > 0) {
+    body += `\n🔴 *Últimos fallos sin revisar:*\n`;
+    for (const f of ultimosFallbacks) {
+      const hora = f.createdAt
+        ? new Date(f.createdAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+        : "?";
+      const msg = (f.mensajeOriginal || "").slice(0, 40);
+      const err = f.errorDetalle ? ` | ${f.errorDetalle.slice(0, 30)}` : "";
+      body += `• [${hora}] "${msg}"${err}\n`;
+    }
+  } else {
+    body += `\n✅ No hay fallos pendientes de revisión.`;
+  }
+
+  return {
+    reply: "",
+    nextStep: 80,
+    data: { iaPendientes: true },
+    interactive: {
+      type: "buttons",
+      body,
+      buttons: [
+        { id: "marcar", title: "Marcar revisados" },
         { id: "1", title: "Volver al menú" },
         { id: "2", title: "Finalizar" },
       ],
