@@ -57,6 +57,7 @@ export const adminFlow: FlowHandler = {
 
 // ── Bienvenida (menú interactivo WhatsApp) ──────────
 function handleBienvenida(): FlowResponse {
+  // WhatsApp permite MAXIMO 10 rows en listas interactivas
   return {
     reply: "",
     nextStep: 1,
@@ -67,8 +68,7 @@ function handleBienvenida(): FlowResponse {
       sections: [{
         title: "Gestión",
         rows: [
-          { id: "1", title: "Contactos nuevos", description: "Pendientes de revisión" },
-          { id: "12", title: "Exportar XLS", description: "Descargar contactos nuevos" },
+          { id: "1", title: "Contactos nuevos", description: "Revisar, agendar y exportar XLS" },
           { id: "2", title: "Buscar donante", description: "Por nombre, tel o dirección" },
           { id: "3", title: "Reclamos pendientes", description: "Sin resolver" },
           { id: "4", title: "Reportes de baja", description: "Pendientes de confirmación" },
@@ -76,14 +76,12 @@ function handleBienvenida(): FlowResponse {
       }, {
         title: "Operación",
         rows: [
-          { id: "5", title: "Progreso de rutas", description: "Estado de camiones hoy" },
           { id: "10", title: "Estado difusión", description: "Confirmadas vs pendientes" },
           { id: "11", title: "Resumen rápido", description: "Stats del día en un vistazo" },
         ],
       }, {
         title: "Reportes",
         rows: [
-          { id: "6", title: "Encuesta mensual", description: "Resultados de regalos" },
           { id: "8", title: "Reporte diario PDF", description: "Generar y enviar" },
           { id: "7", title: "Lista de comandos", description: "Todos los comandos" },
         ],

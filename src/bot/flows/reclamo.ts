@@ -62,7 +62,7 @@ const MENU_RECLAMO_INTERACTIVE: InteractiveMessage = {
   buttonText: "Ver opciones",
   sections: [{
     rows: [
-      { id: "1", title: "No me dejaron bidón vacío" },
+      { id: "1", title: "No dejaron bidón vacío", description: "No me dejaron bidón vacío" },
       { id: "2", title: "No pasaron a retirar", description: "No pasaron hoy a retirar el bidón" },
       { id: "3", title: "Bidón sucio" },
       { id: "4", title: "Necesito pelela" },

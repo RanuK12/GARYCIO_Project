@@ -56,10 +56,10 @@ const MENU_AVISO_INTERACTIVE: InteractiveMessage = {
   buttonText: "Ver motivos",
   sections: [{
     rows: [
-      { id: "1", title: "Me voy de vacaciones", description: "Ausencia por motivo personal 🏖️" },
-      { id: "2", title: "Aviso por enfermedad", description: "No puedo donar por salud 🤒" },
-      { id: "3", title: "Cambio de dirección", description: "Nueva dirección de recolección 📍" },
-      { id: "4", title: "Cambio de teléfono", description: "Actualizar número de contacto 📱" },
+      { id: "1", title: "Me voy de vacaciones", description: "Ausencia por motivo personal" },
+      { id: "2", title: "Aviso por enfermedad", description: "No puedo donar por salud" },
+      { id: "3", title: "Cambio de dirección", description: "Nueva direccion de recoleccion" },
+      { id: "4", title: "Cambio de teléfono", description: "Actualizar numero de contacto" },
     ],
   }],
 };
