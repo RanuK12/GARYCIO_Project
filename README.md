@@ -161,21 +161,33 @@ GARYCIO_Project/
 
 ## Despliegue
 
-El sistema corre en un servidor Hetzner con PM2:
+El sistema corre en un servidor Hetzner (Ubuntu 24.04) con PM2.
+
+| Item | Valor |
+|---|---|
+| IP | `204.168.183.96` |
+| SSH | `ssh root@204.168.183.96` (pass: `Fletero91!`) |
+| Ruta en servidor | `/opt/garycio` |
+| PM2 proceso | `garycio-bot` |
+| PM2 script | `/opt/garycio/dist/index.js` |
 
 ```bash
-# Conectar al servidor
-ssh root@204.168.183.96
-
-# El proceso corre bajo PM2
-pm2 status garycio-bot
-pm2 restart garycio-bot
-pm2 logs garycio-bot
-
-# Deploy manual
+# Deploy completo
+ssh root@204.168.183.96          # pass: Fletero91!
+cd /opt/garycio                  # <-- el proyecto esta ACA
+git pull origin main
+npm install
 npm run build
-# Copiar dist/ al servidor
 pm2 restart garycio-bot
+pm2 logs garycio-bot --lines 20  # verificar arranque
+
+# Deploy con sshpass (desde local) — usar -f con archivo por el !
+echo 'Fletero91!' > /tmp/sshpw.txt
+sshpass -f /tmp/sshpw.txt ssh root@204.168.183.96 'cd /opt/garycio && git pull && npm install && npm run build && pm2 restart garycio-bot'
+rm /tmp/sshpw.txt
+
+# Verificar
+curl http://204.168.183.96:3000/health
 ```
 
 ## Flujos del bot
