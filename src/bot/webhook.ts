@@ -185,6 +185,14 @@ function isUnsupportedMediaType(type: string): boolean {
 // Cooldown para evitar spam de respuestas a media no soportado (1 por número cada 10 min)
 const unsupportedMediaCooldown = new Map<string, number>();
 
+// Limpieza periódica — elimina entradas de más de 24h
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [phone, ts] of unsupportedMediaCooldown) {
+    if (ts < cutoff) unsupportedMediaCooldown.delete(phone);
+  }
+}, 60 * 60 * 1000); // Cada hora
+
 async function respondUnsupportedMedia(phone: string, type: string): Promise<void> {
   const now = Date.now();
   const last = unsupportedMediaCooldown.get(phone);

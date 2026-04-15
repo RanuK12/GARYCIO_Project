@@ -11,10 +11,29 @@ const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
 // ── Cache en memoria (evita leer DB en cada mensaje) ────
 const conversationCache = new Map<string, ConversationState>();
+const CACHE_MAX_SIZE = 500; // Cap para evitar memory leak con muchos usuarios simultáneos
 
 // ── Leer estado ─────────────────────────────────────────
 // Info sobre sesiones expiradas para poder dar contexto al usuario
-let lastExpiredFlow: Map<string, { flow: string; step: number }> = new Map();
+let lastExpiredFlow: Map<string, { flow: string; step: number; ts: number }> = new Map();
+
+// Limpieza periódica de Maps de sesión
+setInterval(() => {
+  const now = Date.now();
+  const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
+  let cleaned = 0;
+  for (const [phone, info] of lastExpiredFlow) {
+    if (info.ts < cutoff7d) { lastExpiredFlow.delete(phone); cleaned++; }
+  }
+  // Si el cache creció demasiado, eliminar las entradas más viejas
+  if (conversationCache.size > CACHE_MAX_SIZE) {
+    const sorted = [...conversationCache.entries()]
+      .sort((a, b) => a[1].lastInteraction.getTime() - b[1].lastInteraction.getTime());
+    const toRemove = sorted.slice(0, conversationCache.size - CACHE_MAX_SIZE);
+    for (const [phone] of toRemove) { conversationCache.delete(phone); cleaned++; }
+  }
+  if (cleaned > 0) logger.debug({ cleaned }, "Limpieza de cache de conversaciones completada");
+}, 6 * 60 * 60 * 1000); // Cada 6 horas
 
 async function getConversation(phone: string): Promise<ConversationState | null> {
   // Buscar en cache primero
@@ -23,7 +42,7 @@ async function getConversation(phone: string): Promise<ConversationState | null>
     if (Date.now() - cached.lastInteraction.getTime() > TIMEOUT_MS) {
       // Guardar info del flow expirado para contexto
       if (cached.currentFlow) {
-        lastExpiredFlow.set(phone, { flow: cached.currentFlow, step: cached.step });
+        lastExpiredFlow.set(phone, { flow: cached.currentFlow, step: cached.step, ts: Date.now() });
       }
       await endConversation(phone);
       return null;
@@ -51,7 +70,7 @@ async function getConversation(phone: string): Promise<ConversationState | null>
 
   if (Date.now() - state.lastInteraction.getTime() > TIMEOUT_MS) {
     if (state.currentFlow) {
-      lastExpiredFlow.set(phone, { flow: state.currentFlow, step: state.step });
+      lastExpiredFlow.set(phone, { flow: state.currentFlow, step: state.step, ts: Date.now() });
     }
     await endConversation(phone);
     return null;

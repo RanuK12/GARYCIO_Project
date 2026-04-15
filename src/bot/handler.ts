@@ -30,6 +30,21 @@ const MAX_INTERACTIONS_PER_SESSION = 10; // Máximo de respuestas en ventana de 
 const lastResponseTime = new Map<string, number>();
 const interactionCount = new Map<string, { count: number; windowStart: number }>();
 
+// Limpieza periódica de Maps para evitar memory leaks con muchos números únicos
+setInterval(() => {
+  const now = Date.now();
+  const cutoff24h = now - 24 * 60 * 60 * 1000;
+  const cutoff30m = now - 30 * 60 * 1000;
+  let cleaned = 0;
+  for (const [phone, ts] of lastResponseTime) {
+    if (ts < cutoff24h) { lastResponseTime.delete(phone); cleaned++; }
+  }
+  for (const [phone, data] of interactionCount) {
+    if (data.windowStart < cutoff30m) { interactionCount.delete(phone); cleaned++; }
+  }
+  if (cleaned > 0) logger.debug({ cleaned }, "Limpieza de Maps anti-spam completada");
+}, 60 * 60 * 1000); // Cada hora
+
 // Mensajes que no requieren respuesta (se ignoran silenciosamente)
 // NOTA: NO incluir saludos (hola, buen día, etc.) — las donantes esperan respuesta cuando saludan
 const MENSAJES_IGNORADOS = new Set([
