@@ -108,26 +108,29 @@ export async function processIncomingMessage(
       logger.error({ phone, err }, "Error registrando contacto de donante");
     });
 
-    // ── Anti-loop: admins y confirmaciones de difusión siempre pasan ──
+    // ── Anti-loop: solo los admins están exentos de todos los límites ──
     const esAdmin = isAdminPhone(phone);
     const esConfirmacion = esConfirmacionDifusion(text);
 
-    if (!esAdmin && !esConfirmacion) {
-      // Ignorar mensajes triviales silenciosamente (no responder)
-      if (esMensajeIgnorado(text)) {
+    if (!esAdmin) {
+      // Ignorar mensajes triviales silenciosamente (excepto si es confirmación de difusión)
+      if (!esConfirmacion && esMensajeIgnorado(text)) {
         logger.debug({ phone, text }, "Mensaje ignorado (trivial)");
         if (messageId) markAsRead(messageId).catch(() => {});
         return;
       }
 
-      // Cooldown: si ya respondimos hace menos de 3 min, no responder
+      // Cooldown: aplica a TODOS los no-admins, incluyendo confirmaciones de difusión.
+      // Excepción: si ya hubo una confirmación de difusión procesada para este número
+      // hoy, no tiene sentido bloquearla — pero el cooldown de 30s es suficientemente
+      // corto para no molestar y evita el spam de "1" repetido.
       if (checkCooldown(phone)) {
-        logger.debug({ phone }, "Cooldown activo — ignorando mensaje");
+        logger.debug({ phone, esConfirmacion }, "Cooldown activo — ignorando mensaje");
         if (messageId) markAsRead(messageId).catch(() => {});
         return;
       }
 
-      // Max interactions: si ya respondimos 5 veces en 30 min, notificar admin
+      // Max interactions: si ya respondimos demasiadas veces en 30 min, notificar admin
       if (checkMaxInteractions(phone)) {
         logger.warn({ phone }, "Max interactions alcanzado — notificando admin");
         if (messageId) markAsRead(messageId).catch(() => {});
