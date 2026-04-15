@@ -156,7 +156,7 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
   }
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10; // WhatsApp limita mensajes a 4096 chars
 
 // ── Contactos nuevos (con paginación) ─────────────────
 async function handleContactosNuevos(state: ConversationState): Promise<FlowResponse> {
@@ -207,21 +207,18 @@ async function handleContactosNuevos(state: ConversationState): Promise<FlowResp
 
   for (const [i, c] of nuevos.entries()) {
     const fecha = c.createdAt ? new Date(c.createdAt).toLocaleDateString("es-AR") : "?";
-    lista += `*${i + 1}.* ${c.nombre || "Sin nombre"} · 📱 ${c.telefono}\n`;
-    lista += `   📍 ${(c.direccion || "Sin dirección").slice(0, 45)}\n`;
-    lista += `   📅 ${fecha}`;
-    if (c.notas) {
-      const nota = c.notas.length > 35 ? c.notas.slice(0, 35) + "..." : c.notas;
-      lista += ` · 📝 ${nota}`;
-    }
-    lista += "\n\n";
+    lista += `*${offset + i + 1}.* ${(c.nombre || "Sin nombre").slice(0, 25)} · ${c.telefono}\n`;
+    lista += `  ${(c.direccion || "Sin dirección").slice(0, 40)} · ${fecha}\n`;
   }
 
-  lista += "─────────────────\n";
-  lista += "Enviá el *número* para ver detalle y agendar";
-  if (pagina > 0) lista += "\n*A* = anterior";
-  if (pagina + 1 < totalPaginas) lista += "\n*S* = siguiente";
-  lista += "\n*X* = exportar XLS · *0* = menú";
+  lista += "─────────────\n";
+  lista += "Número = ver detalle";
+  if (pagina > 0) lista += " | *A* = ant.";
+  if (pagina + 1 < totalPaginas) lista += " | *S* = sig.";
+  lista += "\n*X* exportar XLS | *0* menú";
+
+  // Seguridad: WhatsApp limita a 4096 chars
+  if (lista.length > 4000) lista = lista.slice(0, 3990) + "...\n*0* menú";
 
   return {
     reply: lista,
