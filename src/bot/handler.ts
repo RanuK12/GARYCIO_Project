@@ -1,4 +1,4 @@
-import { handleIncomingMessage } from "./conversation-manager";
+import { handleIncomingMessage, esConfirmacionDifusion } from "./conversation-manager";
 import { sendMessage, markAsRead, sendInteractiveButtons, sendInteractiveList } from "./client";
 import { withUserLock } from "./queue";
 import { db } from "../database";
@@ -15,19 +15,83 @@ import { eq, and, isNotNull, desc, ilike } from "drizzle-orm";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { FlowResponse } from "./flows";
+import { isAdminPhone } from "./flows";
 import { addToDeadLetterQueue } from "../services/dead-letter-queue";
 import { guardarReclamo, guardarIncidente } from "../services/reportes-ceo";
 import { procesarRespuestaEncuesta } from "../services/encuesta-regalo";
 import { registrarContactoDonante } from "../services/contacto-donante";
 import type { MediaInfo } from "./webhook";
 
+// ── Anti-loop: cooldown y max interactions por sesión ──
+// Cooldown bajo (30s) para evitar spam rápido sin bloquear donantes legítimas
+const COOLDOWN_MS = 30 * 1000; // 30 segundos entre respuestas al mismo número
+const MAX_INTERACTIONS_PER_SESSION = 10; // Máximo de respuestas en ventana de 30 min
+
+const lastResponseTime = new Map<string, number>();
+const interactionCount = new Map<string, { count: number; windowStart: number }>();
+
+// Mensajes que no requieren respuesta (se ignoran silenciosamente)
+// NOTA: NO incluir saludos (hola, buen día, etc.) — las donantes esperan respuesta cuando saludan
+const MENSAJES_IGNORADOS = new Set([
+  "ok", "okey", "oki", "dale", "bueno", "bien", "listo", "perfecto",
+  "gracias", "gracia", "muchas gracias", "mil gracias",
+  "jaja", "jajaja", "jajajaja", "jeje", "jejeje",
+  "si", "sí", "no", "ya",
+  "👍", "👌", "🙏", "❤️", "😊", "😂", "🤣", "👋", "✅", "🙌",
+]);
+
+function esMensajeIgnorado(text: string): boolean {
+  const clean = text.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Mensaje corto que está en la lista de ignorados
+  if (MENSAJES_IGNORADOS.has(clean)) return true;
+  // Solo emojis (1-3 emojis sin texto)
+  if (/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\u200D]{1,6}$/u.test(clean)) return true;
+  return false;
+}
+
+function checkCooldown(phone: string): boolean {
+  const last = lastResponseTime.get(phone);
+  if (!last) return false;
+  return Date.now() - last < COOLDOWN_MS;
+}
+
+function checkMaxInteractions(phone: string): boolean {
+  const data = interactionCount.get(phone);
+  if (!data) return false;
+  // Reset window if 30 min passed
+  if (Date.now() - data.windowStart > 30 * 60 * 1000) {
+    interactionCount.delete(phone);
+    return false;
+  }
+  return data.count >= MAX_INTERACTIONS_PER_SESSION;
+}
+
+function recordInteraction(phone: string): void {
+  lastResponseTime.set(phone, Date.now());
+  const data = interactionCount.get(phone);
+  if (!data || Date.now() - data.windowStart > 30 * 60 * 1000) {
+    interactionCount.set(phone, { count: 1, windowStart: Date.now() });
+  } else {
+    data.count++;
+  }
+}
+
+// Determinar si el resultado es un reclamo/escalación que NO debe marcarse como leído
+function esEscalacion(result: { notify?: FlowResponse["notify"]; flowData?: { flowName: string } }): boolean {
+  if (result.flowData?.flowName === "reclamo") return true;
+  if (result.notify?.target === "admin") return true;
+  return false;
+}
+
 /**
  * Procesa un mensaje entrante de principio a fin:
  * 1. Adquiere lock por usuario (evita race conditions)
- * 2. Procesa el mensaje con el conversation manager
- * 3. Envía la respuesta
- * 4. Procesa notificaciones (chofer, admin, visitadora)
- * 5. Loguea en DB
+ * 2. Checks anti-loop (cooldown, max interactions, mensajes ignorados)
+ * 3. Procesa el mensaje con el conversation manager
+ * 4. Envía la respuesta
+ * 5. Procesa notificaciones (chofer, admin, visitadora)
+ * 6. Loguea en DB
  */
 export async function processIncomingMessage(
   phone: string,
@@ -36,38 +100,71 @@ export async function processIncomingMessage(
   mediaInfo?: MediaInfo,
 ): Promise<void> {
   await withUserLock(phone, async () => {
-    // Marcar como leído
-    if (messageId) {
-      markAsRead(messageId).catch(() => {});
-    }
-
-    // Log del mensaje entrante
+    // Log del mensaje entrante (siempre, incluso si se ignora)
     logMessage(phone, "entrante", text, true).catch(() => {});
 
-    // Auto-registrar contacto del donante (actualiza updatedAt o crea registro nuevo)
+    // Auto-registrar contacto del donante
     registrarContactoDonante(phone, text).catch((err) => {
       logger.error({ phone, err }, "Error registrando contacto de donante");
     });
+
+    // ── Anti-loop: admins y confirmaciones de difusión siempre pasan ──
+    const esAdmin = isAdminPhone(phone);
+    const esConfirmacion = esConfirmacionDifusion(text);
+
+    if (!esAdmin && !esConfirmacion) {
+      // Ignorar mensajes triviales silenciosamente (no responder)
+      if (esMensajeIgnorado(text)) {
+        logger.debug({ phone, text }, "Mensaje ignorado (trivial)");
+        if (messageId) markAsRead(messageId).catch(() => {});
+        return;
+      }
+
+      // Cooldown: si ya respondimos hace menos de 3 min, no responder
+      if (checkCooldown(phone)) {
+        logger.debug({ phone }, "Cooldown activo — ignorando mensaje");
+        if (messageId) markAsRead(messageId).catch(() => {});
+        return;
+      }
+
+      // Max interactions: si ya respondimos 5 veces en 30 min, notificar admin
+      if (checkMaxInteractions(phone)) {
+        logger.warn({ phone }, "Max interactions alcanzado — notificando admin");
+        if (messageId) markAsRead(messageId).catch(() => {});
+        await sendMessage(
+          env.CEO_PHONE,
+          `⚠️ *Donante con muchos mensajes*\n📱 ${phone}\n💬 Último: "${text.slice(0, 100)}"\n\nSuperó el límite de ${MAX_INTERACTIONS_PER_SESSION} interacciones. Posible loop o necesita atención manual.`,
+        ).catch(() => {});
+        return;
+      }
+    }
 
     // Verificar si es respuesta a encuesta (SI/NO)
     const esEncuesta = await procesarRespuestaEncuesta(phone, text).catch(() => false);
     if (esEncuesta) {
       await sendMessage(phone, "✅ ¡Gracias por tu respuesta! Fue registrada correctamente.").catch(() => {});
       logMessage(phone, "saliente", "Respuesta de encuesta registrada", true).catch(() => {});
+      recordInteraction(phone);
+      if (messageId) markAsRead(messageId).catch(() => {});
       return;
     }
 
     // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
     const result = await handleIncomingMessage(phone, text, mediaInfo);
 
+    // Si no hay respuesta (clasificador decidió ignorar), no enviar nada
+    if (!result.reply && !result.interactive) {
+      logger.debug({ phone }, "Sin respuesta (mensaje ignorado por clasificador)");
+      if (messageId) markAsRead(messageId).catch(() => {});
+      return;
+    }
+
     // Enviar respuesta (texto plano o mensaje interactivo)
     try {
       if (result.interactive) {
-        // Primero enviar el texto previo si existe
         if (result.reply) {
           await sendMessage(phone, result.reply);
         }
-        // Luego enviar el mensaje interactivo
         const iv = result.interactive;
         if (iv.type === "buttons") {
           await sendInteractiveButtons(phone, iv.body, iv.buttons);
@@ -89,6 +186,18 @@ export async function processIncomingMessage(
         contenido,
         errorMessage: (err as Error).message,
       }).catch(() => {});
+    }
+
+    // Registrar interacción para cooldown
+    recordInteraction(phone);
+
+    // Marcar como leído — EXCEPTO reclamos/escalaciones (para que queden visibles en el teléfono)
+    if (messageId) {
+      if (esEscalacion(result)) {
+        logger.info({ phone }, "Reclamo/escalación — NO se marca como leído");
+      } else {
+        markAsRead(messageId).catch(() => {});
+      }
     }
 
     // Procesar notificaciones

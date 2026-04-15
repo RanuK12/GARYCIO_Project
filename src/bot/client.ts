@@ -282,7 +282,14 @@ export async function sendDocument(
 async function uploadMedia(filePath: string, fileName: string): Promise<string> {
   const url = `${API_BASE}/media`;
   const fileBuffer = fs.readFileSync(filePath);
-  const mimeType = filePath.endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+  const mimeMap: Record<string, string> = {
+    ".pdf": "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".csv": "text/csv",
+  };
+  const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase();
+  const mimeType = mimeMap[ext] || "application/octet-stream";
 
   const formData = new FormData();
   formData.append("messaging_product", "whatsapp");

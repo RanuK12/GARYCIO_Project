@@ -1,4 +1,4 @@
-import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 import { db } from "../../database";
 import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios } from "../../database/schema";
 import { eq, and, desc, sql, ilike, count, like } from "drizzle-orm";
@@ -7,22 +7,24 @@ import { obtenerResumenProgreso } from "../../services/progreso-ruta";
 import { marcarReporteEnviado } from "../../services/reporte-diario";
 import { generarReportePDF } from "../../services/reporte-pdf";
 import { sendDocument } from "../../bot/client";
+import { generarXLSContactosNuevos, activarDonante, limpiarTmpViejos } from "../../services/exportar-contactos";
 
 /**
  * Flujo para administradores.
  * Solo accesible para números en ADMIN_PHONES o CEO_PHONE.
  *
- * Comandos:
- * 0  - Identificación (verifica que sea admin)
- * 1  - Menú principal
- * 10 - Ver contactos nuevos (pendientes de revisión)
- * 11 - Detalle de un contacto nuevo
+ * Steps:
+ * 0  - Bienvenida (menú interactivo)
+ * 1  - Menú principal (handler de opciones)
+ * 10 - Contactos nuevos (paginación)
+ * 11 - Detalle/acción sobre contacto nuevo
+ * 12 - Confirmar activación de donante
  * 20 - Buscar donante
- * 21 - Detalle de donante
- * 30 - Ver reclamos pendientes
- * 40 - Ver reportes de baja pendientes
- * 50 - Ver progreso de rutas del día
- * 60 - Ver resultados de encuesta
+ * 21 - Detalle de donante (búsqueda)
+ * 30 - Reclamos pendientes
+ * 40 - Reportes de baja pendientes
+ * 50 - Progreso de rutas del día
+ * 60 - Resultados de encuesta
  * 70 - Generar reporte diario PDF
  * 99 - Volver al menú o finalizar
  */
@@ -35,53 +37,90 @@ export const adminFlow: FlowHandler = {
 
     switch (state.step) {
       case 0: return handleBienvenida();
-      case 1: return await handleMenu(respuesta, state.phone);
+      case 1: return await handleMenu(respuesta, state);
       case 10: return await handleContactosNuevos(state);
       case 11: return await handleDetalleContacto(respuesta, state);
+      case 12: return await handleConfirmarActivacion(respuesta, state);
       case 20: return await handleBuscarDonante(respuesta);
-      case 21: return await handleDetalleDonante(respuesta);
+      case 21: return await handleDetalleDonante(respuesta, state);
       case 30: return await handleReclamosPendientes();
       case 40: return await handleBajasPendientes();
       case 50: return handleProgresoRutas();
       case 60: return await handleResultadosEncuesta();
       case 70: return await handleGenerarReporte(state.phone);
-      case 99: return handleVolverOFinalizar(respuesta);
+      case 99: return await handleVolverOFinalizar(respuesta);
       default:
         return handleBienvenida();
     }
   },
 };
 
-// ── Bienvenida ──────────────────────────────────
-
-const MENU_ADMIN =
-  "*1* - 📋 Ver contactos nuevos (pendientes)\n" +
-  "*2* - 🔍 Buscar donante\n" +
-  "*3* - ⚠️ Ver reclamos pendientes\n" +
-  "*4* - 🔴 Ver reportes de baja\n" +
-  "*5* - 🚛 Progreso de rutas del día\n" +
-  "*6* - 📊 Resultados de encuesta\n" +
-  "*7* - 📖 Ver lista de comandos\n" +
-  "*8* - 📄 Generar reporte diario (PDF)\n" +
-  "*9* - Finalizar\n" +
-  "*10* - 📨 Estado difusión (confirmadas / pendientes)";
-
+// ── Bienvenida (menú interactivo WhatsApp) ──────────
 function handleBienvenida(): FlowResponse {
   return {
-    reply:
-      "🔐 *Panel de Administración GARYCIO*\n\n" +
-      "¿Qué querés hacer?\n\n" +
-      MENU_ADMIN + "\n\n" +
-      "Elegí una opción:",
+    reply: "",
     nextStep: 1,
+    interactive: {
+      type: "list",
+      body: "🔐 *Panel de Administración GARYCIO*\n\n¿Qué querés hacer?",
+      buttonText: "Ver opciones",
+      sections: [{
+        title: "Gestión",
+        rows: [
+          { id: "1", title: "Contactos nuevos", description: "Pendientes de revisión" },
+          { id: "12", title: "Exportar XLS", description: "Descargar contactos nuevos" },
+          { id: "2", title: "Buscar donante", description: "Por nombre, tel o dirección" },
+          { id: "3", title: "Reclamos pendientes", description: "Sin resolver" },
+          { id: "4", title: "Reportes de baja", description: "Pendientes de confirmación" },
+        ],
+      }, {
+        title: "Operación",
+        rows: [
+          { id: "5", title: "Progreso de rutas", description: "Estado de camiones hoy" },
+          { id: "10", title: "Estado difusión", description: "Confirmadas vs pendientes" },
+          { id: "11", title: "Resumen rápido", description: "Stats del día en un vistazo" },
+        ],
+      }, {
+        title: "Reportes",
+        rows: [
+          { id: "6", title: "Encuesta mensual", description: "Resultados de regalos" },
+          { id: "8", title: "Reporte diario PDF", description: "Generar y enviar" },
+          { id: "7", title: "Lista de comandos", description: "Todos los comandos" },
+        ],
+      }, {
+        title: "Sesión",
+        rows: [
+          { id: "9", title: "Finalizar", description: "Cerrar panel admin" },
+        ],
+      }],
+    },
   };
 }
 
-// ── Menú ──────────────────────────────────
-async function handleMenu(respuesta: string, adminPhone: string): Promise<FlowResponse> {
-  switch (respuesta) {
+// ── Menú: mapeo de títulos interactivos y números ────
+async function handleMenu(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const opcion = respuesta.toLowerCase().trim();
+  const menuMap: Record<string, string> = {
+    "contactos nuevos": "1",
+    "exportar xls": "12",
+    "buscar donante": "2",
+    "reclamos pendientes": "3",
+    "reportes de baja": "4",
+    "progreso de rutas": "5",
+    "encuesta mensual": "6",
+    "lista de comandos": "7",
+    "reporte diario pdf": "8",
+    "finalizar": "9",
+    "estado difusión": "10",
+    "estado difusion": "10",
+    "resumen rápido": "11",
+    "resumen rapido": "11",
+  };
+  const choice = menuMap[opcion] || opcion;
+
+  switch (choice) {
     case "1":
-      return await handleContactosNuevos({ phone: adminPhone, currentFlow: "admin", step: 10, data: { pagina: 0 }, lastInteraction: new Date() });
+      return await handleContactosNuevos({ ...state, data: { pagina: 0 } });
     case "2":
       return {
         reply: "🔍 *Buscar donante*\n\nIngresá el nombre, teléfono o dirección a buscar:",
@@ -98,13 +137,17 @@ async function handleMenu(respuesta: string, adminPhone: string): Promise<FlowRe
     case "7":
       return handleListaComandos();
     case "8":
-      return await handleGenerarReporte(adminPhone);
+      return await handleGenerarReporte(state.phone);
     case "9":
       return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
     case "10":
       return await handleEstadoDifusion();
+    case "11":
+      return await handleResumenRapido();
+    case "12":
+      return await handleExportarXLS(state.phone);
     default:
-      return { reply: "Opción no válida. Elegí del *1* al *10*:", nextStep: 1 };
+      return handleBienvenida();
   }
 }
 
@@ -112,7 +155,6 @@ const PAGE_SIZE = 50;
 
 // ── Contactos nuevos (con paginación) ─────────────────
 async function handleContactosNuevos(state: ConversationState): Promise<FlowResponse> {
-  // La página actual se guarda en state.data.pagina (default 0)
   const pagina: number = state.data?.pagina ?? 0;
   const offset = pagina * PAGE_SIZE;
 
@@ -123,10 +165,16 @@ async function handleContactosNuevos(state: ConversationState): Promise<FlowResp
 
   if (total === 0) {
     return {
-      reply:
-        "✅ No hay contactos nuevos pendientes de revisión.\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "✅ No hay contactos nuevos pendientes de revisión.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
     };
   }
 
@@ -135,6 +183,7 @@ async function handleContactosNuevos(state: ConversationState): Promise<FlowResp
       id: donantes.id,
       nombre: donantes.nombre,
       telefono: donantes.telefono,
+      direccion: donantes.direccion,
       notas: donantes.notas,
       createdAt: donantes.createdAt,
     })
@@ -153,18 +202,21 @@ async function handleContactosNuevos(state: ConversationState): Promise<FlowResp
 
   for (const [i, c] of nuevos.entries()) {
     const fecha = c.createdAt ? new Date(c.createdAt).toLocaleDateString("es-AR") : "?";
-    lista += `*${i + 1}.* 📱 ${c.telefono} · ${fecha}\n`;
+    lista += `*${i + 1}.* ${c.nombre || "Sin nombre"} · 📱 ${c.telefono}\n`;
+    lista += `   📍 ${(c.direccion || "Sin dirección").slice(0, 45)}\n`;
+    lista += `   📅 ${fecha}`;
     if (c.notas) {
-      const nota = c.notas.length > 50 ? c.notas.slice(0, 50) + "..." : c.notas;
-      lista += `   📝 ${nota}\n`;
+      const nota = c.notas.length > 35 ? c.notas.slice(0, 35) + "..." : c.notas;
+      lista += ` · 📝 ${nota}`;
     }
+    lista += "\n\n";
   }
 
-  lista += "\n─────────────────\n";
-  lista += "Enviá el *número* para ver detalle";
-  if (pagina > 0) lista += " · *A* anterior";
-  if (pagina + 1 < totalPaginas) lista += " · *S* siguiente";
-  lista += " · *0* menú";
+  lista += "─────────────────\n";
+  lista += "Enviá el *número* para ver detalle y agendar";
+  if (pagina > 0) lista += "\n*A* = anterior";
+  if (pagina + 1 < totalPaginas) lista += "\n*S* = siguiente";
+  lista += "\n*X* = exportar XLS · *0* = menú";
 
   return {
     reply: lista,
@@ -173,13 +225,13 @@ async function handleContactosNuevos(state: ConversationState): Promise<FlowResp
   };
 }
 
+// ── Detalle de contacto nuevo + acciones ──────────────
 async function handleDetalleContacto(respuesta: string, state: ConversationState): Promise<FlowResponse> {
-  if (respuesta === "0") {
-    return handleBienvenida();
-  }
+  if (respuesta === "0") return handleBienvenida();
 
-  // Paginación: S = siguiente página, A = anterior página
-  const cmd = respuesta.toLowerCase();
+  const cmd = respuesta.toLowerCase().trim();
+
+  // Paginación
   if (cmd === "s" || cmd === "a") {
     const paginaActual: number = state.data?.pagina ?? 0;
     const totalContactos: number = state.data?.totalContactos ?? 0;
@@ -187,16 +239,23 @@ async function handleDetalleContacto(respuesta: string, state: ConversationState
     let nuevaPagina = paginaActual;
     if (cmd === "s" && paginaActual + 1 < totalPaginas) nuevaPagina = paginaActual + 1;
     if (cmd === "a" && paginaActual > 0) nuevaPagina = paginaActual - 1;
-    // Actualizar página en state y volver a mostrar lista
     state.data = { ...state.data, pagina: nuevaPagina };
     return handleContactosNuevos(state);
   }
 
+  // Exportar XLS
+  if (cmd === "x" || cmd === "xls" || cmd === "excel" || cmd === "exportar" || cmd === "exportar xls") {
+    return await handleExportarXLS(state.phone);
+  }
+
   const idx = parseInt(respuesta) - 1;
-  const ids: number[] = state.data.contactosNuevos || [];
+  const ids: number[] = state.data?.contactosNuevos || [];
 
   if (isNaN(idx) || idx < 0 || idx >= ids.length) {
-    return { reply: "Número no válido. Elegí uno de la lista, *S* siguiente, *A* anterior o *0* para volver:", nextStep: 11 };
+    return {
+      reply: "Número no válido. Elegí uno de la lista, *S* siguiente, *A* anterior, *X* exportar o *0* menú:",
+      nextStep: 11,
+    };
   }
 
   const [contacto] = await db
@@ -209,19 +268,145 @@ async function handleDetalleContacto(respuesta: string, state: ConversationState
     return { reply: "Contacto no encontrado. Elegí otro:", nextStep: 11 };
   }
 
+  // Guardar el ID seleccionado para posible activación
   return {
-    reply:
-      `📱 *Detalle del contacto*\n\n` +
-      `Nombre: ${contacto.nombre}\n` +
-      `Teléfono: ${contacto.telefono}\n` +
-      `Dirección: ${contacto.direccion}\n` +
-      `Estado: ${contacto.estado}\n` +
-      `Fecha: ${contacto.createdAt ? new Date(contacto.createdAt).toLocaleDateString("es-AR") : "?"}\n` +
-      (contacto.notas ? `Notas: ${contacto.notas}\n` : "") +
-      `\nPara agregar al listado general, completá sus datos desde el panel web o pedime que lo actualice.\n\n` +
-      "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
-    nextStep: 99,
+    reply: "",
+    nextStep: 12,
+    data: { ...state.data, contactoSeleccionadoId: contacto.id },
+    interactive: {
+      type: "buttons",
+      body:
+        `📱 *Detalle del contacto*\n\n` +
+        `👤 Nombre: ${contacto.nombre}\n` +
+        `📱 Tel: ${contacto.telefono}\n` +
+        `📍 Dir: ${contacto.direccion}\n` +
+        `📅 Fecha: ${contacto.createdAt ? new Date(contacto.createdAt).toLocaleDateString("es-AR") : "?"}\n` +
+        (contacto.notas ? `📝 ${contacto.notas}\n` : "") +
+        `\nEstado: ${contacto.estado}`,
+      buttons: [
+        { id: "activar", title: "Agendar donante" },
+        { id: "volver", title: "Volver a lista" },
+        { id: "menu", title: "Menú principal" },
+      ],
+    },
   };
+}
+
+// ── Confirmar activación de donante ──────────────────
+async function handleConfirmarActivacion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+  const contactoId: number | undefined = state.data?.contactoSeleccionadoId;
+
+  if (cmd === "volver" || cmd === "volver a lista") {
+    return await handleContactosNuevos(state);
+  }
+
+  if (cmd === "menu" || cmd === "menú principal" || cmd === "menú") {
+    return handleBienvenida();
+  }
+
+  if (cmd === "activar" || cmd === "agendar donante" || cmd === "si" || cmd === "sí" || cmd === "confirmar") {
+    if (!contactoId) {
+      return { reply: "No se encontró el contacto. Volvé a la lista.", nextStep: 11 };
+    }
+
+    const resultado = await activarDonante(contactoId);
+    if (!resultado) {
+      return { reply: "No se pudo activar. Contacto no encontrado.", nextStep: 11 };
+    }
+
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body:
+          `✅ *Donante agendada exitosamente*\n\n` +
+          `👤 ${resultado.nombre}\n` +
+          `📱 ${resultado.telefono}\n` +
+          `📍 ${resultado.direccion}\n\n` +
+          `Estado actualizado a *activa*.\n` +
+          `Falta asignarle zona y días de recolección.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+      notify: {
+        target: "admin",
+        message:
+          `✅ *Donante agendada desde WhatsApp*\n\n` +
+          `👤 ${resultado.nombre}\n` +
+          `📱 ${resultado.telefono}\n` +
+          `📍 ${resultado.direccion}\n\n` +
+          `Estado: activa. Asignar zona y chofer.`,
+      },
+    };
+  }
+
+  // No entendió → mostrar botones de nuevo
+  return {
+    reply: "",
+    nextStep: 12,
+    interactive: {
+      type: "buttons",
+      body: "¿Qué querés hacer con este contacto?",
+      buttons: [
+        { id: "activar", title: "Agendar donante" },
+        { id: "volver", title: "Volver a lista" },
+        { id: "menu", title: "Menú principal" },
+      ],
+    },
+  };
+}
+
+// ── Exportar contactos nuevos a XLS y enviar ─────────
+async function handleExportarXLS(adminPhone: string): Promise<FlowResponse> {
+  try {
+    limpiarTmpViejos();
+    const { filePath, fileName, total } = await generarXLSContactosNuevos();
+
+    if (total === 0) {
+      return {
+        reply: "",
+        nextStep: 99,
+        interactive: {
+          type: "buttons",
+          body: "No hay contactos nuevos para exportar.",
+          buttons: [
+            { id: "1", title: "Volver al menú" },
+            { id: "2", title: "Finalizar" },
+          ],
+        },
+      };
+    }
+
+    await sendDocument(
+      adminPhone,
+      filePath,
+      fileName,
+      `📋 ${total} contactos nuevos — GARYCIO`,
+    );
+
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `📋 *XLS enviado* ✅\n\n${total} contactos nuevos exportados.\nRevisá el archivo adjunto.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+    };
+  } catch (err) {
+    logger.error({ err }, "Error al exportar XLS de contactos");
+    return {
+      reply: "❌ Hubo un error al generar el XLS. Intentá de nuevo.",
+      nextStep: 99,
+    };
+  }
 }
 
 // ── Buscar donante ──────────────────────────────────
@@ -247,10 +432,16 @@ async function handleBuscarDonante(query: string): Promise<FlowResponse> {
 
   if (resultados.length === 0) {
     return {
-      reply:
-        `🔍 No se encontraron donantes para "${query}".\n\n` +
-        "¿Querés buscar otra cosa?\n*1* - Sí, nueva búsqueda\n*2* - No, volver al menú",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `🔍 No se encontraron donantes para "${query}".`,
+        buttons: [
+          { id: "1", title: "Nueva búsqueda" },
+          { id: "2", title: "Menú principal" },
+        ],
+      },
     };
   }
 
@@ -262,7 +453,7 @@ async function handleBuscarDonante(query: string): Promise<FlowResponse> {
     lista += `   📍 ${d.direccion.slice(0, 50)}\n\n`;
   }
 
-  lista += "Enviá el *número* para ver detalle, o *0* para volver al menú:";
+  lista += "Enviá el *número* para ver detalle, o *0* para volver:";
 
   return {
     reply: lista,
@@ -271,23 +462,24 @@ async function handleBuscarDonante(query: string): Promise<FlowResponse> {
   };
 }
 
-async function handleDetalleDonante(respuesta: string): Promise<FlowResponse> {
-  if (respuesta === "0") {
-    return handleBienvenida();
-  }
+async function handleDetalleDonante(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  if (respuesta === "0") return handleBienvenida();
 
-  const id = parseInt(respuesta);
-  if (isNaN(id)) {
+  const idx = parseInt(respuesta) - 1;
+  const ids: number[] = state.data?.busquedaIds || [];
+
+  if (isNaN(idx) || idx < 0 || idx >= ids.length) {
     return { reply: "Número no válido. Elegí de la lista o *0* para volver:", nextStep: 21 };
   }
 
-  const [donante] = await db.select().from(donantes).where(eq(donantes.id, id)).limit(1);
+  const donanteId = ids[idx];
+  const [donante] = await db.select().from(donantes).where(eq(donantes.id, donanteId)).limit(1);
   if (!donante) {
     return { reply: "Donante no encontrada. Intentá de nuevo:", nextStep: 21 };
   }
 
-  const histReclamos = await db.select().from(reclamos).where(eq(reclamos.donanteId, id));
-  const histBajas = await db.select().from(reportesBaja).where(eq(reportesBaja.donanteId, id));
+  const histReclamos = await db.select().from(reclamos).where(eq(reclamos.donanteId, donanteId));
+  const histBajas = await db.select().from(reportesBaja).where(eq(reportesBaja.donanteId, donanteId));
 
   let detalle =
     `📋 *Ficha de donante #${donante.id}*\n\n` +
@@ -302,11 +494,20 @@ async function handleDetalleDonante(respuesta: string): Promise<FlowResponse> {
   if (donante.subZona) detalle += `🗺️ Sub-zona: ${donante.subZona}\n`;
   if (donante.notas) detalle += `📝 Notas: ${donante.notas}\n`;
 
-  detalle += `\n📊 Historial: ${histReclamos.length} reclamo(s), ${histBajas.length} reporte(s) de baja\n`;
+  detalle += `\n📊 Historial: ${histReclamos.length} reclamo(s), ${histBajas.length} reporte(s) de baja`;
 
-  detalle += "\n¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar";
-
-  return { reply: detalle, nextStep: 99 };
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: detalle,
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
 }
 
 // ── Reclamos pendientes ──────────────────────────────────
@@ -317,6 +518,7 @@ async function handleReclamosPendientes(): Promise<FlowResponse> {
       tipo: reclamos.tipo,
       descripcion: reclamos.descripcion,
       estado: reclamos.estado,
+      gravedad: reclamos.gravedad,
       fechaCreacion: reclamos.fechaCreacion,
       donanteId: reclamos.donanteId,
     })
@@ -329,22 +531,48 @@ async function handleReclamosPendientes(): Promise<FlowResponse> {
 
   if (pendientes.length === 0) {
     return {
-      reply: "✅ No hay reclamos pendientes.\n\n*1* - Volver al menú\n*2* - Finalizar",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "✅ No hay reclamos pendientes.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
     };
   }
+
+  const gravedadEmoji: Record<string, string> = {
+    leve: "🟡",
+    moderado: "🟠",
+    grave: "🔴",
+    critico: "🚨",
+  };
 
   let lista = `⚠️ *Reclamos pendientes* (${pendientes.length})\n\n`;
   for (const r of pendientes) {
     const fecha = r.fechaCreacion ? new Date(r.fechaCreacion).toLocaleDateString("es-AR") : "?";
-    lista += `• #${r.id} | ${r.tipo} | ${r.estado}\n`;
+    const emoji = gravedadEmoji[r.gravedad || "leve"] || "⚠️";
+    lista += `${emoji} #${r.id} | ${r.tipo} | ${r.estado}\n`;
     lista += `  📅 ${fecha}`;
     if (r.descripcion) lista += ` | ${r.descripcion.slice(0, 40)}`;
     lista += "\n\n";
   }
 
-  lista += "*1* - Volver al menú\n*2* - Finalizar";
-  return { reply: lista, nextStep: 99 };
+  return {
+    reply: lista,
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "¿Querés hacer algo más?",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
 }
 
 // ── Bajas pendientes ──────────────────────────────────
@@ -358,8 +586,16 @@ async function handleBajasPendientes(): Promise<FlowResponse> {
 
   if (pendientes.length === 0) {
     return {
-      reply: "✅ No hay reportes de baja pendientes de confirmación.\n\n*1* - Volver al menú\n*2* - Finalizar",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "✅ No hay reportes de baja pendientes.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
     };
   }
 
@@ -370,12 +606,21 @@ async function handleBajasPendientes(): Promise<FlowResponse> {
     lista += `  📍 ${(b.donanteDireccion || "").slice(0, 40)}\n`;
     lista += `  📝 Motivo: ${b.motivo || "?"}\n`;
     lista += `  👷 Reportado por: ${b.reportadoPorNombre || b.reportadoPor}\n`;
-    lista += `  📅 ${fecha}\n`;
-    lista += `  Contactada: ${b.contactadaDonante ? "Sí" : "No"}\n\n`;
+    lista += `  📅 ${fecha} · Contactada: ${b.contactadaDonante ? "Sí" : "No"}\n\n`;
   }
 
-  lista += "*1* - Volver al menú\n*2* - Finalizar";
-  return { reply: lista, nextStep: 99 };
+  return {
+    reply: lista,
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "¿Querés hacer algo más?",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
 }
 
 // ── Progreso de rutas ──────────────────────────────────
@@ -384,8 +629,16 @@ function handleProgresoRutas(): FlowResponse {
 
   if (resumen.length === 0) {
     return {
-      reply: "🚛 No hay vehículos con progreso registrado hoy.\n\n*1* - Volver al menú\n*2* - Finalizar",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "🚛 No hay vehículos con progreso registrado hoy.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
     };
   }
 
@@ -402,8 +655,18 @@ function handleProgresoRutas(): FlowResponse {
     lista += "\n";
   }
 
-  lista += "*1* - Volver al menú\n*2* - Finalizar";
-  return { reply: lista, nextStep: 99 };
+  return {
+    reply: lista,
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "¿Querés hacer algo más?",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
 }
 
 // ── Resultados encuesta ──────────────────────────────────
@@ -421,15 +684,22 @@ async function handleResultadosEncuesta(): Promise<FlowResponse> {
   const tasaRespuesta = s.total > 0 ? Math.round((s.respondidas / s.total) * 100) : 0;
 
   return {
-    reply:
-      `📊 *Resultados de encuesta mensual*\n\n` +
-      `📨 Enviadas: ${s.total}\n` +
-      `💬 Respondidas: ${s.respondidas} (${tasaRespuesta}%)\n` +
-      `✅ Sí recibieron regalo: ${s.si}\n` +
-      `❌ No recibieron regalo: ${s.no}\n` +
-      `⏳ Sin respuesta: ${s.total - s.respondidas}\n\n` +
-      "*1* - Volver al menú\n*2* - Finalizar",
+    reply: "",
     nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body:
+        `📊 *Resultados de encuesta mensual*\n\n` +
+        `📨 Enviadas: ${s.total}\n` +
+        `💬 Respondidas: ${s.respondidas} (${tasaRespuesta}%)\n` +
+        `✅ Sí recibieron regalo: ${s.si}\n` +
+        `❌ No recibieron regalo: ${s.no}\n` +
+        `⏳ Sin respuesta: ${s.total - s.respondidas}`,
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
   };
 }
 
@@ -449,17 +719,21 @@ async function handleGenerarReporte(adminPhone: string): Promise<FlowResponse> {
     marcarReporteEnviado();
 
     return {
-      reply:
-        "📄 *Reporte diario enviado* ✅\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      reply: "",
       nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "📄 *Reporte diario enviado* ✅\nRevisá el archivo adjunto.",
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
     };
   } catch (err) {
     logger.error({ err }, "Error al generar reporte desde admin");
     return {
-      reply:
-        "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.\n\n" +
-        "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar",
+      reply: "❌ Hubo un error al generar el reporte. Intentá de nuevo en unos minutos.",
       nextStep: 99,
     };
   }
@@ -467,7 +741,6 @@ async function handleGenerarReporte(adminPhone: string): Promise<FlowResponse> {
 
 // ── Estado de difusión ──────────────────────────────────
 async function handleEstadoDifusion(): Promise<FlowResponse> {
-  // ── Stats globales ──
   const statsGlobal = await db
     .select({
       total: count(),
@@ -475,7 +748,6 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
     })
     .from(difusionEnvios);
 
-  // ── Stats por grupo MV (Martes y Viernes) ──
   const statsMV = await db
     .select({
       total: count(),
@@ -484,7 +756,6 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
     .from(difusionEnvios)
     .where(like(difusionEnvios.diasRecoleccion, "%Martes%"));
 
-  // ── Stats por grupo MS (Miércoles y Sábados) ──
   const statsMS = await db
     .select({
       total: count(),
@@ -501,7 +772,6 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
   const pctMV = Number(mv.total) > 0 ? Math.round((Number(mv.confirmadas) / Number(mv.total)) * 100) : 0;
   const pctMS = Number(ms.total) > 0 ? Math.round((Number(ms.confirmadas) / Number(ms.total)) * 100) : 0;
 
-  // ── Últimas 5 confirmaciones ──
   const ultimasConfirmadas = await db
     .select({
       nombre: difusionEnvios.nombre,
@@ -514,33 +784,89 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
     .orderBy(desc(difusionEnvios.fechaConfirmacion))
     .limit(5);
 
-  let reply =
+  let body =
     `📨 *Estado de difusión*\n\n` +
-    `📤 *Total global:* ${g.total} enviados\n` +
+    `📤 Total: ${g.total} enviados\n` +
     `✅ Confirmaron: *${g.confirmadas}* (${pctGlobal}%)\n` +
     `⏳ Pendientes: *${Number(g.total) - Number(g.confirmadas)}*\n\n` +
-    `━━━━━━━━━━━━━━━━━\n` +
-    `📅 *Martes y Viernes (MV)*\n` +
-    `   Enviados: ${mv.total} | ✅ ${mv.confirmadas} (${pctMV}%) | ⏳ ${Number(mv.total) - Number(mv.confirmadas)}\n\n` +
-    `📅 *Miércoles y Sábados (MS)*\n` +
-    `   Enviados: ${ms.total} | ✅ ${ms.confirmadas} (${pctMS}%) | ⏳ ${Number(ms.total) - Number(ms.confirmadas)}\n` +
-    `━━━━━━━━━━━━━━━━━\n\n`;
+    `📅 *MV:* ${mv.total} env | ✅ ${mv.confirmadas} (${pctMV}%)\n` +
+    `📅 *MS:* ${ms.total} env | ✅ ${ms.confirmadas} (${pctMS}%)\n`;
 
   if (ultimasConfirmadas.length > 0) {
-    reply += `*Últimas confirmaciones:*\n`;
+    body += `\n*Últimas confirmaciones:*\n`;
     for (const c of ultimasConfirmadas) {
       const hora = c.fechaConfirmacion
         ? new Date(c.fechaConfirmacion).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
         : "?";
       const grupo = c.diasRecoleccion?.includes("Martes") ? "MV" : c.diasRecoleccion?.includes("iércoles") ? "MS" : "LJ";
-      reply += `• [${grupo}] ${c.nombre ?? c.telefono} — ${hora}\n`;
+      body += `• [${grupo}] ${c.nombre ?? c.telefono} — ${hora}\n`;
     }
-    reply += "\n";
   }
 
-  reply += "*1* - Volver al menú\n*2* - Finalizar\n*10* - 🔄 Actualizar";
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body,
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "10", title: "Actualizar" },
+      ],
+    },
+  };
+}
 
-  return { reply, nextStep: 99 };
+// ── Resumen rápido (stats del día) ───────────────────────
+async function handleResumenRapido(): Promise<FlowResponse> {
+  const [{ nuevos }] = await db
+    .select({ nuevos: count() })
+    .from(donantes)
+    .where(and(eq(donantes.estado, "nueva"), eq(donantes.donandoActualmente, false)));
+
+  const [{ reclamosPendientes }] = await db
+    .select({ reclamosPendientes: count() })
+    .from(reclamos)
+    .where(sql`${reclamos.estado} IN ('pendiente', 'notificado_chofer', 'seguimiento_enviado')`);
+
+  const [{ bajasPendientes }] = await db
+    .select({ bajasPendientes: count() })
+    .from(reportesBaja)
+    .where(eq(reportesBaja.confirmado, false));
+
+  const [difusion] = await db
+    .select({
+      total: count(),
+      confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
+    })
+    .from(difusionEnvios);
+
+  const dif = difusion || { total: 0, confirmadas: 0 };
+  const pctDif = Number(dif.total) > 0 ? Math.round((Number(dif.confirmadas) / Number(dif.total)) * 100) : 0;
+
+  const [{ activas }] = await db
+    .select({ activas: count() })
+    .from(donantes)
+    .where(eq(donantes.donandoActualmente, true));
+
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body:
+        `📊 *Resumen rápido*\n\n` +
+        `👥 Donantes activas: *${activas}*\n` +
+        `🆕 Contactos nuevos: *${nuevos}*\n` +
+        `⚠️ Reclamos pendientes: *${reclamosPendientes}*\n` +
+        `🔴 Bajas sin confirmar: *${bajasPendientes}*\n` +
+        `📨 Difusión: *${dif.confirmadas}*/${dif.total} (${pctDif}%)`,
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
 }
 
 // ── Lista de comandos ──────────────────────────────────
@@ -552,57 +878,61 @@ function handleListaComandos(): FlowResponse {
       "━━━━━━━━━━━━━━━━━━━━━\n" +
       "*Desde el panel admin:*\n" +
       "━━━━━━━━━━━━━━━━━━━━━\n\n" +
-      "*1* - 📋 *Contactos nuevos*\n" +
-      "  Ver números que escribieron al bot y no están en el listado. Podés revisar cada uno y decidir si agregarlo.\n\n" +
+      "*1* - 📋 *Contactos nuevos* + agendar\n" +
+      "*12* - 📥 *Exportar XLS* de contactos nuevos\n" +
       "*2* - 🔍 *Buscar donante*\n" +
-      "  Buscá por nombre, teléfono o dirección. Muestra ficha completa con historial.\n\n" +
       "*3* - ⚠️ *Reclamos pendientes*\n" +
-      "  Lista de reclamos sin resolver. Muestra tipo, estado y fecha.\n\n" +
       "*4* - 🔴 *Reportes de baja*\n" +
-      "  Bajas reportadas por choferes/peones pendientes de confirmación.\n\n" +
       "*5* - 🚛 *Progreso de rutas*\n" +
-      "  Estado actual de cada camión: salida, zona, descarga.\n\n" +
       "*6* - 📊 *Resultados encuesta*\n" +
-      "  Estadísticas de la encuesta mensual de regalos.\n\n" +
       "*8* - 📄 *Generar reporte diario (PDF)*\n" +
-      "  Genera y envía el reporte diario profesional con gráficos, KPIs, incidentes y resumen operativo.\n\n" +
+      "*10* - 📨 *Estado difusión*\n" +
+      "*11* - 📊 *Resumen rápido*\n\n" +
       "━━━━━━━━━━━━━━━━━━━━━\n" +
-      "*Palabras clave (escribir directamente):*\n" +
+      "*Alertas automáticas:*\n" +
       "━━━━━━━━━━━━━━━━━━━━━\n\n" +
-      "• *admin* → Abre panel de administración\n" +
-      "• *chofer* → Registro de chofer (jornada)\n" +
-      "• *peón* → Registro de peón\n" +
-      "• *reclamo* → Reportar reclamo (donantes)\n" +
-      "• *aviso* → Dar aviso (vacaciones/enfermedad)\n" +
-      "• *reporte* → Reporte para CEO\n\n" +
-      "━━━━━━━━━━━━━━━━━━━━━\n" +
-      "*Alertas automáticas (llegan solas):*\n" +
-      "━━━━━━━━━━━━━━━━━━━━━\n\n" +
-      "🚨 Exceso de velocidad (>80 km/h)\n" +
-      "🔴 Incidentes graves reportados por choferes\n" +
-      "⚠️ Reclamos nuevos de donantes\n" +
-      "📋 Reportes de baja de donantes\n" +
-      "🚛 Progreso de rutas (salida, zona, retorno)\n" +
-      "📊 Reporte diario automático\n\n" +
-      "*1* - Volver al menú\n*2* - Finalizar",
+      "🚨 Exceso de velocidad\n" +
+      "🔴 Incidentes graves\n" +
+      "⚠️ Reclamos nuevos\n" +
+      "📋 Reportes de baja\n" +
+      "🚛 Progreso de rutas\n" +
+      "📊 Reporte diario automático",
     nextStep: 99,
   };
 }
 
 // ── Volver o finalizar ──────────────────────────────────
 async function handleVolverOFinalizar(respuesta: string): Promise<FlowResponse> {
-  if (respuesta === "1") {
+  const r = respuesta.toLowerCase().trim();
+
+  // Volver al menú
+  if (r === "1" || r === "si" || r === "sí" || r === "volver" || r === "menu" || r === "menú"
+    || r === "volver al menú" || r === "volver al menu" || r === "nueva búsqueda"
+    || r === "nueva busqueda") {
     return handleBienvenida();
   }
-  if (respuesta === "2") {
+
+  // Finalizar
+  if (r === "2" || r === "no" || r === "finalizar" || r === "salir" || r === "menú principal") {
     return { reply: "✅ Sesión de admin finalizada.", endFlow: true };
   }
-  if (respuesta === "10") {
+
+  // Actualizar difusión
+  if (r === "10" || r === "actualizar" || r === "estado difusión" || r === "estado difusion") {
     return await handleEstadoDifusion();
   }
-  // Cualquier otra cosa (incluyendo keywords como "reclamo") → re-mostrar opciones
+
+  // No entendió → botones interactivos
   return {
-    reply: "¿Querés hacer algo más?\n*1* - Sí, volver al menú\n*2* - No, finalizar\n*10* - 📨 Estado difusión",
+    reply: "",
     nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "¿Querés hacer algo más?",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
   };
 }

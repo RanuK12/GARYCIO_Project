@@ -1,4 +1,8 @@
 import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
+import { db } from "../../database";
+import { donantes, avisos } from "../../database/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../../config/logger";
 
 /**
  * Flow de avisos de donantes.
@@ -26,7 +30,7 @@ export const avisoFlow: FlowHandler = {
       case 0:
         return handleTipoAviso(respuesta);
       case 1:
-        return handleFechaVuelta(respuesta, state);
+        return await handleFechaVuelta(respuesta, state);
       case 2:
         return handleCambioDireccion(respuesta, state);
       case 3:
@@ -145,7 +149,7 @@ function handleTipoAviso(respuesta: string): FlowResponse {
 }
 
 // ── Paso 1: Fecha de vuelta (vacaciones / enfermedad) ─────────────────
-function handleFechaVuelta(respuesta: string, state: ConversationState): FlowResponse {
+async function handleFechaVuelta(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const lower = respuesta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const noSabe = ["no s", "no se", "ni idea", "no tengo", "no sabe"].some((n) => lower.includes(n));
@@ -156,6 +160,9 @@ function handleFechaVuelta(respuesta: string, state: ConversationState): FlowRes
     : "Cuando sepas cuándo vas a estar disponible, avisanos por acá y lo coordinamos con el recolector.";
 
   const tipo = state.data.tipoAviso || "general";
+
+  // Guardar aviso en DB
+  await guardarAvisoEnDB(state.phone, tipo, fechaParseada);
 
   return {
     reply:
@@ -322,6 +329,65 @@ function parsearFecha(lower: string, original: string): string | null {
   }
 
   return null;
+}
+
+// ── Guardar aviso en DB ──────────────────────────────
+async function guardarAvisoEnDB(phone: string, tipo: string, fechaVuelta: string | null): Promise<void> {
+  try {
+    const tipoMap: Record<string, "vacaciones" | "enfermedad" | "medicacion"> = {
+      vacaciones: "vacaciones",
+      enfermedad: "enfermedad",
+      medicacion: "medicacion",
+    };
+    const tipoEnum = tipoMap[tipo];
+    if (!tipoEnum) return; // cambio_direccion y cambio_telefono no son avisos de ausencia
+
+    const donanteRow = await db
+      .select({ id: donantes.id })
+      .from(donantes)
+      .where(eq(donantes.telefono, phone))
+      .limit(1);
+
+    // Intentar sin +
+    let donanteId: number | null = donanteRow[0]?.id ?? null;
+    if (!donanteId) {
+      const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
+      const retry = await db
+        .select({ id: donantes.id })
+        .from(donantes)
+        .where(eq(donantes.telefono, phoneSinPlus))
+        .limit(1);
+      donanteId = retry[0]?.id ?? null;
+    }
+
+    if (!donanteId) {
+      logger.warn({ phone }, "No se encontró donante para guardar aviso");
+      return;
+    }
+
+    const hoy = new Date().toISOString().split("T")[0];
+
+    // Parsear fechaVuelta a formato ISO si viene como DD/MM/YYYY
+    let fechaFinISO: string | null = null;
+    if (fechaVuelta) {
+      const parts = fechaVuelta.split("/");
+      if (parts.length === 3) {
+        fechaFinISO = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+
+    await db.insert(avisos).values({
+      donanteId,
+      tipo: tipoEnum,
+      fechaInicio: hoy,
+      fechaFin: fechaFinISO,
+      notas: fechaVuelta ? `Vuelve: ${fechaVuelta}` : "Sin fecha de vuelta definida",
+    });
+
+    logger.info({ phone, tipo: tipoEnum, fechaVuelta }, "Aviso guardado en DB");
+  } catch (err) {
+    logger.error({ phone, err }, "Error guardando aviso en DB");
+  }
 }
 
 function parsearNumeroEspanol(texto: string): number {

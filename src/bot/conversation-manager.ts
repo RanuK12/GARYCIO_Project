@@ -1,10 +1,11 @@
 import { ConversationState, FlowType, FlowResponse, InteractiveMessage, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
-import { conversationStates, difusionEnvios } from "../database/schema";
-import { eq, and } from "drizzle-orm";
+import { conversationStates, difusionEnvios, mensajesLog } from "../database/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
+import { procesarMensajeIA, type Intencion, type RespuestaIA } from "../services/clasificador-ia";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
@@ -12,11 +13,18 @@ const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 const conversationCache = new Map<string, ConversationState>();
 
 // ── Leer estado ─────────────────────────────────────────
+// Info sobre sesiones expiradas para poder dar contexto al usuario
+let lastExpiredFlow: Map<string, { flow: string; step: number }> = new Map();
+
 async function getConversation(phone: string): Promise<ConversationState | null> {
   // Buscar en cache primero
   const cached = conversationCache.get(phone);
   if (cached) {
     if (Date.now() - cached.lastInteraction.getTime() > TIMEOUT_MS) {
+      // Guardar info del flow expirado para contexto
+      if (cached.currentFlow) {
+        lastExpiredFlow.set(phone, { flow: cached.currentFlow, step: cached.step });
+      }
       await endConversation(phone);
       return null;
     }
@@ -42,12 +50,25 @@ async function getConversation(phone: string): Promise<ConversationState | null>
   };
 
   if (Date.now() - state.lastInteraction.getTime() > TIMEOUT_MS) {
+    if (state.currentFlow) {
+      lastExpiredFlow.set(phone, { flow: state.currentFlow, step: state.step });
+    }
     await endConversation(phone);
     return null;
   }
 
   conversationCache.set(phone, state);
   return state;
+}
+
+/** Recuperar info de sesión expirada (para dar contexto al reanudar) */
+export function getExpiredFlowInfo(phone: string): { flow: string; step: number } | null {
+  const info = lastExpiredFlow.get(phone);
+  if (info) {
+    lastExpiredFlow.delete(phone); // Consumir
+    return info;
+  }
+  return null;
 }
 
 // ── Crear estado nuevo ──────────────────────────────────
@@ -276,12 +297,11 @@ export async function handleIncomingMessage(
     if (detectedFlow) {
       state = await startConversation(phone, detectedFlow.name);
     } else {
-      // Caso especial prioritario: si envía "1" y tiene difusion_envios pendiente → confirmar difusión
-      // Se evalúa ANTES del check de rol desconocido para capturar también números nuevos que recibieron difusión
-      if (message.trim() === "1") {
+      // Caso especial prioritario: confirmar difusión
+      // Acepta: "1", ",1", "1 recibido", ",1 Recibido el mensaje 👍", "Confirmar recepción", etc.
+      if (esConfirmacionDifusion(message)) {
         const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
         const phoneConPlus = phone.startsWith("+") ? phone : `+${phone}`;
-        // Buscar por variante sin + primero (formato habitual de WhatsApp), luego con +
         let pendiente = await db
           .select({ id: difusionEnvios.id })
           .from(difusionEnvios)
@@ -316,14 +336,12 @@ export async function handleIncomingMessage(
       }
 
       if (rol === "desconocido") {
-        // Número totalmente nuevo sin difusión pendiente → flow de registro
         const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
         return { reply, notify };
       }
 
-      // → menú principal interactivo
-      const menu = getMenuPrincipalInteractive(phone);
-      return { reply: menu.reply, interactive: menu.interactive };
+      // ── Asistente IA: responde directamente con contexto de la donante ──
+      return await procesarConIA(phone, message);
     }
   }
 
@@ -420,6 +438,35 @@ export async function handleIncomingMessage(
   }
 }
 
+// ── Detección de confirmación de difusión (flexible) ─────
+/**
+ * Acepta múltiples formas en que las donantes confirman la difusión:
+ * "1", ",1", ".1", "1.", "1 recibido", ",1 Recibido el mensaje 👍",
+ * "recibido", "confirmo", "Confirmar recepción", "si recibido", etc.
+ */
+export function esConfirmacionDifusion(message: string): boolean {
+  const clean = message.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // Contiene un "1" suelto (puede tener coma/punto antes/después)
+  if (/[,.\s]*1[,.\s]*/g.test(clean) && clean.length < 60) {
+    // Verificar que no sea parte de otra intención (ej: "1 reclamo")
+    const sinPuntuacion = clean.replace(/[^a-z0-9\s]/g, "").trim();
+    if (sinPuntuacion === "1") return true;
+    if (/^1\s+(recibido|recibí|recibi|ok|si|listo|gracias|dale|bueno|bien|confirmado|confirmo|mensaje|el mensaje|recibido el mensaje)/.test(sinPuntuacion)) return true;
+  }
+
+  // Frases directas de confirmación
+  const confirmaciones = [
+    "confirmar recepcion", "confirmar recepción", "confirmo recepcion",
+    "recibido", "recibi", "recibí", "recibido el mensaje",
+    "si recibido", "si recibi", "si recibí",
+    "confirmado", "confirmo", "entendido",
+    "ok recibido", "dale recibido", "si lo recibi",
+  ];
+  return confirmaciones.some((c) => clean.includes(c));
+}
+
 // ── Detección de intención de baja ──────────────────────
 /**
  * Detecta si una donante está expresando intención de darse de baja
@@ -467,4 +514,145 @@ function detectarHablarConPersona(message: string): boolean {
   ];
 
   return FRASES.some((frase) => lower.includes(frase));
+}
+
+// ── Procesar mensaje con IA conversacional ──────────────
+async function procesarConIA(
+  phone: string,
+  message: string,
+): Promise<{
+  reply: string;
+  interactive?: InteractiveMessage;
+  notify?: FlowResponse["notify"];
+  flowData?: { flowName: string; data: Record<string, any> };
+}> {
+  // Obtener historial para contexto
+  let historial: string[] | undefined;
+  try {
+    const rows = await db
+      .select({ contenido: mensajesLog.contenido, direccion: mensajesLog.direccion })
+      .from(mensajesLog)
+      .where(eq(mensajesLog.telefono, phone))
+      .orderBy(desc(mensajesLog.id))
+      .limit(6);
+
+    historial = rows
+      .reverse()
+      .map((m) => `${m.direccion === "entrante" ? "Donante" : "Bot"}: ${m.contenido}`)
+      .slice(0, 5);
+  } catch { /* sin historial */ }
+
+  const resultado = await procesarMensajeIA(phone, message, historial);
+  logger.info({
+    phone,
+    intencion: resultado.intencion,
+    urgencia: resultado.urgencia,
+    mensaje: message.slice(0, 60),
+  }, "Mensaje procesado por asistente IA");
+
+  // Construir notificaciones según la intención
+  let notify: FlowResponse["notify"] | undefined;
+  let flowData: { flowName: string; data: Record<string, any> } | undefined;
+
+  switch (resultado.intencion) {
+    case "reclamo":
+      notify = {
+        target: resultado.urgencia === "alta" ? "admin" : "chofer",
+        message:
+          `📋 *Nuevo reclamo${resultado.urgencia === "alta" ? " URGENTE" : ""}*\n\n` +
+          `📱 Donante: ${phone}\n` +
+          `Tipo: ${resultado.datosExtraidos?.tipoReclamo || "general"}\n` +
+          `Urgencia: ${resultado.urgencia || "media"}\n` +
+          `💬 Mensaje: "${message}"\n` +
+          `${resultado.datosExtraidos?.descripcion ? `Detalle: ${resultado.datosExtraidos.descripcion}` : ""}\n\n` +
+          `_Reclamo guardado automáticamente por IA_`,
+      };
+      flowData = {
+        flowName: "reclamo",
+        data: {
+          tipoReclamo: resultado.datosExtraidos?.tipoReclamo || "otro",
+          detalleReclamo: resultado.datosExtraidos?.descripcion || message,
+          urgencia: resultado.urgencia,
+          procesadoPorIA: true,
+        },
+      };
+      break;
+
+    case "aviso":
+      notify = {
+        target: "chofer",
+        message:
+          `📢 *Aviso de donante*\n\n` +
+          `📱 Donante: ${phone}\n` +
+          `Tipo: ${resultado.datosExtraidos?.tipoAviso || "general"}\n` +
+          `💬 Mensaje: "${message}"\n` +
+          `${resultado.datosExtraidos?.fechaFin ? `Vuelta estimada: ${resultado.datosExtraidos.fechaFin}` : ""}\n\n` +
+          `_Aviso registrado automáticamente por IA_`,
+      };
+      break;
+
+    case "baja":
+      notify = {
+        target: "admin",
+        message:
+          `🚨 *INTENCIÓN DE BAJA*\n\n` +
+          `📱 Donante: ${phone}\n` +
+          `💬 Mensaje: "${message}"\n\n` +
+          `⚠️ Requiere contacto manual a la brevedad.`,
+      };
+      break;
+
+    case "hablar_persona":
+      notify = {
+        target: "admin",
+        message:
+          `🙋 *SOLICITUD DE ATENCIÓN HUMANA*\n\n` +
+          `📱 Teléfono: ${phone}\n` +
+          `💬 Mensaje: "${message}"\n\n` +
+          `⚠️ Requiere contacto manual.`,
+      };
+      break;
+
+    case "consulta":
+      // Consultas que la IA no pudo resolver → notificar admin
+      if (resultado.respuesta.includes("te respondemos") || resultado.respuesta.includes("voy a consultar")) {
+        notify = {
+          target: "admin",
+          message:
+            `❓ *Consulta de donante*\n\n` +
+            `📱 Donante: ${phone}\n` +
+            `💬 "${message}"\n\n` +
+            `La IA no pudo resolver esta consulta. Requiere respuesta manual.`,
+        };
+      }
+      break;
+
+    case "confirmar_difusion":
+      notify = {
+        target: "admin",
+        message: `✅ Donante ${phone} confirmó recepción del mensaje de difusión.`,
+      };
+      break;
+  }
+
+  // Si la IA devolvió respuesta vacía (agradecimiento/irrelevante), no responder
+  if (!resultado.respuesta) {
+    return { reply: "", notify };
+  }
+
+  // Para saludos y menu_opcion, mostrar menú interactivo junto con la respuesta de la IA
+  if (resultado.intencion === "saludo" || resultado.intencion === "menu_opcion") {
+    const menu = getMenuPrincipalInteractive(phone);
+    return {
+      reply: resultado.respuesta,
+      interactive: menu.interactive,
+      notify,
+    };
+  }
+
+  return {
+    reply: resultado.respuesta,
+    notify,
+    flowData,
+  };
 }

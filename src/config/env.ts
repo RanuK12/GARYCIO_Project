@@ -82,6 +82,10 @@ const envSchema = z.object({
   // Test mode: solo permite envíos a números en la whitelist
   TEST_MODE: booleanFromEnv,
   TEST_PHONES: z.string().default(""),  // comma-separated, ej: "393445721753,5491126330388"
+
+  // IA Classifier (OpenAI GPT-4o-mini para clasificación de intenciones)
+  OPENAI_API_KEY: z.string().default(""),
+  AI_CLASSIFIER_ENABLED: booleanFromEnv,
 });
 
 export type Env = z.infer<typeof envSchema>;

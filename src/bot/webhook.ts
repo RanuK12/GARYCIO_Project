@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { processIncomingMessage } from "./handler";
+import { sendMessage } from "./client";
 
 /**
  * Router de Express para el webhook de WhatsApp Cloud API.
@@ -74,6 +75,18 @@ export function createWebhookRouter(): Router {
           for (const message of value.messages) {
             const phone = message.from;
             const messageId = message.id;
+
+            // Reactions → ignorar silenciosamente (no merecen respuesta)
+            if (message.type === "reaction") {
+              continue;
+            }
+
+            // Audio/video/sticker/location → responder amablemente pidiendo texto
+            if (isUnsupportedMediaType(message.type)) {
+              logger.debug({ phone, type: message.type }, "Media no soportado — pidiendo texto");
+              respondUnsupportedMedia(phone, message.type).catch(() => {});
+              continue;
+            }
 
             // Extraer datos de imagen si es mensaje de imagen
             const mediaInfo = extractMediaFromMessage(message);
@@ -159,5 +172,38 @@ function extractTextFromMessage(message: any): string | null {
 
     default:
       return null;
+  }
+}
+
+/**
+ * Tipos de media que no procesamos pero queremos dar feedback.
+ */
+function isUnsupportedMediaType(type: string): boolean {
+  return ["sticker", "audio", "video", "location", "contacts", "order", "unsupported"].includes(type);
+}
+
+// Cooldown para evitar spam de respuestas a media no soportado (1 por número cada 10 min)
+const unsupportedMediaCooldown = new Map<string, number>();
+
+async function respondUnsupportedMedia(phone: string, type: string): Promise<void> {
+  const now = Date.now();
+  const last = unsupportedMediaCooldown.get(phone);
+  if (last && now - last < 10 * 60 * 1000) return; // 10 min cooldown
+  unsupportedMediaCooldown.set(phone, now);
+
+  const mensajes: Record<string, string> = {
+    audio: "No puedo escuchar audios todavía. ¿Podrías escribir tu mensaje con texto? Así te puedo ayudar mejor.",
+    video: "No puedo ver videos todavía. ¿Podrías escribir tu mensaje con texto?",
+    sticker: "No puedo interpretar stickers. Si necesitás algo, escribime con texto.",
+    location: "Gracias por compartir tu ubicación, pero por ahora solo puedo leer mensajes de texto.",
+    contacts: "No puedo procesar contactos. Si necesitás algo, escribime con texto.",
+  };
+
+  const msg = mensajes[type] || "No puedo procesar ese tipo de mensaje. Escribime con texto por favor.";
+
+  try {
+    await sendMessage(phone, msg);
+  } catch {
+    // No es crítico
   }
 }

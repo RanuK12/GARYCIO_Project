@@ -365,12 +365,22 @@ async function guardarReclamoEnDB(state: ConversationState, detalle: string | nu
       return;
     }
 
+    // Determinar gravedad según tipo de reclamo
+    const gravedadPorTipo: Record<string, "leve" | "moderado" | "grave" | "critico"> = {
+      no_pasaron: "moderado",
+      falta_bidon_vacio: "moderado",
+      bidon_sucio: "leve",
+      pelela: "leve",
+      regalo: "leve",
+    };
+    const gravedad = gravedadPorTipo[tipo] || "leve";
+
     await db.insert(reclamos).values({
       donanteId: donanteRow[0].id,
       tipo: tipoEnum as "regalo" | "falta_bidon" | "nueva_pelela" | "otro",
       descripcion: [state.data.labelReclamo, detalle].filter(Boolean).join(" - ") || null,
       estado: "pendiente",
-      gravedad: "leve",
+      gravedad,
     });
 
     logger.info({ phone: state.phone, tipo: tipoEnum }, "Reclamo guardado en DB");

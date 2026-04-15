@@ -6,10 +6,22 @@ import { logger } from "../config/logger";
  */
 const userLocks = new Map<string, Promise<void>>();
 
+const LOCK_TIMEOUT_MS = 30_000; // 30s max wait for lock
+
 export async function withUserLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
-  // Esperar si hay un lock activo para este usuario
+  // Esperar si hay un lock activo para este usuario (con timeout de seguridad)
+  const startWait = Date.now();
   while (userLocks.has(phone)) {
-    await userLocks.get(phone);
+    const remaining = LOCK_TIMEOUT_MS - (Date.now() - startWait);
+    if (remaining <= 0) {
+      logger.warn({ phone }, "Lock timeout — forzando liberación para evitar deadlock");
+      userLocks.delete(phone);
+      break;
+    }
+    await Promise.race([
+      userLocks.get(phone),
+      new Promise<void>((r) => setTimeout(r, remaining)),
+    ]);
   }
 
   let releaseLock!: () => void;
