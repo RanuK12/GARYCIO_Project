@@ -1,7 +1,7 @@
 import { logger } from "../config/logger";
 import { env } from "../config/env";
 import { db } from "../database";
-import { donantes, reclamos, avisos, zonas, choferes, zonaChoferes, difusionEnvios } from "../database/schema";
+import { donantes, reclamos, avisos, zonas, choferes, zonaChoferes, difusionEnvios, iaFeedback } from "../database/schema";
 import { eq, and } from "drizzle-orm";
 
 // ── Tipos ────────────────────────────────────────────────
@@ -225,6 +225,7 @@ export async function procesarMensajeIA(
 
     if (!response.ok) {
       logger.error({ status: response.status }, "Error en API de OpenAI — usando fallback");
+      guardarFeedback(phone, mensaje, null, null, true, `API error: ${response.status}`).catch(() => {});
       return procesarFallback(phone, mensaje);
     }
 
@@ -234,6 +235,7 @@ export async function procesarMensajeIA(
 
     const rawContent = data.choices?.[0]?.message?.content?.trim();
     if (!rawContent) {
+      guardarFeedback(phone, mensaje, null, null, true, "Respuesta vacía de OpenAI").catch(() => {});
       return procesarFallback(phone, mensaje);
     }
 
@@ -248,11 +250,15 @@ export async function procesarMensajeIA(
 
     if (!intencionesValidas.includes(parsed.intencion)) {
       logger.warn({ parsed }, "IA devolvió intención no reconocida");
+      guardarFeedback(phone, mensaje, parsed.intencion, parsed.respuesta, true, `Intención no válida: ${parsed.intencion}`).catch(() => {});
       return procesarFallback(phone, mensaje);
     }
 
     // Ejecutar acciones según intención (guardar en DB, etc.)
     await ejecutarAcciones(phone, parsed, datos);
+
+    // Guardar feedback de TODAS las interacciones con IA (para aprender)
+    guardarFeedback(phone, mensaje, parsed.intencion, parsed.respuesta, false, null, parsed.urgencia).catch(() => {});
 
     logger.info({
       phone,
@@ -264,7 +270,33 @@ export async function procesarMensajeIA(
     return parsed;
   } catch (err) {
     logger.error({ err }, "Error procesando con IA — usando fallback");
+    guardarFeedback(phone, mensaje, null, null, true, (err as Error).message).catch(() => {});
     return procesarFallback(phone, mensaje);
+  }
+}
+
+// ── Guardar feedback para aprendizaje ─────────────────────
+async function guardarFeedback(
+  telefono: string,
+  mensajeOriginal: string,
+  intencion: string | null,
+  respuesta: string | null,
+  useFallback: boolean,
+  errorDetalle: string | null,
+  urgencia?: string | null,
+): Promise<void> {
+  try {
+    await db.insert(iaFeedback).values({
+      telefono,
+      mensajeOriginal: mensajeOriginal.slice(0, 500),
+      intencionDetectada: intencion,
+      respuestaGenerada: respuesta?.slice(0, 500) || null,
+      urgenciaDetectada: urgencia || null,
+      useFallback,
+      errorDetalle: errorDetalle?.slice(0, 200) || null,
+    });
+  } catch (err) {
+    logger.error({ err }, "Error guardando feedback IA");
   }
 }
 

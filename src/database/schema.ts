@@ -423,6 +423,25 @@ export const difusionEnvios = pgTable("difusion_envios", {
   fechaConfirmacion: timestamp("fecha_confirmacion"),
 });
 
+// ============================================================
+// Feedback IA — mensajes que la IA no entendió o clasificó mal
+// Se usa para mejorar el prompt con ejemplos reales
+// ============================================================
+export const iaFeedback = pgTable("ia_feedback", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  mensajeOriginal: text("mensaje_original").notNull(),
+  intencionDetectada: varchar("intencion_detectada", { length: 50 }),
+  respuestaGenerada: text("respuesta_generada"),
+  urgenciaDetectada: varchar("urgencia_detectada", { length: 10 }),
+  confianza: varchar("confianza", { length: 10 }), // alta, media, baja — que tan seguro estuvo el modelo
+  useFallback: boolean("use_fallback").default(false), // true si se usó fallback por error de IA
+  errorDetalle: text("error_detalle"), // error si falló la API
+  revisado: boolean("revisado").default(false), // true cuando un admin lo revisó
+  intencionCorrecta: varchar("intencion_correcta", { length: 50 }), // corrección manual del admin
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const deadLetterQueue = pgTable("dead_letter_queue", {
   id: serial("id").primaryKey(),
   telefono: varchar("telefono", { length: 20 }).notNull(),
