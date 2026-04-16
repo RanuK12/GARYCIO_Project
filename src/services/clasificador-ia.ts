@@ -128,6 +128,48 @@ async function obtenerDatosDonante(phone: string): Promise<DatosDonante | null> 
   }
 }
 
+// ── Calcular próximo día de recolección a partir de los días asignados ──
+function calcularProximoDia(diasRecoleccion: string | null): string | null {
+  if (!diasRecoleccion) return null;
+
+  // Mapas de días por código
+  const diasPorCodigo: Record<string, number[]> = {
+    LJ: [1, 4], // Lunes=1, Jueves=4
+    MV: [2, 5], // Martes=2, Viernes=5
+    MS: [3, 6], // Miércoles=3, Sábado=6
+  };
+  const nombreDia: Record<number, string> = {
+    1: "lunes", 2: "martes", 3: "miércoles",
+    4: "jueves", 5: "viernes", 6: "sábado", 0: "domingo",
+  };
+
+  // Detectar código
+  const codigo = Object.keys(diasPorCodigo).find(c =>
+    new RegExp(`\\b${c}\\b`).test(diasRecoleccion.toUpperCase())
+  );
+  if (!codigo) return null;
+
+  const diasSemana = diasPorCodigo[codigo];
+  const hoy = new Date();
+  const hoyDia = hoy.getDay(); // 0=dom, 1=lun, ..., 6=sab
+
+  // Buscar el próximo día de recolección (puede ser hoy mismo si aún no pasó)
+  let diasHasta = 8;
+  let proximoDia = -1;
+  for (const dia of diasSemana) {
+    const diff = (dia - hoyDia + 7) % 7;
+    const d = diff === 0 ? 7 : diff; // Si es hoy, el próximo es en 7 días
+    if (d < diasHasta) { diasHasta = d; proximoDia = dia; }
+  }
+
+  if (proximoDia === -1) return null;
+  const fecha = new Date(hoy);
+  fecha.setDate(hoy.getDate() + diasHasta);
+  const dd = fecha.getDate().toString().padStart(2, "0");
+  const mm = (fecha.getMonth() + 1).toString().padStart(2, "0");
+  return `${nombreDia[proximoDia]} ${dd}/${mm}`;
+}
+
 // ── System Prompt para el asistente conversacional ───────
 function buildSystemPrompt(datos: DatosDonante | null): string {
   const diasTexto = datos?.diasRecoleccion
@@ -137,11 +179,14 @@ function buildSystemPrompt(datos: DatosDonante | null): string {
         .replace(/\bMS\b/g, "miércoles y sábado")
     : null;
 
+  const proximoDia = calcularProximoDia(datos?.diasRecoleccion ?? null);
+
   const contexto = datos
     ? `\nCONTEXTO DE LA DONANTE:
 - Nombre: ${datos.nombre}
 - Dirección: ${datos.direccion}
 - Días de recolección: ${diasTexto || "No asignados aún — decí que el equipo lo va a informar"}
+- Próximo día de recolección: ${proximoDia || "No calculable — usá los días asignados"}
 - Zona: ${datos.zonaNombre || "Sin zona asignada"}
 - Chofer/recolector asignado: ${datos.choferNombre || "Sin chofer asignado"}
 - Estado en el sistema: ${datos.estado}
@@ -175,9 +220,9 @@ INTENCIONES POSIBLES:
   - Urgencia ALTA: si dice que hace varios días/semanas que no pasan, o está muy molesta
   - Urgencia MEDIA: reclamo normal de un día
   - Urgencia BAJA: consulta menor (bidón sucio, pelela)
-  - Si el tipo es "no_pasaron" o "falta_bidon" (no pasaron a retirar el bidón): usá ESTE mensaje adaptado a sus días:
-    "Buen día. Entendemos su preocupación. Somos una empresa nueva de recolección y estamos teniendo algunos inconvenientes en la logística. Vamos a tratar de respetar los días lo mejor posible. Le pedimos disculpas y un poco de paciencia en estas primeras semanas. Le confirmo que sus días de recolección son [DÍAS DE LA DONANTE — si no los tenés, escribí "los que le informamos"]. Por favor guarde el bidón en un lugar fresco y sáquelo en su próximo día. Muchas gracias por su comprensión."
-    Adaptá el mensaje si la donante mencionó un día concreto (ej: "no pasaron el miércoles" → mencioná que el próximo día es el sábado).
+  - Si el tipo es "no_pasaron" o "falta_bidon" (no pasaron a retirar el bidón): usá ESTE mensaje exacto, reemplazando solo los corchetes con los datos del CONTEXTO:
+    "Buen día. Entendemos su preocupación. Somos una empresa nueva de recolección y estamos teniendo algunos inconvenientes en la logística. Vamos a tratar de respetar los días lo mejor posible. Le pedimos disculpas y un poco de paciencia en estas primeras semanas. Le confirmo que sus días de recolección son [DÍAS DE RECOLECCIÓN]. Por favor guarde el bidón en un lugar fresco y sáquelo el próximo [PRÓXIMO DÍA DE RECOLECCIÓN]. Muchas gracias por su comprensión."
+    IMPORTANTE: usá EXACTAMENTE los valores del CONTEXTO — "Días de recolección" y "Próximo día de recolección". NO inventes ni calcules días vos. Si no tenés el próximo día, omití esa frase.
   - Para otros tipos de reclamo: respondé con comprensión y respeto, decile que ya le avisaste al equipo y que lo van a resolver.
 - "aviso": Avisa algo (vacaciones, enfermedad, cambio dirección/teléfono). Respondé con comprensión. Extraé tipo, fechas si las menciona, nueva dirección/teléfono.
 - "consulta": Pregunta sobre el servicio. Respondé con los datos concretos que tenés. Si pregunta por días de recolección y los tenés, decí exactamente cuáles son (ej: "Tus días de recolección son los martes y viernes"). Si pregunta cuándo pasan, decí los días asignados. Si no tenés el dato, decile que vas a consultar con el equipo y le avisan.
