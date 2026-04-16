@@ -171,10 +171,14 @@ Analizá el mensaje y respondé con un JSON con esta estructura exacta:
 
 INTENCIONES POSIBLES:
 - "confirmar_difusion": Quiere confirmar que recibió el aviso de recolección. Respondé algo breve y cálido mencionando los días de recolección reales de la donante si los tenés (ej: "Recepción confirmada. Te esperamos el martes y viernes. Recordá tener el bidón listo. Muchas gracias"). Si no tenés los días, respondé genérico como "Recepción confirmada, muchas gracias por tu colaboración".
-- "reclamo": Tiene un problema con el servicio. Respondé con comprensión y respeto, pedile disculpas por la molestia, decile que ya le avisaste al equipo y que lo van a resolver. Extraé el tipo: "no_pasaron", "falta_bidon", "bidon_sucio", "pelela", "regalo", "otro".
+- "reclamo": Tiene un problema con el servicio. Extraé el tipo: "no_pasaron", "falta_bidon", "bidon_sucio", "pelela", "regalo", "otro".
   - Urgencia ALTA: si dice que hace varios días/semanas que no pasan, o está muy molesta
   - Urgencia MEDIA: reclamo normal de un día
   - Urgencia BAJA: consulta menor (bidón sucio, pelela)
+  - Si el tipo es "no_pasaron" o "falta_bidon" (no pasaron a retirar el bidón): usá ESTE mensaje adaptado a sus días:
+    "Buen día. Entendemos su preocupación. Somos una empresa nueva de recolección y estamos teniendo algunos inconvenientes en la logística. Vamos a tratar de respetar los días lo mejor posible. Le pedimos disculpas y un poco de paciencia en estas primeras semanas. Le confirmo que sus días de recolección son [DÍAS DE LA DONANTE — si no los tenés, escribí "los que le informamos"]. Por favor guarde el bidón en un lugar fresco y sáquelo en su próximo día. Muchas gracias por su comprensión."
+    Adaptá el mensaje si la donante mencionó un día concreto (ej: "no pasaron el miércoles" → mencioná que el próximo día es el sábado).
+  - Para otros tipos de reclamo: respondé con comprensión y respeto, decile que ya le avisaste al equipo y que lo van a resolver.
 - "aviso": Avisa algo (vacaciones, enfermedad, cambio dirección/teléfono). Respondé con comprensión. Extraé tipo, fechas si las menciona, nueva dirección/teléfono.
 - "consulta": Pregunta sobre el servicio. Respondé con los datos concretos que tenés. Si pregunta por días de recolección y los tenés, decí exactamente cuáles son (ej: "Tus días de recolección son los martes y viernes"). Si pregunta cuándo pasan, decí los días asignados. Si no tenés el dato, decile que vas a consultar con el equipo y le avisan.
 - "baja": Quiere dejar de participar. Respondé con respeto y calidez, agradecé su tiempo y decile que alguien del equipo se va a comunicar.
@@ -394,7 +398,7 @@ function procesarFallback(phone: string, mensaje: string): RespuestaIA {
 
   const respuestas: Record<Intencion, string> = {
     confirmar_difusion: "Recepcion confirmada. Te esperamos en los dias indicados. Recorda tener el bidon listo.",
-    reclamo: "Tomamos nota de tu reclamo. Ya le avisamos al equipo para que lo resuelvan lo antes posible.",
+    reclamo: "Buen día. Entendemos su preocupación. Somos una empresa nueva y estamos teniendo algunos inconvenientes en la logística. Le pedimos disculpas y un poco de paciencia. El equipo ya fue notificado y vamos a estar pasando a recolectar lo antes posible. Muchas gracias por su comprensión.",
     aviso: "Registramos tu aviso. Le vamos a avisar al recolector de tu zona.",
     consulta: "Recibimos tu consulta. Te respondemos a la brevedad.",
     baja: "Lamentamos que quieras dejar de participar. Una persona de nuestro equipo se va a comunicar con vos.",
