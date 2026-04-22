@@ -40,6 +40,20 @@ jest.mock("../src/bot/client", () => ({
     sendDocument: jest.fn(),
 }));
 
+jest.mock("../src/services/human-escalation", () => ({
+    isHumanEscalated: jest.fn().mockResolvedValue(false),
+    escalateToHuman: jest.fn().mockResolvedValue(undefined),
+    resolveHumanEscalation: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("../src/services/contacto-donante", () => ({
+    lookupRolPorTelefono: jest.fn().mockImplementation(async (phone: string) => {
+        if (phone.includes("nuevo") || phone.includes("desconocido")) return { rol: "desconocido" };
+        return { rol: "donante" };
+    }),
+    registrarContactoDonante: jest.fn().mockResolvedValue({ esNuevo: false }),
+}));
+
 // ── Mock de DB ──────────────────────────────────────────
 // Cola de respuestas: cada llamada a limit() consume el siguiente valor de la cola
 let dbResponseQueue: any[][] = [];
@@ -91,6 +105,7 @@ import { detectFlow } from "../src/bot/flows";
 
 function mockComoDonanteConocida() {
     // 1. conversation_states → [] (sin sesión activa)
+    // isHumanEscalated está mockeado, no consume cola
     // 2-4. choferes, peones, visitadoras → []
     // 5. donantes → [{id:1}]
     dbResponseQueue = [[], [], [], [], [{ id: 1, estado: "activa" }]];
@@ -98,6 +113,7 @@ function mockComoDonanteConocida() {
 
 function mockComoDesconocido() {
     // 1. conversation_states → [] (sin sesión activa)
+    // isHumanEscalated está mockeado, no consume cola
     // 2-5. todas las tablas de lookup → []
     dbResponseQueue = [[], [], [], [], []];
 }
@@ -120,18 +136,18 @@ describe("conversation-manager", () => {
         it("donante conocida → muestra menú principal", async () => {
             mockComoDonanteConocida();
             const result = await handleIncomingMessage("test-phone-donante", "hola");
-            expect(result.reply).toContain("¡Hola!");
-            expect(result.reply).toContain("reclamo");
-            expect(result.reply).toContain("aviso");
-            expect(result.reply).toContain("Otro motivo");
+            expect(result.reply).toContain("Hola!");
+            expect(result.reply).toContain("asistente de GARYCIO");
+            expect(result.interactive).toBeDefined();
+            expect(result.interactive?.type).toBe("buttons");
         });
 
         it("menú inicial NO muestra opción 'hablar con persona'", async () => {
             mockComoDonanteConocida();
-            const result = await handleIncomingMessage("test-phone-donante", "hola");
-            // Ya no exponemos esta opción en el menú para filtrar mejor
+            const result = await handleIncomingMessage("test-phone-donante-2", "hola");
             expect(result.reply).not.toContain("persona");
-            expect(result.reply).toContain("Otro motivo");
+            expect(result.interactive).toBeDefined();
+            expect(result.interactive?.type).toBe("buttons");
         });
 
         it("detecta 'hablar con una persona' y deriva", async () => {

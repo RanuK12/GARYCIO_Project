@@ -13,6 +13,7 @@ import { donantes, choferes, peones, visitadoras } from "../database/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { env } from "../config/env";
+import { normalizePhone } from "../utils/phone";
 
 export type RolUsuario = "admin" | "chofer" | "peon" | "visitadora" | "donante" | "desconocido";
 
@@ -22,31 +23,32 @@ export type RolUsuario = "admin" | "chofer" | "peon" | "visitadora" | "donante" 
  *
  * Nota: La consulta se hace en paralelo para minimizar latencia.
  */
-export async function lookupRolPorTelefono(telefono: string): Promise<RolUsuario> {
+export async function lookupRolPorTelefono(telefono: string): Promise<{ rol: RolUsuario; estado?: string }> {
+  const normalized = normalizePhone(telefono);
+
   // Admin: solo env vars, sin DB
-  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => p.trim()).filter(Boolean);
-  if (adminPhones.includes(telefono) || telefono === env.CEO_PHONE) {
-    return "admin";
+  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => normalizePhone(p.trim())).filter(Boolean);
+  if (adminPhones.includes(normalized) || normalized === normalizePhone(env.CEO_PHONE || "")) {
+    return { rol: "admin" };
   }
 
   // Consultar tablas de personal y donantes en paralelo
   const [chofer, peon, visitadora, donante] = await Promise.all([
-    db.select({ id: choferes.id }).from(choferes).where(eq(choferes.telefono, telefono)).limit(1),
-    db.select({ id: peones.id }).from(peones).where(eq(peones.telefono, telefono)).limit(1),
-    db.select({ id: visitadoras.id }).from(visitadoras).where(eq(visitadoras.telefono, telefono)).limit(1),
-    db.select({ id: donantes.id, estado: donantes.estado }).from(donantes).where(eq(donantes.telefono, telefono)).limit(1),
+    db.select({ id: choferes.id }).from(choferes).where(eq(choferes.telefono, normalized)).limit(1),
+    db.select({ id: peones.id }).from(peones).where(eq(peones.telefono, normalized)).limit(1),
+    db.select({ id: visitadoras.id }).from(visitadoras).where(eq(visitadoras.telefono, normalized)).limit(1),
+    db.select({ id: donantes.id, estado: donantes.estado }).from(donantes).where(eq(donantes.telefono, normalized)).limit(1),
   ]);
 
-  if (chofer.length > 0) return "chofer";
-  if (peon.length > 0) return "peon";
-  if (visitadora.length > 0) return "visitadora";
+  if (chofer.length > 0) return { rol: "chofer" };
+  if (peon.length > 0) return { rol: "peon" };
+  if (visitadora.length > 0) return { rol: "visitadora" };
   if (donante.length > 0) {
-    // Si es un contacto auto-registrado (estado="nueva") que aún no completó
-    // sus datos, tratarlo como desconocido para que entre al flow de registro.
-    if (donante[0].estado === "nueva") return "desconocido";
-    return "donante";
+    // Los contactos auto-registrados (estado="nueva") se tratan como donantes
+    // pero el conversation-manager detecta el estado y los redirige al flow de registro.
+    return { rol: "donante", estado: donante[0].estado ?? undefined };
   }
-  return "desconocido";
+  return { rol: "desconocido" };
 }
 
 /**
@@ -57,11 +59,14 @@ export async function registrarContactoDonante(
   telefono: string,
   mensaje: string,
 ): Promise<{ esNuevo: boolean }> {
+  const normalized = normalizePhone(telefono);
+  if (!normalized) return { esNuevo: false };
+
   // Buscar si ya existe en la tabla
   const existente = await db
     .select({ id: donantes.id, nombre: donantes.nombre })
     .from(donantes)
-    .where(eq(donantes.telefono, telefono))
+    .where(eq(donantes.telefono, normalized))
     .limit(1);
 
   if (existente.length > 0) {
@@ -83,12 +88,12 @@ export async function registrarContactoDonante(
   // Crear registro mínimo con estado "nueva"
   await db.insert(donantes).values({
     nombre: "Contacto nuevo (pendiente)",
-    telefono,
+    telefono: normalized,
     direccion: "Por completar",
     estado: "nueva",
     donandoActualmente: false,
     notas: `Auto-registrado al contactar el bot. Primer mensaje: "${mensaje.slice(0, 100)}"`,
-  });
+  }).onConflictDoNothing();
 
   logger.info({ telefono }, "Nuevo contacto de donante registrado automáticamente");
   return { esNuevo: true };
@@ -99,20 +104,23 @@ export async function registrarContactoDonante(
  * para evitar registrarlo como donante.
  */
 async function esNumeroOperativo(telefono: string): Promise<boolean> {
+  const normalized = normalizePhone(telefono);
+  if (!normalized) return false;
+
   // Verificar contra admin phones
-  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => p.trim());
-  if (adminPhones.includes(telefono) || telefono === env.CEO_PHONE) {
+  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => normalizePhone(p.trim()));
+  if (adminPhones.includes(normalized) || normalized === normalizePhone(env.CEO_PHONE || "")) {
     return true;
   }
 
   // Verificar contra tablas de personal operativo
-  const [chofer] = await db.select({ id: choferes.id }).from(choferes).where(eq(choferes.telefono, telefono)).limit(1);
+  const [chofer] = await db.select({ id: choferes.id }).from(choferes).where(eq(choferes.telefono, normalized)).limit(1);
   if (chofer) return true;
 
-  const [peon] = await db.select({ id: peones.id }).from(peones).where(eq(peones.telefono, telefono)).limit(1);
+  const [peon] = await db.select({ id: peones.id }).from(peones).where(eq(peones.telefono, normalized)).limit(1);
   if (peon) return true;
 
-  const [visitadora] = await db.select({ id: visitadoras.id }).from(visitadoras).where(eq(visitadoras.telefono, telefono)).limit(1);
+  const [visitadora] = await db.select({ id: visitadoras.id }).from(visitadoras).where(eq(visitadoras.telefono, normalized)).limit(1);
   if (visitadora) return true;
 
   return false;

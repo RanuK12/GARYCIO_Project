@@ -11,6 +11,7 @@ import { adminFlow } from "./admin";
 import { visitadoraFlow } from "./visitadora";
 import { difusionFlow } from "./difusion";
 import { env } from "../../config/env";
+import { normalizePhone } from "../../utils/phone";
 
 export { contactoInicialFlow } from "./contacto-inicial";
 export { reclamoFlow } from "./reclamo";
@@ -41,8 +42,9 @@ const flows: FlowHandler[] = [
  * Verifica si un número de teléfono es un admin autorizado.
  */
 export function isAdminPhone(phone: string): boolean {
-  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => p.trim()).filter(Boolean);
-  return adminPhones.includes(phone) || phone === env.CEO_PHONE;
+  const normalized = normalizePhone(phone);
+  const adminPhones = (env.ADMIN_PHONES || "").split(",").map((p) => normalizePhone(p.trim())).filter(Boolean);
+  return adminPhones.includes(normalized) || normalized === normalizePhone(env.CEO_PHONE || "");
 }
 
 /**

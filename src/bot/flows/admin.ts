@@ -8,6 +8,8 @@ import { marcarReporteEnviado } from "../../services/reporte-diario";
 import { generarReportePDF } from "../../services/reporte-pdf";
 import { sendDocument } from "../../bot/client";
 import { generarXLSContactosNuevos, activarDonante, limpiarTmpViejos } from "../../services/exportar-contactos";
+import { getBotState, pauseBot, resumeBot, emergencyStop, setWhitelistLimit, getWhitelistLimit, ROLLOUT_PLAN } from "../../services/bot-control";
+import { addTrainingExample, listTrainingExamples, toggleTrainingExample, deleteTrainingExample } from "../../services/ia-training";
 
 /**
  * Flujo para administradores.
@@ -49,6 +51,10 @@ export const adminFlow: FlowHandler = {
       case 60: return await handleResultadosEncuesta();
       case 70: return await handleGenerarReporte(state.phone);
       case 80: return await handleRevisarFeedbackIA(respuesta, state);
+      case 90: return await handleBotControlMenu(respuesta, state);
+      case 91: return await handleAgregarEjemploIA(respuesta, state);
+      case 92: return await handleVerEjemplosIA(respuesta, state);
+      case 93: return await handleAccionEjemploIA(respuesta, state);
       case 99: return await handleVolverOFinalizar(respuesta);
       default:
         return handleBienvenida();
@@ -88,6 +94,15 @@ function handleBienvenida(): FlowResponse {
           { id: "13", title: "Revisar IA feedback", description: "Ver fallos e interpretaciones IA" },
         ],
       }, {
+        title: "Control del Bot",
+        rows: [
+          { id: "14", title: "Estado del bot", description: "Ver estado, uptime, memoria" },
+          { id: "15", title: "Pausar bot", description: "Modo mantenimiento" },
+          { id: "16", title: "Reanudar bot", description: "Volver a atender" },
+          { id: "17", title: "Whitelist progresiva", description: "Controlar rollout" },
+          { id: "18", title: "Entrenar IA", description: "Agregar ejemplos de clasificacion" },
+        ],
+      }, {
         title: "Sesión",
         rows: [
           { id: "9", title: "Finalizar", description: "Cerrar panel admin" },
@@ -118,6 +133,14 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
     "revisar ia feedback": "13",
     "ia feedback": "13",
     "feedback ia": "13",
+    "estado del bot": "14",
+    "estado bot": "14",
+    "pausar bot": "15",
+    "reanudar bot": "16",
+    "whitelist": "17",
+    "whitelist progresiva": "17",
+    "entrenar ia": "18",
+    "entrenar": "18",
   };
   const choice = menuMap[opcion] || opcion;
 
@@ -151,6 +174,16 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
       return await handleExportarXLS(state.phone);
     case "13":
       return await handleRevisarFeedbackIA("ver", state);
+    case "14":
+      return handleBotStatus();
+    case "15":
+      return handleBotPause();
+    case "16":
+      return handleBotResume();
+    case "17":
+      return handleBotWhitelist();
+    case "18":
+      return handleEntrenarIA();
     default:
       return handleBienvenida();
   }
@@ -1056,4 +1089,319 @@ async function handleVolverOFinalizar(respuesta: string): Promise<FlowResponse> 
       ],
     },
   };
+}
+
+
+// ════════════════════════════════════════════════════════════
+// NUEVOS HANDLERS: Bot Control + Entrenamiento IA
+// ════════════════════════════════════════════════════════════
+
+// ── Bot Status ──
+function handleBotStatus(): FlowResponse {
+  const state = getBotState();
+  const mem = process.memoryUsage();
+  const body =
+    `🤖 *Estado del Bot*\n\n` +
+    `Estado: *${state.status}*\n` +
+    `Uptime: ${Math.floor(process.uptime() / 60)} min\n` +
+    `Memoria: ${Math.round(mem.rss / 1024 / 1024)} MB\n` +
+    `Whitelist: ${getWhitelistLimit() === 0 ? "Full" : getWhitelistLimit() + " donantes"}\n\n` +
+    `Plan rollout:\n` +
+    ROLLOUT_PLAN.map((p) => `  Día ${p.day}: ${p.label}`).join("\n");
+
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body,
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
+}
+
+// ── Bot Pause ──
+function handleBotPause(): FlowResponse {
+  pauseBot("admin_whatsapp", "Pausado desde panel admin");
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "⏸️ *Bot PAUSADO*\n\nEl bot ahora responde \"en mantenimiento\" a todos los usuarios.\n\nLos admins siguen pudiendo usar el panel.",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
+}
+
+// ── Bot Resume ──
+function handleBotResume(): FlowResponse {
+  resumeBot("admin_whatsapp");
+  return {
+    reply: "",
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "▶️ *Bot REANUDADO*\n\nEl bot está atendiendo mensajes normalmente.",
+      buttons: [
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
+}
+
+// ── Bot Whitelist ──
+function handleBotWhitelist(): FlowResponse {
+  const current = getWhitelistLimit();
+  const body =
+    `📋 *Whitelist Progresiva*\n\n` +
+    `Actual: ${current === 0 ? "Full (todos)" : current + " donantes"}\n\n` +
+    `Plan:\n` +
+    ROLLOUT_PLAN.map((p) => `  Día ${p.day}: ${p.limit === 0 ? "Full" : p.limit}`).join("\n") +
+    `\n\nEscribí un número para cambiar el límite (0 = full):`;
+
+  return { reply: body, nextStep: 90, data: { botControlAction: "whitelist" } };
+}
+
+// ── Bot Control Menu (handler genérico para opciones de control) ──
+async function handleBotControlMenu(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const action = state.data?.botControlAction;
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "0" || cmd === "menu" || cmd === "menú") return handleBienvenida();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  if (action === "whitelist") {
+    const limit = parseInt(respuesta);
+    if (isNaN(limit) || limit < 0) {
+      return { reply: "Número inválido. Escribí un número >= 0 (0 = full):", nextStep: 90, data: state.data };
+    }
+    await setWhitelistLimit(limit);
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `✅ Whitelist actualizada a ${limit === 0 ? "Full" : limit + " donantes"}.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+    };
+  }
+
+  return handleBienvenida();
+}
+
+// ── Entrenar IA (menú inicial) ──
+function handleEntrenarIA(): FlowResponse {
+  return {
+    reply: "",
+    nextStep: 91,
+    interactive: {
+      type: "list",
+      body: "🧠 *Entrenamiento de IA*\n\n¿Qué querés hacer?",
+      buttonText: "Ver opciones",
+      sections: [{
+        title: "Opciones",
+        rows: [
+          { id: "1", title: "Agregar ejemplo", description: "Enseñarle al bot una nueva clasificación" },
+          { id: "2", title: "Ver ejemplos", description: "Listar, activar o desactivar" },
+          { id: "3", title: "Volver al menú" },
+        ],
+      }],
+    },
+  };
+}
+
+// ── Agregar ejemplo IA (wizard) ──
+async function handleAgregarEjemploIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const step = state.data?.iaTrainingStep ?? "mensaje";
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "cancelar" || cmd === "0") return handleEntrenarIA();
+
+  if (step === "mensaje") {
+    return {
+      reply: "📝 *Paso 1/3*\n\nEscribí el mensaje del usuario que querés enseñarle al bot:\n\n(ej: \"no pasaron el martes\")\n\n*Cancelar* para volver.",
+      nextStep: 91,
+      data: { ...state.data, iaTrainingStep: "intencion", iaMensaje: respuesta },
+    };
+  }
+
+  if (step === "intencion") {
+    const mensaje = state.data?.iaMensaje;
+    if (!mensaje) return handleEntrenarIA();
+
+    return {
+      reply: "",
+      nextStep: 91,
+      data: { ...state.data, iaTrainingStep: "respuesta", iaIntencion: respuesta },
+      interactive: {
+        type: "list",
+        body: `📝 *Paso 2/3*\n\nMensaje: "${mensaje}"\n\n¿Qué intención tiene?`,
+        buttonText: "Elegir intención",
+        sections: [{
+          title: "Intenciones",
+          rows: [
+            { id: "reclamo", title: "Reclamo" },
+            { id: "aviso", title: "Aviso" },
+            { id: "consulta", title: "Consulta" },
+            { id: "baja", title: "Baja" },
+            { id: "hablar_persona", title: "Hablar persona" },
+            { id: "saludo", title: "Saludo" },
+            { id: "agradecimiento", title: "Agradecimiento" },
+            { id: "confirmar_difusion", title: "Confirmar difusión" },
+          ],
+        }],
+      },
+    };
+  }
+
+  if (step === "respuesta") {
+    const mensaje = state.data?.iaMensaje;
+    const intencion = state.data?.iaIntencion || respuesta;
+
+    return {
+      reply: `📝 *Paso 3/3 (opcional)*\n\nMensaje: "${mensaje}"\nIntención: ${intencion}\n\nEscribí cómo debería responder el bot (o *saltear* para solo entrenar clasificación):`,
+      nextStep: 91,
+      data: { ...state.data, iaTrainingStep: "confirmar", iaIntencion: intencion, iaRespuesta: respuesta },
+    };
+  }
+
+  if (step === "confirmar") {
+    const mensaje = state.data?.iaMensaje;
+    const intencion = state.data?.iaIntencion;
+    let respuestaEsperada = state.data?.iaRespuesta;
+    if (respuestaEsperada === "saltear" || respuestaEsperada === "skip") respuestaEsperada = undefined;
+
+    if (!mensaje || !intencion) return handleEntrenarIA();
+
+    try {
+      const id = await addTrainingExample({
+        mensajeUsuario: mensaje,
+        intencionCorrecta: intencion,
+        respuestaEsperada: respuestaEsperada,
+        contexto: "Agregado desde panel admin WhatsApp",
+        creadoPor: state.phone,
+        prioridad: 5,
+      });
+
+      return {
+        reply: "",
+        nextStep: 99,
+        interactive: {
+          type: "buttons",
+          body: `✅ *Ejemplo #${id} guardado*\n\nMensaje: "${mensaje}"\nIntención: ${intencion}\n${respuestaEsperada ? "Respuesta: " + respuestaEsperada : ""}\n\nEl bot usará este ejemplo para mejorar sus clasificaciones.`,
+          buttons: [
+            { id: "1", title: "Agregar otro" },
+            { id: "2", title: "Volver al menú" },
+            { id: "3", title: "Finalizar" },
+          ],
+        },
+      };
+    } catch (err) {
+      logger.error({ err }, "Error guardando ejemplo de entrenamiento");
+      return { reply: "❌ Error al guardar. Intentá de nuevo.", nextStep: 91 };
+    }
+  }
+
+  return handleEntrenarIA();
+}
+
+// ── Ver ejemplos IA ──
+async function handleVerEjemplosIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "1" || cmd === "volver al menú" || cmd === "volver") return handleEntrenarIA();
+  if (cmd === "2" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  // Si escribió un número, es para ver detalle/acción
+  const idx = parseInt(respuesta);
+  if (!isNaN(idx) && idx > 0) {
+    return {
+      reply: "",
+      nextStep: 93,
+      data: { ...state.data, iaEjemploSeleccionado: idx },
+      interactive: {
+        type: "buttons",
+        body: `Ejemplo #${idx}\n\n¿Qué querés hacer?`,
+        buttons: [
+          { id: "activar", title: "Activar" },
+          { id: "desactivar", title: "Desactivar" },
+          { id: "eliminar", title: "Eliminar" },
+          { id: "volver", title: "Volver" },
+        ],
+      },
+    };
+  }
+
+  const { examples, total } = await listTrainingExamples({ activo: true, limit: 10 });
+
+  if (examples.length === 0) {
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: "🧠 No hay ejemplos de entrenamiento activos.",
+        buttons: [
+          { id: "1", title: "Agregar ejemplo" },
+          { id: "2", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  let body = `🧠 *Ejemplos de entrenamiento* (${total} total)\n\n`;
+  for (const [i, ex] of examples.entries()) {
+    body += `*${i + 1}.* [${ex.intencionCorrecta}] "${ex.mensajeUsuario.slice(0, 40)}"\n`;
+  }
+  body += "\nEscribí el *número* para acciones, o *0* para volver.";
+
+  return {
+    reply: body,
+    nextStep: 92,
+    data: { iaEjemplosIds: examples.map((e) => e.id) },
+  };
+}
+
+// ── Acción sobre ejemplo IA ──
+async function handleAccionEjemploIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+  const idx: number | undefined = state.data?.iaEjemploSeleccionado;
+  const ids: number[] = state.data?.iaEjemplosIds || [];
+
+  if (cmd === "volver") return handleVerEjemplosIA("ver", state);
+  if (!idx || idx < 1 || idx > ids.length) return handleVerEjemplosIA("ver", state);
+
+  const exampleId = ids[idx - 1];
+
+  try {
+    if (cmd === "activar") {
+      await toggleTrainingExample(exampleId, true);
+      return { reply: `✅ Ejemplo #${idx} activado.`, nextStep: 92 };
+    }
+    if (cmd === "desactivar") {
+      await toggleTrainingExample(exampleId, false);
+      return { reply: `⏸️ Ejemplo #${idx} desactivado.`, nextStep: 92 };
+    }
+    if (cmd === "eliminar") {
+      await deleteTrainingExample(exampleId);
+      return { reply: `🗑️ Ejemplo #${idx} eliminado.`, nextStep: 92 };
+    }
+  } catch (err) {
+    logger.error({ err, exampleId }, "Error en acción de ejemplo IA");
+    return { reply: "❌ Error. Intentá de nuevo.", nextStep: 92 };
+  }
+
+  return handleVerEjemplosIA("ver", state);
 }

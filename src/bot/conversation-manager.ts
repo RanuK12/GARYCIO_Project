@@ -1,3 +1,13 @@
+/**
+ * Conversation Manager — State Machine Persistente
+ *
+ * Principios:
+ * 1. El estado es la fuente de verdad. Si existe, nunca se muestra bienvenida de nuevo.
+ * 2. Cache en memoria = acelerador. DB = fuente de verdad.
+ * 3. updateConversation SIEMPRE escribe en DB, incluso si no está en cache.
+ * 4. La IA no reemplaza al estado; si la IA muestra un menú, se persiste el estado.
+ */
+
 import { ConversationState, FlowType, FlowResponse, InteractiveMessage, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
@@ -5,52 +15,54 @@ import { conversationStates, difusionEnvios, mensajesLog } from "../database/sch
 import { eq, and, desc } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
-import { procesarMensajeIA, type Intencion, type RespuestaIA } from "../services/clasificador-ia";
+import { classifyIntent, type ClassifierResult } from "../services/clasificador-ia";
+import { isHumanEscalated, escalateToHuman } from "../services/human-escalation";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
-// ── Cache en memoria (evita leer DB en cada mensaje) ────
+// ── Cache en memoria (acelerador, NO fuente de verdad) ──
 const conversationCache = new Map<string, ConversationState>();
-const CACHE_MAX_SIZE = 500; // Cap para evitar memory leak con muchos usuarios simultáneos
+const CACHE_MAX_SIZE = 2000;
 
-// ── Leer estado ─────────────────────────────────────────
-// Info sobre sesiones expiradas para poder dar contexto al usuario
-let lastExpiredFlow: Map<string, { flow: string; step: number; ts: number }> = new Map();
-
-// Limpieza periódica de Maps de sesión
+// Limpieza periódica
 setInterval(() => {
   const now = Date.now();
   const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
   let cleaned = 0;
-  for (const [phone, info] of lastExpiredFlow) {
-    if (info.ts < cutoff7d) { lastExpiredFlow.delete(phone); cleaned++; }
+
+  for (const [phone, state] of conversationCache) {
+    if (now - state.lastInteraction.getTime() > cutoff7d) {
+      conversationCache.delete(phone);
+      cleaned++;
+    }
   }
-  // Si el cache creció demasiado, eliminar las entradas más viejas
+
   if (conversationCache.size > CACHE_MAX_SIZE) {
     const sorted = [...conversationCache.entries()]
       .sort((a, b) => a[1].lastInteraction.getTime() - b[1].lastInteraction.getTime());
     const toRemove = sorted.slice(0, conversationCache.size - CACHE_MAX_SIZE);
-    for (const [phone] of toRemove) { conversationCache.delete(phone); cleaned++; }
+    for (const [phone] of toRemove) {
+      conversationCache.delete(phone);
+      cleaned++;
+    }
   }
-  if (cleaned > 0) logger.debug({ cleaned }, "Limpieza de cache de conversaciones completada");
-}, 6 * 60 * 60 * 1000); // Cada 6 horas
 
+  if (cleaned > 0) logger.debug({ cleaned }, "Cache de conversaciones limpiada");
+}, 60 * 60 * 1000);
+
+// ── Leer estado (DB es fuente de verdad, cache es acelerador) ──
 async function getConversation(phone: string): Promise<ConversationState | null> {
-  // Buscar en cache primero
+  // 1. Cache hit válido
   const cached = conversationCache.get(phone);
   if (cached) {
     if (Date.now() - cached.lastInteraction.getTime() > TIMEOUT_MS) {
-      // Guardar info del flow expirado para contexto
-      if (cached.currentFlow) {
-        lastExpiredFlow.set(phone, { flow: cached.currentFlow, step: cached.step, ts: Date.now() });
-      }
       await endConversation(phone);
       return null;
     }
     return cached;
   }
 
-  // Buscar en DB
+  // 2. Leer de DB
   const rows = await db
     .select()
     .from(conversationStates)
@@ -69,9 +81,6 @@ async function getConversation(phone: string): Promise<ConversationState | null>
   };
 
   if (Date.now() - state.lastInteraction.getTime() > TIMEOUT_MS) {
-    if (state.currentFlow) {
-      lastExpiredFlow.set(phone, { flow: state.currentFlow, step: state.step, ts: Date.now() });
-    }
     await endConversation(phone);
     return null;
   }
@@ -80,17 +89,7 @@ async function getConversation(phone: string): Promise<ConversationState | null>
   return state;
 }
 
-/** Recuperar info de sesión expirada (para dar contexto al reanudar) */
-export function getExpiredFlowInfo(phone: string): { flow: string; step: number } | null {
-  const info = lastExpiredFlow.get(phone);
-  if (info) {
-    lastExpiredFlow.delete(phone); // Consumir
-    return info;
-  }
-  return null;
-}
-
-// ── Crear estado nuevo ──────────────────────────────────
+// ── Crear o reemplazar estado ──
 async function startConversation(phone: string, flow: FlowType): Promise<ConversationState> {
   const state: ConversationState = {
     phone,
@@ -123,31 +122,54 @@ async function startConversation(phone: string, flow: FlowType): Promise<Convers
   return state;
 }
 
-// ── Actualizar estado ───────────────────────────────────
+// ── Actualizar estado (SIEMPRE escribe en DB, con o sin cache) ──
 async function updateConversation(phone: string, updates: Partial<ConversationState>): Promise<void> {
   const state = conversationCache.get(phone);
-  if (!state) return;
+  const now = new Date();
 
-  Object.assign(state, updates, { lastInteraction: new Date() });
+  if (state) {
+    Object.assign(state, updates, { lastInteraction: now });
+  }
 
+  // Upsert en DB para garantizar persistencia
   await db
-    .update(conversationStates)
-    .set({
-      currentFlow: state.currentFlow,
-      step: state.step,
-      data: state.data,
-      lastInteraction: new Date(),
+    .insert(conversationStates)
+    .values({
+      phone,
+      currentFlow: updates.currentFlow ?? state?.currentFlow ?? null,
+      step: updates.step ?? state?.step ?? 0,
+      data: updates.data ?? state?.data ?? {},
+      lastInteraction: now,
     })
-    .where(eq(conversationStates.phone, phone));
+    .onConflictDoUpdate({
+      target: conversationStates.phone,
+      set: {
+        currentFlow: updates.currentFlow ?? state?.currentFlow ?? null,
+        step: updates.step ?? state?.step ?? 0,
+        data: updates.data ?? state?.data ?? {},
+        lastInteraction: now,
+      },
+    });
+
+  // Re-hidratar cache si no estaba
+  if (!state) {
+    conversationCache.set(phone, {
+      phone,
+      currentFlow: (updates.currentFlow ?? null) as FlowType | null,
+      step: updates.step ?? 0,
+      data: (updates.data ?? {}) as Record<string, any>,
+      lastInteraction: now,
+    });
+  }
 }
 
-// ── Finalizar conversación ──────────────────────────────
+// ── Finalizar conversación ──
 async function endConversation(phone: string): Promise<void> {
   conversationCache.delete(phone);
   await db.delete(conversationStates).where(eq(conversationStates.phone, phone));
 }
 
-// ── Menú principal donante (interactivo con botones) ────
+// ── Menús ──
 function getMenuPrincipalInteractive(phone: string): { reply: string; interactive: InteractiveMessage } {
   if (isAdminPhone(phone)) {
     return {
@@ -181,7 +203,6 @@ function getMenuPrincipalInteractive(phone: string): { reply: string; interactiv
   };
 }
 
-// ── Menú principal como texto (fallback) ────────────────
 function getMenuPrincipalTexto(phone: string): string {
   if (isAdminPhone(phone)) {
     return (
@@ -202,7 +223,7 @@ function getMenuPrincipalTexto(phone: string): string {
   );
 }
 
-// ── Arrancar un flow y devolver su primer mensaje ───────
+// ── Arrancar un flow ──
 async function iniciarFlow(
   phone: string,
   flow: FlowType,
@@ -223,7 +244,7 @@ async function iniciarFlow(
   return { state, reply: response.reply, interactive: response.interactive, notify: response.notify };
 }
 
-// ── Procesar mensaje entrante ───────────────────────────
+// ── Procesar mensaje entrante (API pública) ──
 export async function handleIncomingMessage(
   phone: string,
   message: string,
@@ -233,18 +254,31 @@ export async function handleIncomingMessage(
   interactive?: InteractiveMessage;
   notify?: FlowResponse["notify"];
   flowData?: { flowName: string; data: Record<string, any> };
+  needsHuman?: boolean;
 }> {
+  // 1. Verificar escalación humana activa
+  if (await isHumanEscalated(phone)) {
+    logger.info({ phone }, "Usuario escalado — mensaje derivado a humano");
+    return {
+      reply: "",
+      notify: {
+        target: "admin",
+        message: `🙋 *Mensaje de usuario escalado*\n\n📱 ${phone}\n💬 "${message.slice(0, 200)}"`,
+      },
+      needsHuman: true,
+    };
+  }
+
   let state = await getConversation(phone);
 
-  // ── "Hablar con una persona" — escape global ────────────
+  // 2. Escape global: hablar con persona
   if (detectarHablarConPersona(message)) {
     if (state) await endConversation(phone);
-    logger.info({ phone, message }, "Donante pidió hablar con persona — derivando");
+    await escalateToHuman(phone, "user_request", { lastMessage: message });
     return {
       reply:
         "Entendemos que necesitás hablar con alguien. 🙋\n\n" +
-        "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.\n\n" +
-        "Mientras tanto, si necesitás algo más podés escribirnos de nuevo.",
+        "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.",
       notify: {
         target: "admin",
         message:
@@ -253,20 +287,19 @@ export async function handleIncomingMessage(
           `💬 Mensaje: "${message}"\n\n` +
           `⚠️ La persona pidió hablar con alguien. Requiere contacto manual.`,
       },
+      needsHuman: true,
     };
   }
 
-  // ── Sin sesión activa: routing por rol ─────────────────
+  // 3. Sin sesión activa
   if (!state) {
-    // 1. Detectar intención de baja (solo para donantes)
-    const bajaIntent = detectarIntenciónBaja(message);
-    if (bajaIntent) {
-      logger.info({ phone, message }, "Donante expresó intención de baja — derivando a atención personalizada");
+    // 3a. Detectar intención de baja
+    if (detectarIntenciónBaja(message)) {
+      await escalateToHuman(phone, "user_request", { lastMessage: message, intent: "baja" });
       return {
         reply:
           "Lamentamos que quieras dejar de participar. 💙\n\n" +
-          "Tu mensaje fue recibido y una persona de nuestro equipo se va a comunicar con vos a la brevedad para acompañarte.\n\n" +
-          "Si en algún momento querés retomar, siempre vas a poder escribirnos. ¡Gracias por haber donado!",
+          "Tu mensaje fue recibido y una persona de nuestro equipo se va a comunicar con vos a la brevedad.",
         notify: {
           target: "admin",
           message:
@@ -276,121 +309,158 @@ export async function handleIncomingMessage(
             `📋 Motivo detectado: Intención de baja/abandono\n\n` +
             `⚠️ Requiere contacto manual a la brevedad.`,
         },
+        needsHuman: true,
       };
     }
 
-    // 2. Lookup de rol en DB → routing directo para personal operativo
-    const rol = await lookupRolPorTelefono(phone);
-    logger.debug({ phone, rol }, "Rol detectado por teléfono");
+    // 3b. Lookup de rol
+    const { rol, estado: donorEstado } = await lookupRolPorTelefono(phone);
+    logger.debug({ phone, rol, donorEstado }, "Rol detectado por teléfono");
 
     if (rol === "chofer") {
-      // Menú de chofer deshabilitado hasta nueva orden
       return {
-        reply:
-          "Hola 👋 El sistema para choferes todavía no está habilitado.\n\n" +
-          "Cuando esté listo te avisamos. ¡Gracias!",
+        reply: "Hola 👋 El sistema para choferes todavía no está habilitado.\n\nCuando esté listo te avisamos. ¡Gracias!",
       };
     }
-
     if (rol === "peon") {
-      // Menú de peón deshabilitado hasta nueva orden
       return {
-        reply:
-          "Hola 👋 El sistema para el personal de recolección todavía no está habilitado.\n\n" +
-          "Cuando esté listo te avisamos. ¡Gracias!",
+        reply: "Hola 👋 El sistema para el personal de recolección todavía no está habilitado.\n\nCuando esté listo te avisamos. ¡Gracias!",
       };
     }
-
     if (rol === "visitadora") {
       const { reply, interactive, notify } = await iniciarFlow(phone, "visitadora");
       return { reply, interactive, notify };
     }
-
     if (rol === "admin") {
       const { reply, interactive, notify } = await iniciarFlow(phone, "admin");
       return { reply, interactive, notify };
     }
 
-    // 3. Para donantes (conocidas o desconocidas): detectar keyword primero
+    // Contacto auto-registrado sin completar datos → continuar registro
+    if (rol === "donante" && donorEstado === "nueva") {
+      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+      return { reply, notify };
+    }
+
+    // 3c. Para donantes: detectar keyword
     const detectedFlow = detectFlow(message, phone);
     if (detectedFlow) {
+      // Crear sesión y pasar mensaje vacío al flow para que muestre su menú inicial
       state = await startConversation(phone, detectedFlow.name);
-    } else {
-      // Caso especial prioritario: confirmar difusión
-      // Acepta: "1", ",1", "1 recibido", ",1 Recibido el mensaje 👍", "Confirmar recepción", etc.
-      if (esConfirmacionDifusion(message)) {
-        const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
-        const phoneConPlus = phone.startsWith("+") ? phone : `+${phone}`;
-        let pendiente = await db
+      const flowHandler = getFlowByName(detectedFlow.name);
+      if (flowHandler) {
+        const response = await flowHandler.handle(state, "", undefined);
+        if (response.data) state.data = { ...state.data, ...response.data };
+        if (response.nextStep !== undefined) {
+          state.step = response.nextStep;
+          await updateConversation(phone, state);
+        }
+        return { reply: response.reply, interactive: response.interactive, notify: response.notify };
+      }
+    }
+
+    // 3d. Confirmar difusión
+    if (esConfirmacionDifusion(message)) {
+      const phoneSinPlus = phone.startsWith("+") ? phone.slice(1) : phone;
+      const phoneConPlus = phone.startsWith("+") ? phone : `+${phone}`;
+      let pendiente = await db
+        .select({ id: difusionEnvios.id })
+        .from(difusionEnvios)
+        .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneSinPlus)))
+        .limit(1);
+      if (pendiente.length === 0) {
+        pendiente = await db
           .select({ id: difusionEnvios.id })
           .from(difusionEnvios)
-          .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneSinPlus)))
+          .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneConPlus)))
           .limit(1);
-
-        if (pendiente.length === 0) {
-          pendiente = await db
-            .select({ id: difusionEnvios.id })
-            .from(difusionEnvios)
-            .where(and(eq(difusionEnvios.confirmado, false), eq(difusionEnvios.telefono, phoneConPlus)))
-            .limit(1);
-        }
-
-        if (pendiente.length > 0) {
-          await db
-            .update(difusionEnvios)
-            .set({ confirmado: true, fechaConfirmacion: new Date() })
-            .where(eq(difusionEnvios.id, pendiente[0].id));
-
-          logger.info({ phone }, "Confirmación de difusión registrada (sin sesión activa)");
-          const menu = getMenuPrincipalInteractive(phone);
-          return {
-            reply: "✅ *Recepción confirmada* ¡Gracias! Te esperamos en los días indicados.\nRecordá tener el bidón listo antes del horario indicado.",
-            interactive: menu.interactive,
-            notify: {
-              target: "admin",
-              message: `✅ Donante ${phone} confirmó recepción del mensaje de difusión.`,
-            },
-          };
-        }
       }
-
-      if (rol === "desconocido") {
-        const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
-        return { reply, notify };
+      if (pendiente.length > 0) {
+        await db
+          .update(difusionEnvios)
+          .set({ confirmado: true, fechaConfirmacion: new Date() })
+          .where(eq(difusionEnvios.id, pendiente[0].id));
+        logger.info({ phone }, "Confirmación de difusión registrada");
+        const menu = getMenuPrincipalInteractive(phone);
+        return {
+          reply: "✅ *Recepción confirmada* ¡Gracias! Te esperamos en los días indicados.\nRecordá tener el bidón listo antes del horario indicado.",
+          interactive: menu.interactive,
+          notify: {
+            target: "admin",
+            message: `✅ Donante ${phone} confirmó recepción del mensaje de difusión.`,
+          },
+        };
       }
-
-      // ── Asistente IA: responde directamente con contexto de la donante ──
-      return await procesarConIA(phone, message);
     }
+
+    // 3e. Número desconocido → registro
+    if (rol === "desconocido") {
+      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+      return { reply, notify };
+    }
+
+    // 3f. Donante conocida sin sesión → clasificar con IA y CREAR sesión
+    const resultado = await procesarConIA(phone, message);
+
+    // Si la IA devolvió menú o saludo, persistir estado para que no se repita bienvenida
+    if (resultado.intent === "saludo" || resultado.intent === "menu_opcion" || resultado.intent === "consulta") {
+      await startConversation(phone, "contacto_inicial");
+    }
+
+    // Si necesita humano, escalar
+    if (resultado.needsHuman) {
+      const reason: Parameters<typeof escalateToHuman>[1] =
+        resultado.intent === "multiple_issues"
+          ? "multiple_issues"
+          : resultado.confidence === "low"
+            ? "ia_fail"
+            : "frustration";
+      await escalateToHuman(phone, reason, {
+        lastMessage: message,
+        intent: resultado.intent,
+      });
+    }
+
+    return {
+      reply: resultado.reply,
+      interactive: resultado.interactive,
+      notify: resultado.notify,
+      flowData: resultado.flowData,
+      needsHuman: resultado.needsHuman,
+    };
   }
 
-  // ── Menú numérico o por botón (donante con sesión en donante_menu) ──
+  // 4. Con sesión activa pero sin flow (estado zombie)
   if (!state.currentFlow) {
     const option = message.trim().toLowerCase();
-    if (option === "1" || option === "tengo un reclamo") state.currentFlow = "reclamo";
-    else if (option === "2" || option === "dar un aviso") state.currentFlow = "aviso";
-    else if (option === "3" || option === "otra consulta") state.currentFlow = "consulta_general";
-    else if ((option === "4" || option === "panel de admin") && isAdminPhone(phone)) state.currentFlow = "admin";
-    else state.currentFlow = "consulta_general";
+    let targetFlow: FlowType | null = null;
+    if (option === "1" || option === "tengo un reclamo") targetFlow = "reclamo";
+    else if (option === "2" || option === "dar un aviso") targetFlow = "aviso";
+    else if (option === "3" || option === "otra consulta") targetFlow = "consulta_general";
+    else if ((option === "4" || option === "panel de admin") && isAdminPhone(phone)) targetFlow = "admin";
 
-    state.step = 0;
-    await updateConversation(phone, state);
-
-    // Mostrar el sub-menú del flow en vez de pasar el número al handler
-    const flowHandler = getFlowByName(state.currentFlow);
-    if (flowHandler) {
-      const response = await flowHandler.handle(state, "", undefined);
-      if (response.data) {
-        state.data = { ...state.data, ...response.data };
+    if (targetFlow) {
+      state.currentFlow = targetFlow;
+      state.step = 0;
+      await updateConversation(phone, state);
+      const flowHandler = getFlowByName(targetFlow);
+      if (flowHandler) {
+        const response = await flowHandler.handle(state, "", undefined);
+        if (response.data) state.data = { ...state.data, ...response.data };
+        if (response.nextStep !== undefined) {
+          state.step = response.nextStep;
+          await updateConversation(phone, state);
+        }
+        return { reply: response.reply, interactive: response.interactive, notify: response.notify };
       }
-      if (response.nextStep !== undefined) {
-        state.step = response.nextStep;
-        await updateConversation(phone, state);
-      }
-      return { reply: response.reply, interactive: response.interactive, notify: response.notify };
     }
   }
 
+  // 5. Procesar dentro del flow activo
+  if (!state.currentFlow) {
+    await endConversation(phone);
+    return { reply: "Hubo un error interno. Por favor escribí de nuevo." };
+  }
   const flowHandler = getFlowByName(state.currentFlow);
   if (!flowHandler) {
     await endConversation(phone);
@@ -404,7 +474,6 @@ export async function handleIncomingMessage(
       state.data = { ...state.data, ...response.data };
     }
 
-    // Capturar datos del flujo antes de finalizar
     const flowData = (response.endFlow || response.notify)
       ? { flowName: state.currentFlow!, data: { ...state.data } }
       : undefined;
@@ -413,15 +482,12 @@ export async function handleIncomingMessage(
       const prevFlow = state.currentFlow;
       await endConversation(phone);
 
-      // Si el mensaje original es una keyword de otro flow, re-detectar
-      // para que el usuario no tenga que escribirlo dos veces
+      // Re-detectar si el mensaje es keyword de otro flow
       const redetected = detectFlow(message, phone);
       if (redetected && redetected.name !== prevFlow) {
         const newState = await startConversation(phone, redetected.name);
         const newResponse = await redetected.handle(newState, "", undefined);
-        if (newResponse.data) {
-          newState.data = { ...newState.data, ...newResponse.data };
-        }
+        if (newResponse.data) newState.data = { ...newState.data, ...newResponse.data };
         if (newResponse.nextStep !== undefined) {
           newState.step = newResponse.nextStep;
           await updateConversation(phone, newState);
@@ -434,7 +500,6 @@ export async function handleIncomingMessage(
         };
       }
 
-      // Reply vacío → mostrar menú principal directamente
       if (!response.reply) {
         const menu = getMenuPrincipalInteractive(phone);
         return { reply: menu.reply, interactive: menu.interactive, notify: response.notify, flowData };
@@ -444,98 +509,16 @@ export async function handleIncomingMessage(
       await updateConversation(phone, state);
     }
 
-    logger.debug(
-      { phone, flow: state.currentFlow, step: state.step },
-      "Mensaje procesado",
-    );
-
+    logger.debug({ phone, flow: state.currentFlow, step: state.step }, "Mensaje procesado");
     return { reply: response.reply, interactive: response.interactive, notify: response.notify, flowData };
   } catch (err) {
-    logger.error({ phone, err }, "Error procesando mensaje");
+    logger.error({ phone, err }, "Error procesando mensaje en flow");
     await endConversation(phone);
     return { reply: "Disculpá, hubo un error. ¿Podés intentar de nuevo?" };
   }
 }
 
-// ── Detección de confirmación de difusión (flexible) ─────
-/**
- * Acepta múltiples formas en que las donantes confirman la difusión:
- * "1", ",1", ".1", "1.", "1 recibido", ",1 Recibido el mensaje 👍",
- * "recibido", "confirmo", "Confirmar recepción", "si recibido", etc.
- */
-export function esConfirmacionDifusion(message: string): boolean {
-  const clean = message.trim().toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  // Contiene un "1" suelto (puede tener coma/punto antes/después)
-  if (/[,.\s]*1[,.\s]*/g.test(clean) && clean.length < 60) {
-    // Verificar que no sea parte de otra intención (ej: "1 reclamo")
-    const sinPuntuacion = clean.replace(/[^a-z0-9\s]/g, "").trim();
-    if (sinPuntuacion === "1") return true;
-    if (/^1\s+(recibido|recibí|recibi|ok|si|listo|gracias|dale|bueno|bien|confirmado|confirmo|mensaje|el mensaje|recibido el mensaje)/.test(sinPuntuacion)) return true;
-  }
-
-  // Frases directas de confirmación
-  const confirmaciones = [
-    "confirmar recepcion", "confirmar recepción", "confirmo recepcion",
-    "recibido", "recibi", "recibí", "recibido el mensaje",
-    "si recibido", "si recibi", "si recibí",
-    "confirmado", "confirmo", "entendido",
-    "ok recibido", "dale recibido", "si lo recibi",
-  ];
-  return confirmaciones.some((c) => clean.includes(c));
-}
-
-// ── Detección de intención de baja ──────────────────────
-/**
- * Detecta si una donante está expresando intención de darse de baja
- * o necesita atención personalizada urgente.
- * Se llama ANTES de mostrar el menú principal para interceptar estos casos.
- */
-function detectarIntenciónBaja(message: string): boolean {
-  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  const FRASES_BAJA = [
-    "me quiero bajar",
-    "quiero darme de baja",
-    "quiero dejar de donar",
-    "ya no quiero donar",
-    "no quiero donar mas",
-    "no voy a donar mas",
-    "deme de baja",
-    "dame de baja",
-    "quiero salir",
-    "quiero cancelar",
-    "no quiero participar",
-    "quiero que me den de baja",
-    "dejen de venir",
-    "no pasen mas",
-    "no pasen por mi casa",
-    "ya no participo",
-  ];
-
-  return FRASES_BAJA.some((frase) => lower.includes(frase));
-}
-
-// ── Detección de "hablar con una persona" ───────────────
-// Solo se activa con frases MUY explícitas (no palabras sueltas como "persona")
-function detectarHablarConPersona(message: string): boolean {
-  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  const FRASES = [
-    "hablar con una persona",
-    "hablar con alguien",
-    "quiero hablar con alguien",
-    "necesito hablar con alguien",
-    "quiero un humano",
-    "necesito atencion humana",
-    "quiero hablar con una persona",
-  ];
-
-  return FRASES.some((frase) => lower.includes(frase));
-}
-
-// ── Procesar mensaje con IA conversacional ──────────────
+// ── Procesar con IA (solo para usuarios sin sesión activa) ──
 async function procesarConIA(
   phone: string,
   message: string,
@@ -544,6 +527,9 @@ async function procesarConIA(
   interactive?: InteractiveMessage;
   notify?: FlowResponse["notify"];
   flowData?: { flowName: string; data: Record<string, any> };
+  intent: string;
+  needsHuman: boolean;
+  confidence: "high" | "medium" | "low";
 }> {
   // Obtener historial para contexto
   let historial: string[] | undefined;
@@ -561,55 +547,104 @@ async function procesarConIA(
       .slice(0, 5);
   } catch { /* sin historial */ }
 
-  const resultado = await procesarMensajeIA(phone, message, historial);
-  logger.info({
-    phone,
-    intencion: resultado.intencion,
-    urgencia: resultado.urgencia,
-    mensaje: message.slice(0, 60),
-  }, "Mensaje procesado por asistente IA");
+  const result = await classifyIntent(message, { historial, timeoutMs: 8000 });
 
-  // Construir notificaciones según la intención
+  logger.info(
+    { phone, intent: result.intent, needsHuman: result.needsHuman, sentiment: result.sentiment, confidence: result.confidence },
+    "Mensaje clasificado por IA",
+  );
+
+  // Respuestas predefinidas por intención (templates, NO generadas por IA)
+  const respuestas: Record<string, { text: string; showMenu?: boolean }> = {
+    confirmar_difusion: {
+      text: "Recepción confirmada. Te esperamos en los días indicados. Recordá tener el bidón listo.",
+      showMenu: true,
+    },
+    reclamo: {
+      text: "Entendemos tu preocupación. Somos una empresa nueva y estamos ajustando la logística. Le pedimos disculpas y un poco de paciencia. El equipo ya fue notificado.",
+      showMenu: false,
+    },
+    aviso: {
+      text: "Registramos tu aviso. Le vamos a avisar al recolector de tu zona.",
+      showMenu: false,
+    },
+    consulta: {
+      text: "Recibimos tu consulta. Te respondemos a la brevedad.",
+      showMenu: false,
+    },
+    baja: {
+      text: "Lamentamos que quieras dejar de participar. Una persona de nuestro equipo se va a comunicar con vos.",
+      showMenu: false,
+    },
+    hablar_persona: {
+      text: "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.",
+      showMenu: false,
+    },
+    saludo: {
+      text: "Hola! Soy el asistente de GARYCIO. ¿En qué te puedo ayudar?",
+      showMenu: true,
+    },
+    agradecimiento: { text: "", showMenu: false },
+    irrelevante: { text: "", showMenu: false },
+    menu_opcion: { text: "", showMenu: true },
+    multiple_issues: {
+      text: "Veo que tenés varias cosas para contarnos. Te derivamos con un representante para que te ayude en todo.",
+      showMenu: false,
+    },
+  };
+
+  const template = respuestas[result.intent] || { text: "Recibimos tu mensaje. Te respondemos a la brevedad.", showMenu: false };
+
+  let reply = template.text;
+  let interactive: InteractiveMessage | undefined;
   let notify: FlowResponse["notify"] | undefined;
   let flowData: { flowName: string; data: Record<string, any> } | undefined;
 
-  switch (resultado.intencion) {
-    case "reclamo":
-      notify = {
-        target: resultado.urgencia === "alta" ? "admin" : "chofer",
-        message:
-          `📋 *Nuevo reclamo${resultado.urgencia === "alta" ? " URGENTE" : ""}*\n\n` +
-          `📱 Donante: ${phone}\n` +
-          `Tipo: ${resultado.datosExtraidos?.tipoReclamo || "general"}\n` +
-          `Urgencia: ${resultado.urgencia || "media"}\n` +
-          `💬 Mensaje: "${message}"\n` +
-          `${resultado.datosExtraidos?.descripcion ? `Detalle: ${resultado.datosExtraidos.descripcion}` : ""}\n\n` +
-          `_Reclamo guardado automáticamente por IA_`,
-      };
-      flowData = {
-        flowName: "reclamo",
-        data: {
-          tipoReclamo: resultado.datosExtraidos?.tipoReclamo || "otro",
-          detalleReclamo: resultado.datosExtraidos?.descripcion || message,
-          urgencia: resultado.urgencia,
-          procesadoPorIA: true,
-        },
-      };
-      break;
+  if (template.showMenu) {
+    const menu = getMenuPrincipalInteractive(phone);
+    interactive = menu.interactive;
+  }
 
-    case "aviso":
+  // Whitelist de valores válidos para entidades (evita data contamination)
+  const VALID_TIPO_RECLAMO = new Set(["no_pasaron", "falta_bidon", "bidon_sucio", "pelela", "regalo", "otro"]);
+  const VALID_TIPO_AVISO = new Set(["vacaciones", "enfermedad", "mudanza", "cambio_direccion", "cambio_telefono", "general"]);
+
+  // Notificaciones según intención
+  switch (result.intent) {
+    case "reclamo": {
+      let tipo = result.entities.find((e) => e.type === "tipoReclamo")?.value || "otro";
+      if (!VALID_TIPO_RECLAMO.has(tipo)) {
+        logger.warn({ tipo, phone }, "tipoReclamo inválido de IA — forzando a 'otro'");
+        tipo = "otro";
+      }
+      notify = {
+        target: result.sentiment === "angry" ? "admin" : "chofer",
+        message:
+          `📋 *Nuevo reclamo${result.sentiment === "angry" ? " URGENTE" : ""}*\n\n` +
+          `📱 Donante: ${phone}\n` +
+          `Tipo: ${tipo}\n` +
+          `Sentimiento: ${result.sentiment}\n` +
+          `💬 Mensaje: "${message}"`,
+      };
+      flowData = { flowName: "reclamo", data: { tipoReclamo: tipo, detalleReclamo: message, sentiment: result.sentiment } };
+      break;
+    }
+    case "aviso": {
+      let tipoAviso = result.entities.find((e) => e.type === "tipoAviso")?.value || "general";
+      if (!VALID_TIPO_AVISO.has(tipoAviso)) {
+        logger.warn({ tipoAviso, phone }, "tipoAviso inválido de IA — forzando a 'general'");
+        tipoAviso = "general";
+      }
       notify = {
         target: "chofer",
         message:
           `📢 *Aviso de donante*\n\n` +
           `📱 Donante: ${phone}\n` +
-          `Tipo: ${resultado.datosExtraidos?.tipoAviso || "general"}\n` +
-          `💬 Mensaje: "${message}"\n` +
-          `${resultado.datosExtraidos?.fechaFin ? `Vuelta estimada: ${resultado.datosExtraidos.fechaFin}` : ""}\n\n` +
-          `_Aviso registrado automáticamente por IA_`,
+          `Tipo: ${tipoAviso}\n` +
+          `💬 Mensaje: "${message}"`,
       };
       break;
-
+    }
     case "baja":
       notify = {
         target: "admin",
@@ -620,7 +655,6 @@ async function procesarConIA(
           `⚠️ Requiere contacto manual a la brevedad.`,
       };
       break;
-
     case "hablar_persona":
       notify = {
         target: "admin",
@@ -631,21 +665,18 @@ async function procesarConIA(
           `⚠️ Requiere contacto manual.`,
       };
       break;
-
     case "consulta":
-      // Consultas que la IA no pudo resolver → notificar admin
-      if (resultado.respuesta.includes("te respondemos") || resultado.respuesta.includes("voy a consultar")) {
+      if (result.confidence === "low") {
         notify = {
           target: "admin",
           message:
-            `❓ *Consulta de donante*\n\n` +
+            `❓ *Consulta de donante (baja confianza IA)*\n\n` +
             `📱 Donante: ${phone}\n` +
             `💬 "${message}"\n\n` +
-            `La IA no pudo resolver esta consulta. Requiere respuesta manual.`,
+            `La IA no pudo clasificar con confianza. Requiere respuesta manual.`,
         };
       }
       break;
-
     case "confirmar_difusion":
       notify = {
         target: "admin",
@@ -654,24 +685,53 @@ async function procesarConIA(
       break;
   }
 
-  // Si la IA devolvió respuesta vacía (agradecimiento/irrelevante), no responder
-  if (!resultado.respuesta) {
-    return { reply: "", notify };
+  return { reply, interactive, notify, flowData, intent: result.intent, needsHuman: result.needsHuman, confidence: result.confidence };
+}
+
+// ── Helpers de detección ──
+
+export function esConfirmacionDifusion(message: string): boolean {
+  const clean = message
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (/[,\.\s]*1[,\.\s]*/g.test(clean) && clean.length < 60) {
+    const sinPuntuacion = clean.replace(/[^a-z0-9\s]/g, "").trim();
+    if (sinPuntuacion === "1") return true;
+    if (/^1\s+(recibido|recibí|recibi|ok|si|listo|gracias|dale|bueno|bien|confirmado|confirmo|mensaje|el mensaje|recibido el mensaje)/.test(sinPuntuacion))
+      return true;
   }
 
-  // Para saludos y menu_opcion, mostrar menú interactivo junto con la respuesta de la IA
-  if (resultado.intencion === "saludo" || resultado.intencion === "menu_opcion") {
-    const menu = getMenuPrincipalInteractive(phone);
-    return {
-      reply: resultado.respuesta,
-      interactive: menu.interactive,
-      notify,
-    };
-  }
+  const confirmaciones = [
+    "confirmar recepcion", "confirmar recepción", "confirmo recepcion",
+    "recibido", "recibi", "recibí", "recibido el mensaje",
+    "si recibido", "si recibi", "si recibí",
+    "confirmado", "confirmo", "entendido",
+    "ok recibido", "dale recibido", "si lo recibi",
+  ];
+  return confirmaciones.some((c) => clean.includes(c));
+}
 
-  return {
-    reply: resultado.respuesta,
-    notify,
-    flowData,
-  };
+function detectarIntenciónBaja(message: string): boolean {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const FRASES_BAJA = [
+    "me quiero bajar", "quiero darme de baja", "quiero dejar de donar",
+    "ya no quiero donar", "no quiero donar mas", "no voy a donar mas",
+    "deme de baja", "dame de baja", "quiero salir", "quiero cancelar",
+    "no quiero participar", "quiero que me den de baja",
+    "dejen de venir", "no pasen mas", "no pasen por mi casa", "ya no participo",
+  ];
+  return FRASES_BAJA.some((frase) => lower.includes(frase));
+}
+
+function detectarHablarConPersona(message: string): boolean {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const FRASES = [
+    "hablar con una persona", "hablar con alguien",
+    "quiero hablar con alguien", "necesito hablar con alguien",
+    "quiero un humano", "necesito atencion humana", "quiero hablar con una persona",
+  ];
+  return FRASES.some((frase) => lower.includes(frase));
 }

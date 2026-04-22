@@ -94,6 +94,11 @@ function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     console.error("Variables de entorno inválidas:", parsed.error.flatten().fieldErrors);
+    // En modo test no matar el proceso para permitir tests unitarios sin .env completo
+    if (process.env.NODE_ENV === "test") {
+      console.warn("Modo test detectado — continuando con valores parciales/defaults");
+      return (parsed.data ?? {}) as unknown as Env;
+    }
     process.exit(1);
   }
   return parsed.data;

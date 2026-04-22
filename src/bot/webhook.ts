@@ -1,19 +1,27 @@
+/**
+ * Webhook Router — WhatsApp Cloud API / 360dialog
+ *
+ * GET  /webhook → Verificación del webhook (Meta envía challenge)
+ * POST /webhook → Recepción de mensajes entrantes
+ *
+ * Mejoras de producción:
+ * - Deduplicación por messageId antes de encolar
+ * - Respuesta 200 inmediata (no bloquear a Meta)
+ * - Procesamiento asíncrono con try/catch aislado
+ */
+
 import { Router, Request, Response } from "express";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { processIncomingMessage } from "./handler";
 import { sendMessage } from "./client";
+import { markAsProcessed } from "../services/dedup";
+import { normalizePhone } from "../utils/phone";
 
-/**
- * Router de Express para el webhook de WhatsApp Cloud API.
- *
- * GET  /webhook → Verificación del webhook (Meta envía challenge)
- * POST /webhook → Recepción de mensajes entrantes
- */
 export function createWebhookRouter(): Router {
   const router = Router();
 
-  // ── Verificación del webhook ──────────────────────────
+  // ── Verificación del webhook ──
   router.get("/webhook", (req: Request, res: Response) => {
     const mode = req.query["hub.mode"] as string;
     const token = req.query["hub.verify_token"] as string;
@@ -28,9 +36,9 @@ export function createWebhookRouter(): Router {
     }
   });
 
-  // ── Recepción de mensajes ─────────────────────────────
+  // ── Recepción de mensajes ──
   router.post("/webhook", (req: Request, res: Response) => {
-    // Responder 200 inmediatamente (WhatsApp requiere respuesta rápida)
+    // Responder 200 inmediatamente — WhatsApp requiere respuesta rápida (< 20s)
     res.sendStatus(200);
 
     try {
@@ -44,26 +52,17 @@ export function createWebhookRouter(): Router {
 
           const value = change.value;
 
-          // ── Statuses de mensajes salientes (sent, delivered, read, failed) ──
+          // Statuses de mensajes salientes (sent, delivered, read, failed)
           if (value?.statuses) {
             for (const status of value.statuses) {
               if (status.status === "failed") {
                 logger.error(
-                  {
-                    phone: status.recipient_id,
-                    messageId: status.id,
-                    status: status.status,
-                    errors: status.errors,
-                  },
+                  { phone: status.recipient_id, messageId: status.id, status: status.status, errors: status.errors },
                   "WhatsApp delivery FAILED",
                 );
               } else {
                 logger.info(
-                  {
-                    phone: status.recipient_id,
-                    messageId: status.id,
-                    status: status.status,
-                  },
+                  { phone: status.recipient_id, messageId: status.id, status: status.status },
                   "WhatsApp delivery status",
                 );
               }
@@ -73,35 +72,35 @@ export function createWebhookRouter(): Router {
           if (!value?.messages) continue;
 
           for (const message of value.messages) {
-            const phone = message.from;
+            const phone = normalizePhone(message.from);
             const messageId = message.id;
 
-            // Reactions → ignorar silenciosamente (no merecen respuesta)
             if (message.type === "reaction") {
               continue;
             }
 
-            // Audio/video/sticker/location → responder amablemente pidiendo texto
             if (isUnsupportedMediaType(message.type)) {
               logger.debug({ phone, type: message.type }, "Media no soportado — pidiendo texto");
               respondUnsupportedMedia(phone, message.type).catch(() => {});
               continue;
             }
 
-            // Extraer datos de imagen si es mensaje de imagen
             const mediaInfo = extractMediaFromMessage(message);
-            const text = mediaInfo ? (mediaInfo.caption || "__IMAGEN__") : extractTextFromMessage(message);
-
-            if (!phone || !text) continue;
+            const rawText = mediaInfo ? (mediaInfo.caption || "__IMAGEN__") : extractTextFromMessage(message);
+            // Ignorar mensajes vacíos, solo espacios o puntuación antes de procesar
+            const text = rawText?.trim() || "";
+            if (!phone || !text || /^[\s\p{P}]*$/u.test(text)) continue;
 
             logger.info(
               { phone, text: text.slice(0, 80), messageId, hasMedia: !!mediaInfo },
               "Mensaje recibido via webhook",
             );
 
-            // Procesar asincrónicamente (no bloquear la respuesta)
+            // Procesar asincrónicamente (no bloquear la respuesta 200)
             processIncomingMessage(phone, text, messageId, mediaInfo || undefined).catch((err) => {
-              logger.error({ phone, err }, "Error procesando mensaje entrante");
+              logger.error({ phone, messageId, err }, "Error procesando mensaje entrante");
+              // Marcar como error en dedup para auditoría
+              markAsProcessed(messageId, phone, "error").catch(() => {});
             });
           }
         }
@@ -114,7 +113,6 @@ export function createWebhookRouter(): Router {
   return router;
 }
 
-/** Datos de media adjunta (imagen, documento) */
 export interface MediaInfo {
   mediaId: string;
   mimeType: string;
@@ -122,9 +120,6 @@ export interface MediaInfo {
   type: "image" | "document";
 }
 
-/**
- * Extrae datos de media si el mensaje es imagen o documento.
- */
 function extractMediaFromMessage(message: any): MediaInfo | null {
   if (message.type === "image" && message.image?.id) {
     return {
@@ -134,7 +129,6 @@ function extractMediaFromMessage(message: any): MediaInfo | null {
       type: "image",
     };
   }
-
   if (message.type === "document" && message.document?.id) {
     return {
       mediaId: message.document.id,
@@ -143,21 +137,14 @@ function extractMediaFromMessage(message: any): MediaInfo | null {
       type: "document",
     };
   }
-
   return null;
 }
 
-/**
- * Extrae el texto del mensaje según su tipo.
- * Soporta: text, interactive (buttons/lists), button (quick reply).
- */
 function extractTextFromMessage(message: any): string | null {
   switch (message.type) {
     case "text":
       return message.text?.body || null;
-
     case "interactive":
-      // Respuesta de botones o listas
       if (message.interactive?.type === "button_reply") {
         return message.interactive.button_reply.title || message.interactive.button_reply.id;
       }
@@ -165,38 +152,30 @@ function extractTextFromMessage(message: any): string | null {
         return message.interactive.list_reply.title || message.interactive.list_reply.id;
       }
       return null;
-
     case "button":
-      // Quick reply buttons
       return message.button?.text || message.button?.payload || null;
-
     default:
       return null;
   }
 }
 
-/**
- * Tipos de media que no procesamos pero queremos dar feedback.
- */
 function isUnsupportedMediaType(type: string): boolean {
   return ["sticker", "audio", "video", "location", "contacts", "order", "unsupported"].includes(type);
 }
 
-// Cooldown para evitar spam de respuestas a media no soportado (1 por número cada 10 min)
 const unsupportedMediaCooldown = new Map<string, number>();
 
-// Limpieza periódica — elimina entradas de más de 24h
 setInterval(() => {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [phone, ts] of unsupportedMediaCooldown) {
     if (ts < cutoff) unsupportedMediaCooldown.delete(phone);
   }
-}, 60 * 60 * 1000); // Cada hora
+}, 60 * 60 * 1000);
 
 async function respondUnsupportedMedia(phone: string, type: string): Promise<void> {
   const now = Date.now();
   const last = unsupportedMediaCooldown.get(phone);
-  if (last && now - last < 10 * 60 * 1000) return; // 10 min cooldown
+  if (last && now - last < 10 * 60 * 1000) return;
   unsupportedMediaCooldown.set(phone, now);
 
   const mensajes: Record<string, string> = {

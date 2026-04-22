@@ -1,3 +1,18 @@
+/**
+ * Message Handler — Failsafe + Human Escalation + Timeouts
+ *
+ * Flujo:
+ * 1. Deduplicación por messageId (evita loops por reintentos de webhook)
+ * 2. Verificar escalación humana activa
+ * 3. Adquirir lock por usuario
+ * 4. Anti-loop: cooldown basado en messageId (no en respuesta)
+ * 5. Procesar mensaje con timeout global (25s, antes del límite de Meta de ~20-30s)
+ * 6. try/catch global: cualquier error no capturado → escalación humana
+ * 7. Enviar respuesta
+ * 8. Notificaciones
+ * 9. Persistir flow data
+ */
+
 import { handleIncomingMessage, esConfirmacionDifusion } from "./conversation-manager";
 import { sendMessage, markAsRead, sendInteractiveButtons, sendInteractiveList } from "./client";
 import { withUserLock } from "./queue";
@@ -20,17 +35,23 @@ import { addToDeadLetterQueue } from "../services/dead-letter-queue";
 import { guardarReclamo, guardarIncidente } from "../services/reportes-ceo";
 import { procesarRespuestaEncuesta } from "../services/encuesta-regalo";
 import { registrarContactoDonante } from "../services/contacto-donante";
+import { isDuplicate, markAsProcessed } from "../services/dedup";
+import { escalateToHuman } from "../services/human-escalation";
+import { isPausedFor, getPauseMessage, isWhitelisted } from "../services/bot-control";
+import { normalizePhone } from "../utils/phone";
 import type { MediaInfo } from "./webhook";
 
-// ── Anti-loop: cooldown y max interactions por sesión ──
-// Cooldown bajo (30s) para evitar spam rápido sin bloquear donantes legítimas
-const COOLDOWN_MS = 30 * 1000; // 30 segundos entre respuestas al mismo número
-const MAX_INTERACTIONS_PER_SESSION = 10; // Máximo de respuestas en ventana de 30 min
+// ── Timeouts y límites ──
+const PROCESS_TIMEOUT_MS = 25_000; // 25s máximo por mensaje (Meta timeout ≈ 20s)
+const COOLDOWN_MS = 30 * 1000; // 30s entre respuestas al mismo número
+const MAX_INTERACTIONS_PER_SESSION = 12; // Máximo de respuestas en ventana de 30 min
 
 const lastResponseTime = new Map<string, number>();
 const interactionCount = new Map<string, { count: number; windowStart: number }>();
+const incomingCount = new Map<string, { count: number; windowStart: number }>();
+const MAX_INCOMING_PER_WINDOW = 20; // Máximo de mensajes entrantes en 30 min
 
-// Limpieza periódica de Maps para evitar memory leaks con muchos números únicos
+// Limpieza periódica de Maps anti-spam
 setInterval(() => {
   const now = Date.now();
   const cutoff24h = now - 24 * 60 * 60 * 1000;
@@ -42,11 +63,13 @@ setInterval(() => {
   for (const [phone, data] of interactionCount) {
     if (data.windowStart < cutoff30m) { interactionCount.delete(phone); cleaned++; }
   }
-  if (cleaned > 0) logger.debug({ cleaned }, "Limpieza de Maps anti-spam completada");
-}, 60 * 60 * 1000); // Cada hora
+  for (const [phone, data] of incomingCount) {
+    if (data.windowStart < cutoff30m) { incomingCount.delete(phone); cleaned++; }
+  }
+  if (cleaned > 0) logger.debug({ cleaned }, "Limpieza anti-spam completada");
+}, 60 * 60 * 1000);
 
-// Mensajes que no requieren respuesta (se ignoran silenciosamente)
-// NOTA: NO incluir saludos (hola, buen día, etc.) — las donantes esperan respuesta cuando saludan
+// Mensajes que no requieren respuesta
 const MENSAJES_IGNORADOS = new Set([
   "ok", "okey", "oki", "dale", "bueno", "bien", "listo", "perfecto",
   "gracias", "gracia", "muchas gracias", "mil gracias",
@@ -58,10 +81,11 @@ const MENSAJES_IGNORADOS = new Set([
 function esMensajeIgnorado(text: string): boolean {
   const clean = text.trim().toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  // Mensaje corto que está en la lista de ignorados
+  // Ignorar mensajes vacíos o solo espacios/puntuación
+  if (!clean || /^[\s\p{P}]*$/u.test(clean)) return true;
   if (MENSAJES_IGNORADOS.has(clean)) return true;
-  // Solo emojis (1-3 emojis sin texto)
-  if (/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\u200D]{1,6}$/u.test(clean)) return true;
+  // Ignorar secuencias de emojis (cualquier cantidad razonable, hasta 20)
+  if (/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\u200D\s]{1,20}$/u.test(clean) && /\p{Emoji}/u.test(clean)) return true;
   return false;
 }
 
@@ -74,7 +98,6 @@ function checkCooldown(phone: string): boolean {
 function checkMaxInteractions(phone: string): boolean {
   const data = interactionCount.get(phone);
   if (!data) return false;
-  // Reset window if 30 min passed
   if (Date.now() - data.windowStart > 30 * 60 * 1000) {
     interactionCount.delete(phone);
     return false;
@@ -92,60 +115,105 @@ function recordInteraction(phone: string): void {
   }
 }
 
-// Determinar si el resultado es un reclamo/escalación que NO debe marcarse como leído
 function esEscalacion(result: { notify?: FlowResponse["notify"]; flowData?: { flowName: string } }): boolean {
   if (result.flowData?.flowName === "reclamo") return true;
   if (result.notify?.target === "admin") return true;
   return false;
 }
 
+// ── Wrapper con timeout ──
+async function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: ${context}`)), ms),
+    ),
+  ]);
+}
+
 /**
- * Procesa un mensaje entrante de principio a fin:
- * 1. Adquiere lock por usuario (evita race conditions)
- * 2. Checks anti-loop (cooldown, max interactions, mensajes ignorados)
- * 3. Procesa el mensaje con el conversation manager
- * 4. Envía la respuesta
- * 5. Procesa notificaciones (chofer, admin, visitadora)
- * 6. Loguea en DB
+ * Procesa un mensaje entrante de principio a fin.
  */
 export async function processIncomingMessage(
-  phone: string,
+  rawPhone: string,
   text: string,
   messageId?: string,
   mediaInfo?: MediaInfo,
 ): Promise<void> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) {
+    logger.warn({ rawPhone }, "Teléfono inválido después de normalizar");
+    return;
+  }
+
+  // ── 0a. Modo PAUSA: responder mantenimiento a no-admins ──
+  if (isPausedFor(phone)) {
+    logger.warn({ phone }, "Bot en PAUSA — mensaje rechazado");
+    await sendMessage(phone, getPauseMessage()).catch(() => {});
+    if (messageId) markAsRead(messageId).catch(() => {});
+    return;
+  }
+
+  // ── 0b. Whitelist progresiva ──
+  const whitelisted = await isWhitelisted(phone);
+  if (!whitelisted) {
+    logger.warn({ phone }, "Número fuera de whitelist progresiva — ignorado");
+    if (messageId) markAsRead(messageId).catch(() => {});
+    return;
+  }
+
+  // ── 0c. Anti-spam: rechazar mensajes entrantes excesivos ANTES de procesar ──
+  if (!isAdminPhone(phone)) {
+    const incData = incomingCount.get(phone);
+    if (incData && Date.now() - incData.windowStart < 30 * 60 * 1000) {
+      incData.count++;
+      if (incData.count > MAX_INCOMING_PER_WINDOW) {
+        logger.warn({ phone, count: incData.count }, "Spam detectado — mensaje ignorado");
+        if (messageId) markAsRead(messageId).catch(() => {});
+        return;
+      }
+    } else {
+      incomingCount.set(phone, { count: 1, windowStart: Date.now() });
+    }
+  }
+
+  // ── 1. Deduplicación por messageId ──
+  if (messageId) {
+    const dup = await isDuplicate(messageId);
+    if (dup) {
+      logger.warn({ phone, messageId, text: text.slice(0, 60) }, "Mensaje duplicado ignorado");
+      markAsRead(messageId).catch(() => {});
+      return;
+    }
+    await markAsProcessed(messageId, phone, "ok");
+  }
+
   await withUserLock(phone, async () => {
-    // Log del mensaje entrante (siempre, incluso si se ignora)
+    // Log del mensaje entrante
     logMessage(phone, "entrante", text, true).catch(() => {});
 
-    // Auto-registrar contacto del donante
+    // Auto-registrar contacto
     registrarContactoDonante(phone, text).catch((err) => {
       logger.error({ phone, err }, "Error registrando contacto de donante");
     });
 
-    // ── Anti-loop: solo los admins están exentos de todos los límites ──
     const esAdmin = isAdminPhone(phone);
     const esConfirmacion = esConfirmacionDifusion(text);
 
+    // Anti-loop para no-admins
     if (!esAdmin) {
-      // Ignorar mensajes triviales silenciosamente (excepto si es confirmación de difusión)
       if (!esConfirmacion && esMensajeIgnorado(text)) {
         logger.debug({ phone, text }, "Mensaje ignorado (trivial)");
         if (messageId) markAsRead(messageId).catch(() => {});
         return;
       }
 
-      // Cooldown: aplica a TODOS los no-admins, incluyendo confirmaciones de difusión.
-      // Excepción: si ya hubo una confirmación de difusión procesada para este número
-      // hoy, no tiene sentido bloquearla — pero el cooldown de 30s es suficientemente
-      // corto para no molestar y evita el spam de "1" repetido.
       if (checkCooldown(phone)) {
         logger.debug({ phone, esConfirmacion }, "Cooldown activo — ignorando mensaje");
         if (messageId) markAsRead(messageId).catch(() => {});
         return;
       }
 
-      // Max interactions: si ya respondimos demasiadas veces en 30 min, notificar admin
       if (checkMaxInteractions(phone)) {
         logger.warn({ phone }, "Max interactions alcanzado — notificando admin");
         if (messageId) markAsRead(messageId).catch(() => {});
@@ -157,7 +225,7 @@ export async function processIncomingMessage(
       }
     }
 
-    // Verificar si es respuesta a encuesta (SI/NO)
+    // Verificar si es respuesta a encuesta
     const esEncuesta = await procesarRespuestaEncuesta(phone, text).catch(() => false);
     if (esEncuesta) {
       await sendMessage(phone, "✅ ¡Gracias por tu respuesta! Fue registrada correctamente.").catch(() => {});
@@ -167,17 +235,76 @@ export async function processIncomingMessage(
       return;
     }
 
-    // Procesar (pasar mediaInfo para flujos que aceptan imágenes)
-    const result = await handleIncomingMessage(phone, text, mediaInfo);
+    // ── 2. Procesar con timeout global + try/catch ──
+    let result: Awaited<ReturnType<typeof handleIncomingMessage>>;
+    try {
+      result = await withTimeout(
+        handleIncomingMessage(phone, text, mediaInfo),
+        PROCESS_TIMEOUT_MS,
+        `procesamiento mensaje ${phone}`,
+      );
+    } catch (err) {
+      logger.error({ phone, err, text: text.slice(0, 100) }, "Error o timeout procesando mensaje");
 
-    // Si no hay respuesta (clasificador decidió ignorar), no enviar nada
-    if (!result.reply && !result.interactive) {
-      logger.debug({ phone }, "Sin respuesta (mensaje ignorado por clasificador)");
+      // Failsafe: escalar a humano (envía mensaje al usuario y notifica al CEO)
+      await escalateToHuman(phone, "system_error", {
+        lastMessage: text,
+        error: (err as Error).message,
+      });
+
+      // Notificar al admin del error por separado (solo CEO, no duplicar mensaje al usuario)
+      await sendMessage(
+        env.CEO_PHONE,
+        `🚨 *ERROR CRÍTICO EN BOT*\n\n📱 ${phone}\n💬 "${text.slice(0, 100)}"\n❌ Error: ${(err as Error).message}\n\nEl usuario fue escalado a humano automáticamente.`,
+      ).catch(() => {});
+
       if (messageId) markAsRead(messageId).catch(() => {});
       return;
     }
 
-    // Enviar respuesta (texto plano o mensaje interactivo)
+    // Si no hay respuesta
+    if (!result.reply && !result.interactive) {
+      logger.debug({ phone }, "Sin respuesta (ignorado por clasificador)");
+      if (messageId) markAsRead(messageId).catch(() => {});
+      return;
+    }
+
+    // Si fue escalado a humano, enviar reply y notificaciones pero NO registrar interacción
+    if (result.needsHuman) {
+      // Enviar reply contextual al usuario (ej: "Entendemos que necesitás hablar con alguien...")
+      try {
+        if (result.interactive) {
+          if (result.reply) await sendMessage(phone, result.reply);
+          const iv = result.interactive;
+          if (iv.type === "buttons") {
+            await sendInteractiveButtons(phone, iv.body, iv.buttons);
+          } else {
+            await sendInteractiveList(phone, iv.body, iv.buttonText, iv.sections);
+          }
+        } else if (result.reply) {
+          await sendMessage(phone, result.reply);
+        }
+      } catch (err) {
+        logger.error({ phone, err }, "Error enviando reply de escalación");
+      }
+
+      // Notificaciones a CEO/chofer (reclamos, bajas, hablar_persona)
+      if (result.notify) {
+        await processNotification(phone, result.notify);
+      }
+
+      // Persistir datos de flujo (reclamos, incidentes)
+      if (result.flowData) {
+        await saveFlowData(phone, result.flowData).catch((err) => {
+          logger.error({ phone, err }, "Error guardando datos de flujo en escalación");
+        });
+      }
+
+      if (messageId) markAsRead(messageId).catch(() => {});
+      return;
+    }
+
+    // ── 3. Enviar respuesta ──
     try {
       if (result.interactive) {
         if (result.reply) {
@@ -209,7 +336,7 @@ export async function processIncomingMessage(
     // Registrar interacción para cooldown
     recordInteraction(phone);
 
-    // Marcar como leído — EXCEPTO reclamos/escalaciones (para que queden visibles en el teléfono)
+    // Marcar como leído (excepto escalaciones)
     if (messageId) {
       if (esEscalacion(result)) {
         logger.info({ phone }, "Reclamo/escalación — NO se marca como leído");
@@ -218,12 +345,12 @@ export async function processIncomingMessage(
       }
     }
 
-    // Procesar notificaciones
+    // Notificaciones
     if (result.notify) {
       await processNotification(phone, result.notify);
     }
 
-    // Persistir datos de flujo completado (reclamos, incidentes)
+    // Persistir datos de flujo
     if (result.flowData) {
       await saveFlowData(phone, result.flowData).catch((err) => {
         logger.error({ phone, err }, "Error guardando datos de flujo");
@@ -232,7 +359,7 @@ export async function processIncomingMessage(
   });
 }
 
-// ── Notificaciones ──────────────────────────────────────
+// ── Notificaciones ──
 async function processNotification(
   senderPhone: string,
   notify: NonNullable<FlowResponse["notify"]>,
@@ -242,38 +369,23 @@ async function processNotification(
       case "admin":
         await sendMessage(env.CEO_PHONE, notify.message);
         break;
-
       case "chofer": {
         const chofer = await findChoferForDonante(senderPhone);
         if (chofer) {
           await sendMessage(chofer.telefono, notify.message);
-          logger.info(
-            { donante: senderPhone, chofer: chofer.nombre },
-            "Notificación enviada al chofer",
-          );
+          logger.info({ donante: senderPhone, chofer: chofer.nombre }, "Notificación enviada al chofer");
         } else {
-          // Fallback: enviar al admin si no hay chofer asignado
-          await sendMessage(
-            env.CEO_PHONE,
-            `⚠️ Sin chofer asignado para ${senderPhone}\n\n${notify.message}`,
-          );
+          await sendMessage(env.CEO_PHONE, `⚠️ Sin chofer asignado para ${senderPhone}\n\n${notify.message}`);
         }
         break;
       }
-
       case "visitadora": {
         const visitadora = await findVisitadoraForDonante(senderPhone);
         if (visitadora) {
           await sendMessage(visitadora.telefono, notify.message);
-          logger.info(
-            { donante: senderPhone, visitadora: visitadora.nombre },
-            "Notificación enviada a visitadora",
-          );
+          logger.info({ donante: senderPhone, visitadora: visitadora.nombre }, "Notificación enviada a visitadora");
         } else {
-          await sendMessage(
-            env.CEO_PHONE,
-            `⚠️ Sin visitadora asignada para ${senderPhone}\n\n${notify.message}`,
-          );
+          await sendMessage(env.CEO_PHONE, `⚠️ Sin visitadora asignada para ${senderPhone}\n\n${notify.message}`);
         }
         break;
       }
@@ -283,59 +395,28 @@ async function processNotification(
   }
 }
 
-async function findChoferForDonante(
-  phone: string,
-): Promise<{ nombre: string; telefono: string } | null> {
-  // Buscar la zona del donante
-  const donanteResult = await db
-    .select({ zonaId: donantes.zonaId })
-    .from(donantes)
-    .where(eq(donantes.telefono, phone))
-    .limit(1);
-
+async function findChoferForDonante(phone: string): Promise<{ nombre: string; telefono: string } | null> {
+  const donanteResult = await db.select({ zonaId: donantes.zonaId }).from(donantes).where(eq(donantes.telefono, phone)).limit(1);
   if (donanteResult.length === 0 || !donanteResult[0].zonaId) return null;
 
-  // Buscar el chofer de esa zona
   const choferResult = await db
-    .select({
-      nombre: choferes.nombre,
-      telefono: choferes.telefono,
-    })
+    .select({ nombre: choferes.nombre, telefono: choferes.telefono })
     .from(zonaChoferes)
     .innerJoin(choferes, eq(zonaChoferes.choferId, choferes.id))
-    .where(
-      and(
-        eq(zonaChoferes.zonaId, donanteResult[0].zonaId),
-        eq(zonaChoferes.activo, true),
-      ),
-    )
+    .where(and(eq(zonaChoferes.zonaId, donanteResult[0].zonaId), eq(zonaChoferes.activo, true)))
     .limit(1);
 
   return choferResult.length > 0 ? choferResult[0] : null;
 }
 
-async function findVisitadoraForDonante(
-  phone: string,
-): Promise<{ nombre: string; telefono: string } | null> {
-  // Buscar si hay un reclamo escalado a visitadora para este donante
-  const donanteResult = await db
-    .select({ id: donantes.id, zonaId: donantes.zonaId })
-    .from(donantes)
-    .where(eq(donantes.telefono, phone))
-    .limit(1);
-
+async function findVisitadoraForDonante(phone: string): Promise<{ nombre: string; telefono: string } | null> {
+  const donanteResult = await db.select({ id: donantes.id, zonaId: donantes.zonaId }).from(donantes).where(eq(donantes.telefono, phone)).limit(1);
   if (donanteResult.length === 0) return null;
 
-  // Buscar visitadora asignada al reclamo más reciente
   const reclamoResult = await db
     .select({ visitadoraId: reclamos.visitadoraId })
     .from(reclamos)
-    .where(
-      and(
-        eq(reclamos.donanteId, donanteResult[0].id),
-        isNotNull(reclamos.visitadoraId),
-      ),
-    )
+    .where(and(eq(reclamos.donanteId, donanteResult[0].id), isNotNull(reclamos.visitadoraId)))
     .orderBy(desc(reclamos.fechaCreacion))
     .limit(1);
 
@@ -350,7 +431,6 @@ async function findVisitadoraForDonante(
     if (result.length > 0) return result[0];
   }
 
-  // Fallback: buscar cualquier visitadora activa
   const anyVisitadora = await db
     .select({ nombre: visitadoras.nombre, telefono: visitadoras.telefono })
     .from(visitadoras)
@@ -360,7 +440,7 @@ async function findVisitadoraForDonante(
   return anyVisitadora.length > 0 ? anyVisitadora[0] : null;
 }
 
-// ── Persistencia de datos de flujo ──────────────────────
+// ── Persistencia de datos de flujo ──
 async function saveFlowData(
   phone: string,
   flowData: { flowName: string; data: Record<string, any> },
@@ -384,13 +464,12 @@ async function saveFlowData(
     });
   }
 
-  // Auto-contactar donante cuando el chofer reporta una baja
   if (flowName === "chofer" && data.bajaAutoContactar && data.bajaDonante) {
     await contactarDonanteParaBaja(data.bajaDonante, data.bajaMotivo, data.codigoChofer);
   }
 }
 
-// ── Logging de mensajes ─────────────────────────────────
+// ── Logging ──
 async function logMessage(
   phone: string,
   direction: string,
@@ -410,15 +489,14 @@ async function logMessage(
   }
 }
 
-// ── Auto-contactar donante por baja reportada por chofer ──
+// ── Auto-contactar donante por baja ──
 async function contactarDonanteParaBaja(
   bajaDonante: string,
   bajaMotivo: string,
   codigoChofer: string,
 ): Promise<void> {
   try {
-    // Buscar la donante por nombre (coincidencia parcial)
-    const nombreBusqueda = bajaDonante.split(",")[0].trim(); // tomar el nombre antes de la dirección
+    const nombreBusqueda = bajaDonante.split(",")[0].trim();
     const resultados = await db
       .select({ id: donantes.id, nombre: donantes.nombre, telefono: donantes.telefono })
       .from(donantes)
@@ -429,17 +507,13 @@ async function contactarDonanteParaBaja(
       logger.warn({ bajaDonante }, "No se encontró donante para auto-contacto de baja");
       await sendMessage(
         env.CEO_PHONE,
-        `⚠️ *No se pudo auto-contactar a la donante*\n\n` +
-        `Datos del chofer: ${bajaDonante}\n` +
-        `No se encontró en la base de datos. Contactar manualmente.`,
+        `⚠️ *No se pudo auto-contactar a la donante*\n\nDatos del chofer: ${bajaDonante}\nNo se encontró en la base de datos. Contactar manualmente.`,
       );
       return;
     }
 
-    // Tomar la primera coincidencia
     const donante = resultados[0];
 
-    // Guardar reporte de baja en DB
     await db.insert(reportesBaja).values({
       donanteId: donante.id,
       donanteNombre: bajaDonante,
@@ -449,7 +523,6 @@ async function contactarDonanteParaBaja(
       contactadaDonante: true,
     });
 
-    // Enviar mensaje a la donante preguntando qué pasó
     await sendMessage(
       donante.telefono,
       `Hola ${donante.nombre.split(" ")[0]}, te escribimos de parte del laboratorio. 💙\n\n` +
@@ -458,10 +531,7 @@ async function contactarDonanteParaBaja(
       `¿Podrías contarnos brevemente el motivo? Tu respuesta es muy importante para nosotros.`,
     );
 
-    logger.info(
-      { donante: donante.nombre, telefono: donante.telefono, chofer: codigoChofer },
-      "Auto-contacto de baja enviado a donante",
-    );
+    logger.info({ donante: donante.nombre, telefono: donante.telefono, chofer: codigoChofer }, "Auto-contacto de baja enviado");
   } catch (err) {
     logger.error({ bajaDonante, err }, "Error en auto-contacto de baja");
   }

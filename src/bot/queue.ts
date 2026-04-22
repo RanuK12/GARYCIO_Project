@@ -3,23 +3,49 @@ import { logger } from "../config/logger";
 /**
  * Mutex por usuario: garantiza que los mensajes de un mismo número
  * se procesan en orden, evitando race conditions en el estado de conversación.
+ *
+ * Mejoras de producción:
+ * - Timeout de 60s (llamadas a OpenAI + DB pueden tardar)
+ * - NO se libera el lock forzosamente; se loguea y se deja que el próximo mensaje espere
+ * - Prevención de deadlock con cleanup periódico
  */
-const userLocks = new Map<string, Promise<void>>();
 
-const LOCK_TIMEOUT_MS = 30_000; // 30s max wait for lock
+const userLocks = new Map<string, { promise: Promise<void>; startTime: number }>();
+
+const LOCK_TIMEOUT_MS = 120_000; // 120s máximo de espera (debe ser mayor que el peor caso real: 25s handler + DB)
+const LOCK_MAX_AGE_MS = 180_000; // 180s máximo de vida de un lock (protección contra zombie locks)
+
+// Cleanup de locks zombies cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [phone, lock] of userLocks) {
+    if (now - lock.startTime > LOCK_MAX_AGE_MS) {
+      userLocks.delete(phone);
+      cleaned++;
+      logger.warn({ phone, ageSec: Math.round((now - lock.startTime) / 1000) }, "Lock zombie eliminado");
+    }
+  }
+  if (cleaned > 0) {
+    logger.info({ cleaned }, "Limpieza de locks zombies completada");
+  }
+}, 5 * 60 * 1000);
 
 export async function withUserLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
-  // Esperar si hay un lock activo para este usuario (con timeout de seguridad)
   const startWait = Date.now();
+
+  // Esperar lock activo con timeout
   while (userLocks.has(phone)) {
+    const lock = userLocks.get(phone)!;
     const remaining = LOCK_TIMEOUT_MS - (Date.now() - startWait);
+
     if (remaining <= 0) {
-      logger.warn({ phone }, "Lock timeout — forzando liberación para evitar deadlock");
-      userLocks.delete(phone);
+      logger.warn({ phone }, "Lock timeout esperando — procesando de todos modos (posible duplicado)");
       break;
     }
+
     await Promise.race([
-      userLocks.get(phone),
+      lock.promise,
       new Promise<void>((r) => setTimeout(r, remaining)),
     ]);
   }
@@ -28,7 +54,8 @@ export async function withUserLock<T>(phone: string, fn: () => Promise<T>): Prom
   const lockPromise = new Promise<void>((resolve) => {
     releaseLock = resolve;
   });
-  userLocks.set(phone, lockPromise);
+
+  userLocks.set(phone, { promise: lockPromise, startTime: Date.now() });
 
   try {
     return await fn();
@@ -38,9 +65,7 @@ export async function withUserLock<T>(phone: string, fn: () => Promise<T>): Prom
   }
 }
 
-/**
- * Envío masivo con control de progreso, rate limiting y tolerancia a fallos.
- */
+// ── Envío masivo con control de progreso ──
 export interface BulkSendResult {
   sent: number;
   failed: number;
@@ -84,25 +109,16 @@ export async function sendBulkWithProgress(
 
     onProgress?.(results.sent, results.failed, total);
 
-    // Delay entre mensajes
     if (i < items.length - 1) {
       await new Promise((r) => setTimeout(r, delayMs));
     }
 
-    // Pausa cada N mensajes para no saturar
     if ((i + 1) % batchSize === 0 && i < items.length - 1) {
-      logger.info(
-        { progreso: `${i + 1}/${total}`, enviados: results.sent, fallidos: results.failed },
-        "Pausa entre lotes",
-      );
+      logger.info({ progreso: `${i + 1}/${total}`, enviados: results.sent, fallidos: results.failed }, "Pausa entre lotes");
       await new Promise((r) => setTimeout(r, batchPauseMs));
     }
   }
 
-  logger.info(
-    { sent: results.sent, failed: results.failed, total },
-    "Envío masivo completado",
-  );
-
+  logger.info({ sent: results.sent, failed: results.failed, total }, "Envío masivo completado");
   return results;
 }

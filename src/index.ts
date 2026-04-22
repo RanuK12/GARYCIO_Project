@@ -24,9 +24,27 @@ import {
 import { notificarAdmins } from "./services/reportes-ceo";
 import { enviarEncuestaMensual } from "./services/encuesta-regalo";
 import { verificarProgresoRutas, obtenerResumenProgreso } from "./services/progreso-ruta";
+import { resolveHumanEscalation, isHumanEscalated } from "./services/human-escalation";
+import {
+  getBotState,
+  pauseBot,
+  resumeBot,
+  emergencyStop,
+  setWhitelistLimit,
+  getWhitelistLimit,
+  isWhitelistActive,
+  ROLLOUT_PLAN,
+  notifyAdminsCritical,
+} from "./services/bot-control";
+import {
+  addTrainingExample,
+  listTrainingExamples,
+  toggleTrainingExample,
+  deleteTrainingExample,
+} from "./services/ia-training";
 import { db } from "./database";
 import { donantes, reclamos, avisos, reportesBaja, difusionEnvios } from "./database/schema";
-import { eq, and, gte, lte, or, ilike, sql, isNull, count } from "drizzle-orm";
+import { eq, and, gte, lte, or, ilike, sql, isNull, count, desc } from "drizzle-orm";
 
 const startTime = new Date();
 let requestCount = 0;
@@ -136,6 +154,74 @@ async function main(): Promise<void> {
       return;
     }
     next();
+  });
+
+  // ── Bot Control
+  app.get("/admin/bot/status", (_req, res) => {
+    const state = getBotState();
+    const mem = process.memoryUsage();
+    res.json({ status: "ok", bot: state, uptime: process.uptime(), memory: { rss: ""+Math.round(mem.rss/1024/1024)+" MB", heapUsed: ""+Math.round(mem.heapUsed/1024/1024)+" MB" }, pm2: "Use pm2 describe garycio-bot" });
+  });
+  app.post("/admin/bot/pause", (req, res) => { pauseBot("admin_api", req.body.reason || "Mantenimiento"); res.json({status:"ok",action:"paused"}); });
+  app.post("/admin/bot/resume", (_req, res) => { resumeBot("admin_api"); res.json({status:"ok",action:"resumed"}); });
+  app.post("/admin/bot/emergency-stop", (req, res) => { emergencyStop(req.body.reason || "Admin"); res.json({status:"ok",action:"emergency_stop"}); });
+  app.get("/admin/bot/whitelist", (_req, res) => { res.json({ status: "ok", active: isWhitelistActive(), currentLimit: getWhitelistLimit(), rolloutPlan: ROLLOUT_PLAN, testMode: env.TEST_MODE }); });
+  app.post("/admin/bot/whitelist", async (req, res) => { const limit = req.body.limit; if (typeof limit !== "number" || limit < 0) { res.status(400).json({error:"limit >= 0"}); return; } await setWhitelistLimit(limit); res.json({status:"ok",limit}); });
+  app.post("/admin/db/query", async (req, res) => { const q = req.body.query; if (!q || typeof q !== "string") { res.status(400).json({error:"query required"}); return; } const t = q.trim().toLowerCase(); if (!t.startsWith("select ") && !t.startsWith("with ")) { res.status(403).json({error:"SELECT only"}); return; } const bad = ["drop","delete","truncate","insert","update","alter","create","grant"]; for (const w of bad) { if (t.includes(w)) { res.status(403).json({error:"bad word: "+w}); return; } } try { const r = await db.execute(q); res.json({status:"ok",rows:r.rows}); } catch (e) { res.status(500).json({status:"error",error:(e as Error).message}); } });
+
+  // ── IA Training ───────────────────────────────────
+  app.get("/admin/ia-training", async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const intencion = req.query.intencion as string | undefined;
+    try {
+      const result = await listTrainingExamples({ limit, offset, intencion });
+      res.json({ status: "ok", ...result });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/ia-training", async (req, res) => {
+    const { mensajeUsuario, intencionCorrecta, respuestaEsperada, contexto, prioridad } = req.body;
+    if (!mensajeUsuario || !intencionCorrecta) {
+      res.status(400).json({ error: "mensajeUsuario e intencionCorrecta son requeridos" });
+      return;
+    }
+    try {
+      const id = await addTrainingExample({
+        mensajeUsuario,
+        intencionCorrecta,
+        respuestaEsperada,
+        contexto,
+        prioridad: prioridad ?? 0,
+        creadoPor: "admin_api",
+      });
+      res.json({ status: "ok", id });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/ia-training/:id/toggle", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { activo } = req.body as { activo: boolean };
+    try {
+      await toggleTrainingExample(id, activo);
+      res.json({ status: "ok", id, activo });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.delete("/admin/ia-training/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    try {
+      await deleteTrainingExample(id);
+      res.json({ status: "ok", id });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
   });
 
   // ── Endpoints administrativos ────────────────────
@@ -444,6 +530,40 @@ async function main(): Promise<void> {
     }
   });
 
+  // ── Escalaciones humanas ───────────────────────────
+  app.get("/admin/human-escalations", async (_req, res) => {
+    try {
+      const { humanEscalations } = await import("./database/schema");
+      const rows = await db.select().from(humanEscalations).orderBy(desc(humanEscalations.escalatedAt)).limit(100);
+      res.json({ status: "ok", total: rows.length, escalations: rows });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/human-escalations/resolve", async (req, res) => {
+    const { phone, resolvedBy } = req.body as { phone?: string; resolvedBy?: string };
+    if (!phone || !resolvedBy) {
+      res.status(400).json({ error: "Se requiere phone y resolvedBy" });
+      return;
+    }
+    try {
+      await resolveHumanEscalation(phone, resolvedBy);
+      res.json({ status: "ok", phone, resolvedBy });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/human-escalations/check/:phone", async (req, res) => {
+    try {
+      const escalated = await isHumanEscalated(req.params.phone);
+      res.json({ status: "ok", phone: req.params.phone, escalated });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   // ── Difusión — tracking de confirmaciones ───────────
   app.get("/admin/difusion/stats", async (_req, res) => {
     try {
@@ -580,21 +700,25 @@ async function main(): Promise<void> {
   logger.info({ port: env.PORT }, "GARYCIO System iniciado correctamente");
 
   // ── Graceful shutdown ───────────────────────────────
-  const shutdown = (signal: string) => {
+  const shutdown = (signal: string, code = 0) => {
     logger.info({ signal }, "Señal de apagado recibida. Cerrando...");
-    process.exit(0);
+    // Dar tiempo a que los locks activos terminen antes de salir
+    setTimeout(() => process.exit(code), 5000);
   };
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM", 0));
+  process.on("SIGINT", () => shutdown("SIGINT", 0));
 
   process.on("uncaughtException", (err) => {
-    logger.fatal({ err }, "Excepción no capturada");
-    process.exit(1);
+    logger.fatal({ err }, "Excepción no capturada — graceful shutdown en 5s");
+    notifyAdminsCritical("uncaughtException: "+(err as Error).message, { stack: (err as Error).stack }).catch(() => {});
+    shutdown("uncaughtException", 1);
   });
 
   process.on("unhandledRejection", (reason) => {
-    logger.error({ reason }, "Promesa rechazada sin manejar");
+    logger.fatal({ reason }, "Promesa rechazada sin manejar — graceful shutdown en 5s");
+    notifyAdminsCritical("unhandledRejection: "+String(reason), {}).catch(() => {});
+    shutdown("unhandledRejection", 1);
   });
 }
 

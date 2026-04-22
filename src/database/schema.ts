@@ -424,6 +424,40 @@ export const difusionEnvios = pgTable("difusion_envios", {
 });
 
 // ============================================================
+// Deduplicación de mensajes procesados (evita loops por reintentos de webhook)
+// ============================================================
+
+export const processedMessages = pgTable("processed_messages", {
+  id: serial("id").primaryKey(),
+  messageId: varchar("message_id", { length: 100 }).notNull().unique(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("ok"), // ok | error | ignored
+  processedAt: timestamp("processed_at").defaultNow(),
+});
+
+// ============================================================
+// Escalación a humano — bloquea automatización para usuarios frustrados o con fallos
+// ============================================================
+
+export const estadoEscalacion = pgEnum("estado_escalacion", [
+  "activa",
+  "resuelta",
+  "expirada",
+]);
+
+export const humanEscalations = pgTable("human_escalations", {
+  id: serial("id").primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
+  reason: varchar("reason", { length: 100 }).notNull(), // ia_fail | frustration | multiple_issues | user_request | system_error
+  estado: estadoEscalacion("estado").default("activa"),
+  escalatedAt: timestamp("escalated_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 100 }),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
 // Feedback IA — mensajes que la IA no entendió o clasificó mal
 // Se usa para mejorar el prompt con ejemplos reales
 // ============================================================
@@ -453,6 +487,19 @@ export const deadLetterQueue = pgTable("dead_letter_queue", {
   errorCode: integer("error_code"),
   intentos: integer("intentos").default(0),
   estado: estadoDLQ("estado").default("pendiente"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const iaTrainingExamples = pgTable("ia_training_examples", {
+  id: serial("id").primaryKey(),
+  mensajeUsuario: text("mensaje_usuario").notNull(),
+  intencionCorrecta: varchar("intencion_correcta", { length: 50 }).notNull(),
+  respuestaEsperada: text("respuesta_esperada"),
+  contexto: text("contexto"),
+  activo: boolean("activo").default(true),
+  prioridad: integer("prioridad").default(0),
+  creadoPor: varchar("creado_por", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

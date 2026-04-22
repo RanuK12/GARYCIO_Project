@@ -333,6 +333,33 @@ const migrations = [
     fecha_envio TIMESTAMP DEFAULT NOW(),
     fecha_confirmacion TIMESTAMP
   )`,
+
+  // ── Tablas agregadas en Refactor Core (FASE 2-4) ─────
+  `CREATE TABLE IF NOT EXISTS processed_messages (
+    id SERIAL PRIMARY KEY,
+    message_id VARCHAR(100) NOT NULL UNIQUE,
+    phone VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'ok',
+    processed_at TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_escalacion') THEN
+      CREATE TYPE estado_escalacion AS ENUM ('activa', 'resuelta', 'expirada');
+    END IF;
+  END $$`,
+
+  `CREATE TABLE IF NOT EXISTS human_escalations (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL UNIQUE,
+    reason VARCHAR(100) NOT NULL,
+    estado estado_escalacion DEFAULT 'activa',
+    escalated_at TIMESTAMP DEFAULT NOW(),
+    resolved_at TIMESTAMP,
+    resolved_by VARCHAR(100),
+    notas TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`,
 ];
 
 async function migrate(): Promise<void> {

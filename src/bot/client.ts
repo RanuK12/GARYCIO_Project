@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { normalizePhone } from "../utils/phone";
 import { logger } from "../config/logger";
 import fs from "fs";
 
@@ -18,7 +19,7 @@ const TEST_WHITELIST: ReadonlySet<string> = new Set(
 function assertTestWhitelist(phone: string): void {
   if (!env.TEST_MODE) return;
 
-  const cleaned = phone.replace(/[\s\-\+\(\)]/g, "");
+  const cleaned = normalizePhone(phone);
   if (!TEST_WHITELIST.has(cleaned)) {
     const msg = `TEST_MODE: bloqueado envío a ${cleaned} (no está en whitelist: ${[...TEST_WHITELIST].join(", ")})`;
     logger.warn(msg);
@@ -416,7 +417,7 @@ export async function sendBulkMessages(
  * Si parece argentino sin prefijo, agrega 54.
  */
 function formatPhone(phone: string): string {
-  const cleaned = phone.replace(/[\s\-\+\(\)]/g, "");
+  const cleaned = normalizePhone(phone);
 
   // Ya tiene código de país (Argentina 54, Italia 39, etc.)
   if (cleaned.length > 10) return cleaned;
