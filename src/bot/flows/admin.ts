@@ -1,6 +1,6 @@
 import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 import { db } from "../../database";
-import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios, iaFeedback } from "../../database/schema";
+import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios, iaFeedback, audioMensajes } from "../../database/schema";
 import { eq, and, desc, sql, ilike, count, like } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
@@ -141,6 +141,8 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
     "whitelist progresiva": "17",
     "entrenar ia": "18",
     "entrenar": "18",
+    "audios pendientes": "19",
+    "audios": "19",
   };
   const choice = menuMap[opcion] || opcion;
 
@@ -184,6 +186,9 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
       return handleBotWhitelist();
     case "18":
       return handleEntrenarIA();
+    case "19":
+    case "audios pendientes":
+      return await handleAudiosPendientes();
     default:
       return handleBienvenida();
   }
@@ -1024,6 +1029,74 @@ async function handleRevisarFeedbackIA(respuesta: string, state: ConversationSta
 }
 
 // ── Lista de comandos ──────────────────────────────────
+// -- Audios pendientes --
+async function handleAudiosPendientes(): Promise<FlowResponse> {
+  const pendientes = await db
+    .select()
+    .from(audioMensajes)
+    .where(eq(audioMensajes.atendido, false))
+    .orderBy(desc(audioMensajes.createdAt))
+    .limit(15);
+  if (pendientes.length === 0) {
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `✅ No hay audios pendientes de atencion.`,
+        buttons: [
+          { id: "1", title: "Volver al menu" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+    };
+  }
+  let body = `📢 *Audios pendientes* (` + pendientes.length + `)
+
+`;
+  for (const [i, a] of pendientes.entries()) {
+    const fecha = a.createdAt ? new Date(a.createdAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "?";
+    body += `*` + (i + 1) + `.* 📱 ` + a.telefono + ` — ` + fecha + `
+`;
+  }
+  body += `
+Escribi el *numero* para marcar como atendido, o *0* para volver.`;
+  return {
+    reply: body,
+    nextStep: 94,
+    data: { audioIds: pendientes.map((a) => a.id) },
+  };
+}
+
+// -- Accion sobre audio pendiente --
+async function handleAccionAudio(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+  if (cmd === "0" || cmd === "menu") return handleBienvenida();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "OK Sesion finalizada.", endFlow: true };
+  const idx = parseInt(respuesta) - 1;
+  const ids: number[] = state.data?.audioIds || [];
+  if (isNaN(idx) || idx < 0 || idx >= ids.length) {
+    return { reply: "Numero no valido. Elegi de la lista o *0* para volver:", nextStep: 94 };
+  }
+  const audioId = ids[idx];
+  await db
+    .update(audioMensajes)
+    .set({ atendido: true, atendidoPor: state.phone, updatedAt: new Date() })
+    .where(eq(audioMensajes.id, audioId));
+  return {
+    reply: `✅ Audio #` + (idx + 1) + ` marcado como atendido.`,
+    nextStep: 99,
+    interactive: {
+      type: "buttons",
+      body: "Queres hacer algo mas?",
+      buttons: [
+        { id: "1", title: "Volver al menu" },
+        { id: "2", title: "Finalizar" },
+      ],
+    },
+  };
+}
+
 function handleListaComandos(): FlowResponse {
   return {
     reply:

@@ -17,6 +17,8 @@ import { processIncomingMessage } from "./handler";
 import { sendMessage } from "./client";
 import { markAsProcessed } from "../services/dedup";
 import { normalizePhone } from "../utils/phone";
+import { db } from "../database";
+import { audioMensajes } from "../database/schema";
 
 export function createWebhookRouter(): Router {
   const router = Router();
@@ -76,6 +78,12 @@ export function createWebhookRouter(): Router {
             const messageId = message.id;
 
             if (message.type === "reaction") {
+              continue;
+            }
+
+            if (message.type === "audio") {
+              logger.info({ phone, messageId }, "Audio recibido — escalando a humano");
+              handleAudioMessage(phone, message.audio, messageId).catch(() => {});
               continue;
             }
 
@@ -160,7 +168,7 @@ function extractTextFromMessage(message: any): string | null {
 }
 
 function isUnsupportedMediaType(type: string): boolean {
-  return ["sticker", "audio", "video", "location", "contacts", "order", "unsupported"].includes(type);
+  return ["sticker", "video", "location", "contacts", "order", "unsupported"].includes(type);
 }
 
 const unsupportedMediaCooldown = new Map<string, number>();
@@ -192,5 +200,37 @@ async function respondUnsupportedMedia(phone: string, type: string): Promise<voi
     await sendMessage(phone, msg);
   } catch {
     // No es crítico
+  }
+}
+// -- Manejo de audios --
+async function handleAudioMessage(
+  phone: string,
+  audio: { id?: string; mime_type?: string },
+  messageId?: string,
+): Promise<void> {
+  try {
+    await db.insert(audioMensajes).values({
+      telefono: phone,
+      mediaId: audio?.id || null,
+      mimeType: audio?.mime_type || "audio/ogg",
+      atendido: false,
+    });
+    const respuesta =
+      `Disculpe, por el momento no puedo escuchar audios.\n\n` +
+      `¿Podria escribir su mensaje por texto? Asi le puedo ayudar mejor.\n\n` +
+      `De lo contrario, enseguida la atendera uno de nuestros colegas.`;
+    await sendMessage(phone, respuesta);
+    await sendMessage(
+      env.CEO_PHONE,
+      `Audio recibido - requiere atencion manual\n\n` +
+      `Donante: ${phone}\n` +
+      `Media ID: ${audio?.id || "N/A"}\n\n` +
+      `La donante fue notificada de que un colega la atendera.`,
+    );
+    if (messageId) {
+      await markAsProcessed(messageId, phone, "ignored");
+    }
+  } catch (err) {
+    logger.error({ phone, err }, "Error manejando audio de donante");
   }
 }

@@ -491,6 +491,22 @@ export const deadLetterQueue = pgTable("dead_letter_queue", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ============================================================
+// Audios de donantes
+// ============================================================
+
+export const audioMensajes = pgTable("audio_mensajes", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  mediaId: varchar("media_id", { length: 200 }),
+  mimeType: varchar("mime_type", { length: 50 }),
+  atendido: boolean("atendido").default(false),
+  atendidoPor: varchar("atendido_por", { length: 100 }),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const iaTrainingExamples = pgTable("ia_training_examples", {
   id: serial("id").primaryKey(),
   mensajeUsuario: text("mensaje_usuario").notNull(),

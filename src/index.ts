@@ -1,5 +1,6 @@
 import express from "express";
 import { env } from "./config/env";
+import { audioMensajes } from "./database/schema";
 import { logger } from "./config/logger";
 import { testConnection } from "./database";
 import { createWebhookRouter } from "./bot";
@@ -167,6 +168,34 @@ async function main(): Promise<void> {
   app.post("/admin/bot/emergency-stop", (req, res) => { emergencyStop(req.body.reason || "Admin"); res.json({status:"ok",action:"emergency_stop"}); });
   app.get("/admin/bot/whitelist", (_req, res) => { res.json({ status: "ok", active: isWhitelistActive(), currentLimit: getWhitelistLimit(), rolloutPlan: ROLLOUT_PLAN, testMode: env.TEST_MODE }); });
   app.post("/admin/bot/whitelist", async (req, res) => { const limit = req.body.limit; if (typeof limit !== "number" || limit < 0) { res.status(400).json({error:"limit >= 0"}); return; } await setWhitelistLimit(limit); res.json({status:"ok",limit}); });
+  // ── Audios pendientes ─────────────────────────────
+  app.get("/admin/audios-pendientes", async (_req, res) => {
+    try {
+      const pendientes = await db
+        .select()
+        .from(audioMensajes)
+        .where(eq(audioMensajes.atendido, false))
+        .orderBy(desc(audioMensajes.createdAt))
+        .limit(50);
+      res.json({ status: "ok", count: pendientes.length, data: pendientes });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/audios-pendientes/:id/atender", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db
+        .update(audioMensajes)
+        .set({ atendido: true, atendidoPor: req.body.atendidoPor || "admin_api", updatedAt: new Date() })
+        .where(eq(audioMensajes.id, id));
+      res.json({ status: "ok", id, atendido: true });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   app.post("/admin/db/query", async (req, res) => { const q = req.body.query; if (!q || typeof q !== "string") { res.status(400).json({error:"query required"}); return; } const t = q.trim().toLowerCase(); if (!t.startsWith("select ") && !t.startsWith("with ")) { res.status(403).json({error:"SELECT only"}); return; } const bad = ["drop","delete","truncate","insert","update","alter","create","grant"]; for (const w of bad) { if (t.includes(w)) { res.status(403).json({error:"bad word: "+w}); return; } } try { const r = await db.execute(q); res.json({status:"ok",rows:r.rows}); } catch (e) { res.status(500).json({status:"error",error:(e as Error).message}); } });
 
   // ── IA Training ───────────────────────────────────

@@ -132,7 +132,7 @@ export async function classifyIntent(
         Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPromptWithTraining },
           { role: "user", content: userContent },
