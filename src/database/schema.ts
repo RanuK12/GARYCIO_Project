@@ -519,3 +519,28 @@ export const iaTrainingExamples = pgTable("ia_training_examples", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ============================================================
+// Configuracion del sistema (clave-valor)
+// ============================================================
+export const configuracionSistema = pgTable("configuracion_sistema", {
+  clave: varchar("clave", { length: 50 }).primaryKey(),
+  valor: text("valor").notNull(),
+  actualizadoEn: timestamp("actualizado_en").defaultNow(),
+});
+
+// ============================================================
+// Donantes activos en el bot (capacidad controlada)
+// ============================================================
+export const estadoDonanteBot = pgEnum("estado_donante_bot", [
+  "activo",
+  "pausado",
+  "liberado",
+]);
+
+export const donantesBotActivos = pgTable("donantes_bot_activos", {
+  telefono: varchar("telefono", { length: 20 }).primaryKey(),
+  nombre: varchar("nombre", { length: 150 }),
+  activadoEn: timestamp("activado_en").defaultNow(),
+  estado: estadoDonanteBot("estado").default("activo"),
+});

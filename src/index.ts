@@ -36,6 +36,9 @@ import {
   isWhitelistActive,
   ROLLOUT_PLAN,
   notifyAdminsCritical,
+  getCapacidad,
+  ajustarLimiteDonantes,
+  liberarDonanteBot,
 } from "./services/bot-control";
 import {
   addTrainingExample,
@@ -44,7 +47,7 @@ import {
   deleteTrainingExample,
 } from "./services/ia-training";
 import { db } from "./database";
-import { donantes, reclamos, avisos, reportesBaja, difusionEnvios } from "./database/schema";
+import { donantes, reclamos, avisos, reportesBaja, difusionEnvios, donantesBotActivos, configuracionSistema } from "./database/schema";
 import { eq, and, gte, lte, or, ilike, sql, isNull, count, desc } from "drizzle-orm";
 
 const startTime = new Date();
@@ -168,6 +171,63 @@ async function main(): Promise<void> {
   app.post("/admin/bot/emergency-stop", (req, res) => { emergencyStop(req.body.reason || "Admin"); res.json({status:"ok",action:"emergency_stop"}); });
   app.get("/admin/bot/whitelist", (_req, res) => { res.json({ status: "ok", active: isWhitelistActive(), currentLimit: getWhitelistLimit(), rolloutPlan: ROLLOUT_PLAN, testMode: env.TEST_MODE }); });
   app.post("/admin/bot/whitelist", async (req, res) => { const limit = req.body.limit; if (typeof limit !== "number" || limit < 0) { res.status(400).json({error:"limit >= 0"}); return; } await setWhitelistLimit(limit); res.json({status:"ok",limit}); });
+
+  // ── Capacidad controlada ──────────────────────────
+  app.get("/admin/capacidad", async (_req, res) => {
+    try {
+      const cap = await getCapacidad();
+      res.json({ status: "ok", ...cap, porcentaje: Math.round((cap.activos / cap.limite) * 100) });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/capacidad", async (req, res) => {
+    const limite = req.body.limite;
+    if (typeof limite !== "number" || limite < 0) {
+      res.status(400).json({ error: "limite >= 0 requerido" });
+      return;
+    }
+    try {
+      await ajustarLimiteDonantes(limite);
+      const cap = await getCapacidad();
+      res.json({ status: "ok", nuevoLimite: limite, ...cap });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.get("/admin/donantes-activos", async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const estado = (req.query.estado as string) || "activo";
+      const offset = (page - 1) * limit;
+
+      const data = await db.select().from(donantesBotActivos)
+        .where(eq(donantesBotActivos.estado, estado as any))
+        .orderBy(desc(donantesBotActivos.activadoEn))
+        .limit(limit).offset(offset);
+
+      const countResult = await db.select({ value: count() }).from(donantesBotActivos)
+        .where(eq(donantesBotActivos.estado, estado as any));
+
+      res.json({ status: "ok", page, limit, total: countResult[0]?.value ?? 0, data });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.delete("/admin/donantes-activos/:telefono", async (req, res) => {
+    try {
+      const telefono = req.params.telefono;
+      await liberarDonanteBot(telefono);
+      res.json({ status: "ok", telefono, accion: "liberado" });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   // ── Audios pendientes ─────────────────────────────
   app.get("/admin/audios-pendientes", async (_req, res) => {
     try {

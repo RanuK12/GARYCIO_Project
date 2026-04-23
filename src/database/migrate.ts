@@ -360,6 +360,28 @@ const migrations = [
     notas TEXT,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
+
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_donante_bot') THEN
+      CREATE TYPE estado_donante_bot AS ENUM ('activo', 'pausado', 'liberado');
+    END IF;
+  END $$`,
+
+  `CREATE TABLE IF NOT EXISTS configuracion_sistema (
+    clave VARCHAR(50) PRIMARY KEY,
+    valor TEXT NOT NULL,
+    actualizado_en TIMESTAMP DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS donantes_bot_activos (
+    telefono VARCHAR(20) PRIMARY KEY,
+    nombre VARCHAR(150),
+    activado_en TIMESTAMP DEFAULT NOW(),
+    estado estado_donante_bot DEFAULT 'activo'
+  )`,
+
+  `INSERT INTO configuracion_sistema (clave, valor) VALUES ('LIMITE_DONANTES_BOT', '1000')
+    ON CONFLICT (clave) DO NOTHING`,
 ];
 
 async function migrate(): Promise<void> {

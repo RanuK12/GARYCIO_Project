@@ -19,6 +19,7 @@ import { markAsProcessed } from "../services/dedup";
 import { normalizePhone } from "../utils/phone";
 import { db } from "../database";
 import { audioMensajes } from "../database/schema";
+import { isWhitelisted, getCapacidadMessage } from "../services/bot-control";
 
 export function createWebhookRouter(): Router {
   const router = Router();
@@ -104,11 +105,23 @@ export function createWebhookRouter(): Router {
               "Mensaje recibido via webhook",
             );
 
-            // Procesar asincrónicamente (no bloquear la respuesta 200)
-            processIncomingMessage(phone, text, messageId, mediaInfo || undefined).catch((err) => {
-              logger.error({ phone, messageId, err }, "Error procesando mensaje entrante");
-              // Marcar como error en dedup para auditoría
-              markAsProcessed(messageId, phone, "error").catch(() => {});
+            // Verificar capacidad controlada (first-come-first-served)
+            isWhitelisted(phone).then((allowed) => {
+              if (!allowed) {
+                logger.warn({ phone }, "Capacidad máxima alcanzada — mensaje rechazado");
+                sendMessage(phone, getCapacidadMessage()).catch(() => {});
+                if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
+                return;
+              }
+
+              // Procesar asincrónicamente (no bloquear la respuesta 200)
+              processIncomingMessage(phone, text, messageId, mediaInfo || undefined).catch((err) => {
+                logger.error({ phone, messageId, err }, "Error procesando mensaje entrante");
+                // Marcar como error en dedup para auditoría
+                markAsProcessed(messageId, phone, "error").catch(() => {});
+              });
+            }).catch((err) => {
+              logger.error({ phone, messageId, err }, "Error verificando capacidad");
             });
           }
         }

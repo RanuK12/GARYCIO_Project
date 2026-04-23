@@ -8,7 +8,7 @@ import { marcarReporteEnviado } from "../../services/reporte-diario";
 import { generarReportePDF } from "../../services/reporte-pdf";
 import { sendDocument } from "../../bot/client";
 import { generarXLSContactosNuevos, activarDonante, limpiarTmpViejos } from "../../services/exportar-contactos";
-import { getBotState, pauseBot, resumeBot, emergencyStop, setWhitelistLimit, getWhitelistLimit, ROLLOUT_PLAN } from "../../services/bot-control";
+import { getBotState, pauseBot, resumeBot, emergencyStop, setWhitelistLimit, getWhitelistLimit, ROLLOUT_PLAN, getCapacidad, ajustarLimiteDonantes } from "../../services/bot-control";
 import { addTrainingExample, listTrainingExamples, toggleTrainingExample, deleteTrainingExample } from "../../services/ia-training";
 
 /**
@@ -53,6 +53,7 @@ export const adminFlow: FlowHandler = {
       case 80: return await handleRevisarFeedbackIA(respuesta, state);
       case 90: return await handleBotControlMenu(respuesta, state);
       case 91: return await handleAgregarEjemploIA(respuesta, state);
+      case 95: return await handleAjustarLimiteBot(respuesta);
       case 92: return await handleVerEjemplosIA(respuesta, state);
       case 93: return await handleAccionEjemploIA(respuesta, state);
       case 99: return await handleVolverOFinalizar(respuesta);
@@ -101,6 +102,8 @@ function handleBienvenida(): FlowResponse {
           { id: "16", title: "Reanudar bot", description: "Volver a atender" },
           { id: "17", title: "Whitelist progresiva", description: "Controlar rollout" },
           { id: "18", title: "Entrenar IA", description: "Agregar ejemplos de clasificacion" },
+          { id: "19", title: "Audios pendientes", description: "Escuchar audios de donantes" },
+          { id: "20", title: "Capacidad del bot", description: "Ver y ajustar límite de donantes" },
         ],
       }, {
         title: "Sesión",
@@ -189,6 +192,10 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
     case "19":
     case "audios pendientes":
       return await handleAudiosPendientes();
+    case "20":
+    case "capacidad":
+    case "capacidad del bot":
+      return await handleCapacidadBot();
     default:
       return handleBienvenida();
   }
@@ -1477,4 +1484,71 @@ async function handleAccionEjemploIA(respuesta: string, state: ConversationState
   }
 
   return handleVerEjemplosIA("ver", state);
+}
+
+// ── Capacidad del bot ────────────────────────────────
+async function handleCapacidadBot(): Promise<FlowResponse> {
+  const cap = await getCapacidad();
+  const porcentaje = Math.round((cap.activos / cap.limite) * 100);
+  const barras = "█".repeat(Math.round(porcentaje / 10)) + "░".repeat(10 - Math.round(porcentaje / 10));
+
+  const body = `📊 *Capacidad del Bot*
+
+` +
+    `${barras} ${porcentaje}%
+
+` +
+    `👥 Activos: ${cap.activos}
+` +
+    `📈 Límite: ${cap.limite}
+` +
+    `✅ Disponibles: ${cap.disponibles}
+
+` +
+    `Para ajustar el límite, escribí:
+` +
+    `*ajustar [número]* (ej: ajustar 1500)`;
+
+  return {
+    reply: body,
+    nextStep: 95,
+    interactive: {
+      type: "list",
+      body,
+      buttonText: "Opciones",
+      sections: [{
+        title: "Capacidad",
+        rows: [
+          { id: "1", title: "Ajustar límite", description: "Cambiar cantidad máxima" },
+          { id: "0", title: "Volver al menú", description: "Regresar" },
+        ],
+      }],
+    },
+  };
+}
+
+async function handleAjustarLimiteBot(respuesta: string): Promise<FlowResponse> {
+  const match = respuesta.match(/\d+/);
+  if (!match) {
+    return {
+      reply: `❌ No entendí el número. Escribí *ajustar [número]* (ej: ajustar 1500)`,
+      nextStep: 95,
+    };
+  }
+  const nuevoLimite = parseInt(match[0], 10);
+  if (nuevoLimite < 0 || nuevoLimite > 50000) {
+    return {
+      reply: `⚠️ El límite debe estar entre 0 y 50000.`,
+      nextStep: 95,
+    };
+  }
+  await ajustarLimiteDonantes(nuevoLimite);
+  const cap = await getCapacidad();
+  return {
+    reply: `✅ Límite actualizado a *${nuevoLimite}* donantes.
+
+` +
+      `📊 Ahora hay ${cap.activos} activos y ${cap.disponibles} disponibles.`,
+    nextStep: 0,
+  };
 }
