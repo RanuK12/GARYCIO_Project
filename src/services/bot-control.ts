@@ -156,6 +156,7 @@ export async function isWhitelisted(phone: string): Promise<boolean> {
   if (env.TEST_MODE && env.TEST_PHONES) {
     const testPhones = new Set(env.TEST_PHONES.split(",").map((p) => normalizePhone(p.trim())));
     if (testPhones.has(normalized)) return true;
+    return false;  // En TEST_MODE solo pasan admins y test phones
   }
   if (!botState.whitelistActive && botState.whitelistLimit <= 0) return true;
   const activado = await activarDonanteBot(normalized);

@@ -117,7 +117,11 @@ export function createWebhookRouter(): Router {
             // Verificar capacidad controlada (first-come-first-served)
             isWhitelisted(phone).then((allowed) => {
               if (!allowed) {
-                logger.warn({ phone }, "Capacidad máxima alcanzada — mensaje rechazado");
+                logger.warn({ phone }, "Mensaje rechazado — no whitelisteado");
+                if (env.TEST_MODE) {
+                  if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
+                  return;
+                }
                 sendMessage(phone, getCapacidadMessage()).catch(() => {});
                 if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
                 return;
