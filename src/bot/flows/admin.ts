@@ -1292,7 +1292,7 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
   const step = state.data?.iaTrainingStep ?? "mensaje";
   const cmd = respuesta.toLowerCase().trim();
 
-  if (cmd === "cancelar" || cmd === "0") return handleEntrenarIA();
+  if (cmd === "0" || cmd === "cancelar" || cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "salir" || cmd === "3") return handleBienvenida();
 
   if (step === "mensaje") {
     return {
@@ -1445,7 +1445,7 @@ async function handleAccionEjemploIA(respuesta: string, state: ConversationState
   const idx: number | undefined = state.data?.iaEjemploSeleccionado;
   const ids: number[] = state.data?.iaEjemplosIds || [];
 
-  if (cmd === "volver") return handleVerEjemplosIA("ver", state);
+  if (cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "salir" || cmd === "cancelar" || cmd === "0") return handleEntrenarIA();
   if (!idx || idx < 1 || idx > ids.length) return handleVerEjemplosIA("ver", state);
 
   const exampleId = ids[idx - 1];
