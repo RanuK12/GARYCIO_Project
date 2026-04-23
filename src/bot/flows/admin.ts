@@ -77,37 +77,22 @@ function handleBienvenida(): FlowResponse {
         title: "Gestión",
         rows: [
           { id: "1", title: "Contactos nuevos", description: "Revisar, agendar y exportar XLS" },
-          { id: "2", title: "Buscar donante", description: "Por nombre, tel o dirección" },
           { id: "3", title: "Reclamos pendientes", description: "Sin resolver" },
-          { id: "4", title: "Reportes de baja", description: "Pendientes de confirmación" },
         ],
       }, {
         title: "Operación",
         rows: [
-          { id: "10", title: "Estado difusión", description: "Confirmadas vs pendientes" },
           { id: "11", title: "Resumen rápido", description: "Stats del día en un vistazo" },
-        ],
-      }, {
-        title: "Reportes",
-        rows: [
           { id: "8", title: "Reporte diario PDF", description: "Generar y enviar" },
-          { id: "7", title: "Lista de comandos", description: "Todos los comandos" },
-          { id: "13", title: "Revisar IA feedback", description: "Ver fallos e interpretaciones IA" },
         ],
       }, {
-        title: "Control del Bot",
+        title: "Control",
         rows: [
-          { id: "14", title: "Estado del bot", description: "Ver estado, uptime, memoria" },
-          { id: "15", title: "Pausar bot", description: "Modo mantenimiento" },
-          { id: "16", title: "Reanudar bot", description: "Volver a atender" },
-          { id: "17", title: "Whitelist progresiva", description: "Controlar rollout" },
-          { id: "18", title: "Entrenar IA", description: "Agregar ejemplos de clasificacion" },
+          { id: "14", title: "Control del bot", description: "Estado, pausa, capacidad, IA" },
+          { id: "20", title: "Capacidad del bot", description: "Ver y ajustar limite" },
           { id: "19", title: "Audios pendientes", description: "Escuchar audios de donantes" },
-          { id: "20", title: "Capacidad del bot", description: "Ver y ajustar límite de donantes" },
-        ],
-      }, {
-        title: "Sesión",
-        rows: [
+          { id: "18", title: "Entrenar IA", description: "Agregar ejemplos de clasificacion" },
+          { id: "13", title: "Revisar IA feedback", description: "Ver fallos e interpretaciones IA" },
           { id: "9", title: "Finalizar", description: "Cerrar panel admin" },
         ],
       }],
