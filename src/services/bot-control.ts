@@ -5,7 +5,7 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { db } from "../database";
 import { configuracionSistema, donantesBotActivos } from "../database/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, sql } from "drizzle-orm";
 import { sendMessage } from "../bot/client";
 import { normalizePhone } from "../utils/phone";
 
@@ -113,28 +113,66 @@ export async function ajustarLimiteDonantes(nuevoLimite: number): Promise<void> 
   logger.info({ limit }, "Límite de donantes actualizado");
 }
 
+/**
+ * Activa una donante en el bot, atómicamente:
+ *  - Si ya está, retorna true.
+ *  - Si no, lockea la tabla, recuenta activas, y solo inserta si hay
+ *    cupo. Sin esto, dos inbounds simultáneos podían pasar el check
+ *    y terminar en cap+1 (caso real: 11 vs 10).
+ */
 export async function activarDonanteBot(phone: string, nombre?: string): Promise<boolean> {
   const normalized = normalizePhone(phone);
   if (!normalized) return false;
   try {
-    const existente = await db.select().from(donantesBotActivos).where(eq(donantesBotActivos.telefono, normalized)).limit(1);
-    if (existente.length > 0 && existente[0].estado === "activo") return true;
-    if (existente.length > 0) {
-      await db.update(donantesBotActivos)
-        .set({ estado: "activo", activadoEn: new Date() })
-        .where(eq(donantesBotActivos.telefono, normalized));
+    return await db.transaction(async (tx) => {
+      // Lock pesado en la tabla. Inserts/updates a `donantes_bot_activos`
+      // se serializan mientras dure la tx. Es lo que evita el race del
+      // cap+1 que vimos en producción.
+      await tx.execute(sql`LOCK TABLE donantes_bot_activos IN SHARE ROW EXCLUSIVE MODE`);
+
+      const existente = await tx
+        .select()
+        .from(donantesBotActivos)
+        .where(eq(donantesBotActivos.telefono, normalized))
+        .limit(1);
+
+      if (existente.length > 0 && existente[0].estado === "activo") return true;
+      if (existente.length > 0) {
+        await tx
+          .update(donantesBotActivos)
+          .set({ estado: "activo", activadoEn: new Date() })
+          .where(eq(donantesBotActivos.telefono, normalized));
+        return true;
+      }
+
+      // Recuento + límite leídos DENTRO de la tx con el lock activo.
+      const limiteRow = await tx
+        .select()
+        .from(configuracionSistema)
+        .where(eq(configuracionSistema.clave, "LIMITE_DONANTES_BOT"))
+        .limit(1);
+      const limite = parseInt(limiteRow[0]?.valor || "1000", 10);
+
+      const countResult = await tx
+        .select({ value: count() })
+        .from(donantesBotActivos)
+        .where(eq(donantesBotActivos.estado, "activo"));
+      const activos = countResult[0]?.value ?? 0;
+
+      if (activos >= limite) {
+        logger.info({ phone: normalized, activos, limite }, "Cap lleno — silencio total");
+        return false;
+      }
+
+      await tx.insert(donantesBotActivos).values({
+        telefono: normalized,
+        nombre: nombre || null,
+        activadoEn: new Date(),
+        estado: "activo",
+      });
+      logger.info({ phone: normalized, activos: activos + 1, limite }, "Nuevo donante activado en el bot");
       return true;
-    }
-    const { disponibles } = await getCapacidad();
-    if (disponibles <= 0) return false;
-    await db.insert(donantesBotActivos).values({
-      telefono: normalized,
-      nombre: nombre || null,
-      activadoEn: new Date(),
-      estado: "activo",
     });
-    logger.info({ phone: normalized }, "Nuevo donante activado en el bot");
-    return true;
   } catch (err) {
     logger.error({ phone: normalized, err }, "Error activando donante");
     return false;
@@ -153,14 +191,23 @@ export async function liberarDonanteBot(phone: string): Promise<void> {
 export async function isWhitelisted(phone: string): Promise<boolean> {
   const normalized = normalizePhone(phone);
   if (isAdminPhone(normalized)) return true;
-  if (env.TEST_MODE && env.TEST_PHONES) {
-    const testPhones = new Set(env.TEST_PHONES.split(",").map((p) => normalizePhone(p.trim())));
-    if (testPhones.has(normalized)) return true;
-    return false;  // En TEST_MODE solo pasan admins y test phones
+
+  // P0.1 — TEST_MODE: solo TEST_PHONES (todos los demás → false). Defensa fuerte.
+  if (env.TEST_MODE) {
+    if (env.TEST_PHONES) {
+      const testPhones = new Set(
+        env.TEST_PHONES.split(",").map((p) => normalizePhone(p.trim())),
+      );
+      if (testPhones.has(normalized)) return true;
+    }
+    return false;
   }
-  if (!botState.whitelistActive && botState.whitelistLimit <= 0) return true;
-  const activado = await activarDonanteBot(normalized);
-  return activado;
+
+  // FUERA de TEST_MODE: la única política válida es chequear capacidad
+  // contra `LIMITE_DONANTES_BOT` (DB) atómicamente. Eliminada la rama
+  // legacy `whitelistActive && whitelistLimit<=0 → return true` que
+  // dejaba pasar a TODOS sin chequear capacidad.
+  return await activarDonanteBot(normalized);
 }
 
 export async function setWhitelistLimit(limit: number): Promise<void> {

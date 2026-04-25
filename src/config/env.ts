@@ -1,7 +1,28 @@
 import { config } from "dotenv";
 import { z } from "zod";
+import * as path from "path";
+import * as fs from "fs";
 
-config();
+// Carga del .env robusta: probar varios paths para sobrevivir a casos
+// donde cwd no es la raíz del proyecto (PM2 cluster, scripts, tests).
+const candidates = [
+  // 1) cwd actual (caso típico)
+  path.resolve(process.cwd(), ".env"),
+  // 2) raíz del proyecto deducida desde la ubicación de este archivo:
+  //    en build: dist/config/env.js  → ../../.env
+  //    en src:   src/config/env.ts   → ../../.env
+  path.resolve(__dirname, "..", "..", ".env"),
+  // 3) /opt/garycio/.env (deploy fijo)
+  "/opt/garycio/.env",
+];
+const found = candidates.find((p) => {
+  try { return fs.existsSync(p); } catch { return false; }
+});
+if (found) {
+  config({ path: found });
+} else {
+  config(); // fallback al default (busca en cwd)
+}
 
 // z.coerce.boolean() convierte cualquier string no-vacío a true (incluso "false").
 // Este helper parsea correctamente: "false"/"0"/"" → false, resto → true.

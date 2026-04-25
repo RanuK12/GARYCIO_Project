@@ -23,6 +23,41 @@ import { isWhitelisted } from "../services/bot-control";
 import { notifyOutboundSeen } from "../services/bot-takeover";
 import { debounceInbound } from "../services/inbound-debounce";
 
+/**
+ * Anti-spam de boot: cuando el bot se enciende, 360dialog/Meta reentregan
+ * mensajes pendientes que llegaron mientras estaba apagado. Esos mensajes
+ * pueden ser de horas atrás y NO deben ser respondidos como si fueran
+ * nuevos (pasó eso en producción 25/4, generó spam masivo).
+ *
+ * Reglas:
+ *  1. BOOT_TIMESTAMP_SEC = epoch del arranque del proceso. Mensajes con
+ *     timestamp menor a esto se descartan.
+ *  2. MAX_AGE_SEC: cualquier mensaje > 5 min viejo (independientemente
+ *     del boot) se descarta. Usuario que escribió "hola" hace 2h y nos
+ *     llega ahora — no le reabrimos la conversación.
+ */
+const BOOT_TIMESTAMP_SEC = Math.floor(Date.now() / 1000);
+const MAX_INBOUND_AGE_SEC = 5 * 60; // 5 min
+
+function isMessageTooOld(message: any): { tooOld: boolean; reason?: string; ageSec?: number } {
+  const tsRaw = message?.timestamp;
+  const ts = typeof tsRaw === "string" ? parseInt(tsRaw, 10) : Number(tsRaw);
+  if (!Number.isFinite(ts) || ts <= 0) {
+    // Sin timestamp válido (caso raro). Default: aceptar para no perder
+    // mensajes legítimos por payloads atípicos. Loguea para auditoría.
+    return { tooOld: false };
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  const ageSec = nowSec - ts;
+  if (ts < BOOT_TIMESTAMP_SEC) {
+    return { tooOld: true, reason: "pre-boot", ageSec };
+  }
+  if (ageSec > MAX_INBOUND_AGE_SEC) {
+    return { tooOld: true, reason: "max-age-exceeded", ageSec };
+  }
+  return { tooOld: false, ageSec };
+}
+
 export function createWebhookRouter(): Router {
   const router = Router();
 
@@ -81,13 +116,43 @@ export function createWebhookRouter(): Router {
             }
           }
 
+          // ── Llamadas de voz/video — ignorar silenciosamente ──
+          // WhatsApp envía notificaciones de llamada como un array "calls"
+          // separado del array "messages". Las descartamos sin responder.
+          if (value?.calls) {
+            for (const call of value.calls) {
+              logger.info(
+                { phone: call.from, callId: call.id, type: call.type },
+                "Llamada WhatsApp recibida — ignorada (no soportada)",
+              );
+            }
+          }
+
           if (!value?.messages) continue;
 
           for (const message of value.messages) {
             const phone = normalizePhone(message.from);
             const messageId = message.id;
 
+            // ── Filtro de antigüedad: descartar mensajes pre-boot o > 5 min ──
+            // Crítico para evitar el spam que pasó al re-arrancar (25/4).
+            const ageCheck = isMessageTooOld(message);
+            if (ageCheck.tooOld) {
+              logger.warn(
+                { phone, messageId, reason: ageCheck.reason, ageSec: ageCheck.ageSec },
+                "Mensaje viejo o pre-boot — descartado sin procesar",
+              );
+              if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
+              continue;
+            }
+
             if (message.type === "reaction") {
+              continue;
+            }
+
+            // Llamadas que lleguen como tipo de mensaje (edge case)
+            if (message.type === "call") {
+              logger.info({ phone, messageId }, "Llamada como mensaje — ignorada");
               continue;
             }
 

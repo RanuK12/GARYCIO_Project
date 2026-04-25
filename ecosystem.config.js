@@ -2,8 +2,14 @@ module.exports = {
   apps: [
     {
       name: "garycio-bot",
+      // cwd EXPLÍCITO: dotenv busca .env en cwd. Sin esto, según el modo
+      // de arranque de PM2 (cluster, fork, resurrect), el cwd puede ser
+      // distinto y el .env no se carga → env.TEST_MODE termina en false
+      // aunque el archivo diga true. Caso real visto el 25/4.
+      cwd: "/opt/garycio",
       script: "dist/index.js",
       instances: 1,
+      exec_mode: "fork", // explícito: cluster cargaba el bot en otro cwd
       autorestart: true,
       watch: false,
       max_memory_restart: "1500M",

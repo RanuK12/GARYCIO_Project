@@ -12,7 +12,7 @@ import { ConversationState, FlowType, FlowResponse, InteractiveMessage, detectFl
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
 import { conversationStates, difusionEnvios, mensajesLog } from "../database/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
 import { classifyIntent, type ClassifierResult } from "../services/clasificador-ia";
@@ -782,4 +782,34 @@ export async function resetConversationalStateOnStart(): Promise<void> {
     { deletedFlows: rowCount, cachedFlows: prevCacheSize },
     "P0.9 — Estado conversacional reseteado al arrancar. Bot olvida flows previos.",
   );
+
+  // P0.13 — Pre-pausa de teléfonos con humano interviniendo recientemente.
+  // Mientras el bot estuvo apagado, un humano pudo haber respondido en
+  // 360 Inbox o en WhatsApp Business App. Si vemos que el ÚLTIMO mensaje
+  // de una donante en las últimas 24h fue saliente (=alguien le escribió
+  // desde nuestro número), pausamos al bot para ese phone por 4h. Así
+  // evitamos que el bot reabra una conversación que un humano cerró.
+  try {
+    const { pauseBotForPhone } = await import("../services/bot-takeover");
+    const rows = await db.execute<{ telefono: string; direccion_msg: string }>(sql`
+      SELECT DISTINCT ON (telefono) telefono, direccion_msg
+      FROM mensajes_log
+      WHERE created_at > NOW() - INTERVAL '24 hours'
+        AND telefono IS NOT NULL
+      ORDER BY telefono, created_at DESC
+    `);
+    let pausados = 0;
+    for (const r of rows.rows ?? []) {
+      if (r.direccion_msg === "saliente") {
+        pauseBotForPhone(r.telefono, "humano-respondio-pre-boot");
+        pausados++;
+      }
+    }
+    logger.warn(
+      { pausados },
+      "P0.13 — Phones con humano respondiendo en últimas 24h: bot pausado para esos números",
+    );
+  } catch (err) {
+    logger.error({ err }, "Error pre-pausando teléfonos con humano reciente (no bloquea start)");
+  }
 }
