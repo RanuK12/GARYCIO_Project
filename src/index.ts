@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { audioMensajes } from "./database/schema";
 import { logger } from "./config/logger";
 import { testConnection } from "./database";
+import { resetConversationalStateOnStart } from "./bot/conversation-manager";
 import { createWebhookRouter } from "./bot";
 import { initScheduler } from "./services/scheduler";
 import { initReporteDiario } from "./services/reporte-diario";
@@ -757,6 +758,35 @@ async function main(): Promise<void> {
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }
+  });
+
+  // ── P0.9: reset de estado conversacional ANTES de exponer webhook ──
+  // Política acordada: el bot olvida flows previos al encender. Arranca en blanco.
+  // Preserva human_escalations activas y mensajes_log (para ventana 24h).
+  try {
+    await resetConversationalStateOnStart();
+  } catch (err) {
+    logger.error({ err }, "Error reseteando estado conversacional al start (se continúa igual)");
+  }
+
+  // ── Bot-takeover (P0.10) y rate-limit (P1.6) status ──
+  app.get("/admin/bot-takeover/status", async (_req, res) => {
+    const { takeoverStats } = await import("./services/bot-takeover");
+    res.json({ status: "ok", ...takeoverStats() });
+  });
+  app.post("/admin/bot-takeover/resume", async (req, res) => {
+    const phone = String((req.body ?? {}).phone || "").trim();
+    if (!phone) {
+      res.status(400).json({ error: "Body { phone: string }" });
+      return;
+    }
+    const { resumeBotForPhone } = await import("./services/bot-takeover");
+    resumeBotForPhone(phone);
+    res.json({ status: "ok", phone });
+  });
+  app.get("/admin/rate-limit/status", async (_req, res) => {
+    const { rateLimitStats } = await import("./services/rate-limit-adaptive");
+    res.json({ status: "ok", ...rateLimitStats() });
   });
 
   app.listen(env.PORT, () => {

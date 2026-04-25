@@ -3,6 +3,7 @@ import { db } from "../../database";
 import { donantes, avisos } from "../../database/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../../config/logger";
+import { mapTipoAvisoIaToDb } from "../../services/ia-enum-mapper";
 
 /**
  * Flow de avisos de donantes.
@@ -334,12 +335,7 @@ function parsearFecha(lower: string, original: string): string | null {
 // ── Guardar aviso en DB ──────────────────────────────
 async function guardarAvisoEnDB(phone: string, tipo: string, fechaVuelta: string | null): Promise<void> {
   try {
-    const tipoMap: Record<string, "vacaciones" | "enfermedad" | "medicacion"> = {
-      vacaciones: "vacaciones",
-      enfermedad: "enfermedad",
-      medicacion: "medicacion",
-    };
-    const tipoEnum = tipoMap[tipo];
+    const tipoEnum = mapTipoAvisoIaToDb(tipo);
     if (!tipoEnum) return; // cambio_direccion y cambio_telefono no son avisos de ausencia
 
     const donanteRow = await db

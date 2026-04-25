@@ -1,7 +1,32 @@
 import { env } from "../config/env";
 import { normalizePhone } from "../utils/phone";
 import { logger } from "../config/logger";
+import { isConversationWindowOpen } from "../services/whatsapp-window";
+import { registerBotSentMessage } from "../services/bot-takeover";
+import { recordRateLimitHit, isPhoneRateLimited } from "../services/rate-limit-adaptive";
 import fs from "fs";
+
+// ── Límites WhatsApp Cloud API (Meta) ────────────────────
+// https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages
+// Buttons: max 3. List: max 10 rows TOTALES (sumando todas las sections).
+// row.title 24 / row.description 72 / button.title 20 / interactive body 1024
+// text body 4096 / document caption 1024 / filename 240
+// Violar => error 100 (permanente). Truncar y avisar es mejor que dropear.
+export const WHATSAPP_LIMITS = {
+  MAX_BUTTONS: 3,
+  MAX_LIST_ROWS: 10,
+  MAX_BUTTON_TITLE: 20,
+  MAX_ROW_TITLE: 24,
+  MAX_ROW_DESCRIPTION: 72,
+  MAX_BODY: 1024,
+  MAX_TEXT_BODY: 4096,
+  MAX_DOC_CAPTION: 1024,
+  MAX_DOC_FILENAME: 240,
+} as const;
+
+function clampStr(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
 
 // Soporte para Meta Cloud API directa o 360dialog como proveedor
 // Meta:      https://graph.facebook.com/v22.0/{phone_number_id}  — Authorization: Bearer TOKEN
@@ -68,6 +93,14 @@ async function callWhatsAppAPI(
     throw new WhatsAppAPIError(String(errorMsg), Number(errorCode), response.status);
   }
 
+  // P0.10 — para envíos de mensajes, registrar el messageId como enviado
+  // por el bot. Así cuando el webhook reciba el status outbound no lo
+  // confunda con intervención humana.
+  if (endpoint === "/messages") {
+    const sentId = (data as { messages?: Array<{ id?: string }> })?.messages?.[0]?.id;
+    if (sentId) registerBotSentMessage(sentId);
+  }
+
   return data;
 }
 
@@ -87,7 +120,10 @@ export class WhatsAppAPIError extends Error {
     // 131030 = recipient not on WhatsApp
     // 132000 = template not found
     // 131026 = message not deliverable
-    return [131030, 132000, 131026, 100].includes(this.code);
+    // 100    = invalid parameter
+    // 131047 = re-engagement required (ventana 24h cerrada — P0.2)
+    // 131056 = rate limit business/consumer pair (P0.2)
+    return [131030, 132000, 131026, 100, 131047, 131056].includes(this.code);
   }
 }
 
@@ -99,7 +135,35 @@ export async function sendMessage(
 ): Promise<any> {
   const to = formatPhone(phone);
   assertTestWhitelist(to);
+
+  // P1.6 — backoff por phone si vino 131056 reciente: cortocircuito.
+  if (retries === 0 && isPhoneRateLimited(to)) {
+    const msg = `Rate limit activo para ${to}: backoff por 131056 reciente`;
+    logger.warn({ phone: to }, msg);
+    throw new WhatsAppAPIError(msg, 131056, 429);
+  }
+
+  // P0.3 — pre-check ventana 24h: si no hay inbound reciente, no intentar free-form.
+  if (retries === 0) {
+    const open = await isConversationWindowOpen(to);
+    if (!open) {
+      const msg = `Ventana 24h cerrada para ${to}: requiere template para re-engagement`;
+      logger.warn({ phone: to }, msg);
+      throw new WhatsAppAPIError(msg, 131047, 400);
+    }
+  }
+
   await rateLimitWait();
+
+  // Guard: WhatsApp rechaza textos > 4096 chars (error 100). Clamp + log.
+  let safeMessage = message;
+  if (message.length > WHATSAPP_LIMITS.MAX_TEXT_BODY) {
+    logger.error(
+      { phone: to, length: message.length, max: WHATSAPP_LIMITS.MAX_TEXT_BODY },
+      "sendMessage: texto excede 4096 chars — se trunca",
+    );
+    safeMessage = message.slice(0, WHATSAPP_LIMITS.MAX_TEXT_BODY - 1) + "…";
+  }
 
   try {
     const result = await callWhatsAppAPI("/messages", {
@@ -107,14 +171,16 @@ export async function sendMessage(
       recipient_type: "individual",
       to,
       type: "text",
-      text: { preview_url: false, body: message },
+      text: { preview_url: false, body: safeMessage },
     });
 
-    logger.debug({ phone: to, preview: message.slice(0, 50) }, "Mensaje enviado");
+    logger.debug({ phone: to, preview: safeMessage.slice(0, 50) }, "Mensaje enviado");
     return result;
   } catch (err) {
     // No reintentar errores permanentes
     if (err instanceof WhatsAppAPIError && err.isPermanent) {
+      // P1.6 — 131056: registrar backoff por teléfono
+      if (err.code === 131056) recordRateLimitHit(to);
       logger.error({ phone: to, code: err.code, err: err.message }, "Error permanente, no se reintenta");
       throw err;
     }
@@ -183,6 +249,20 @@ export async function sendInteractiveButtons(
   assertTestWhitelist(to);
   await rateLimitWait();
 
+  // Guard: WhatsApp rechaza > 3 botones con error 100. Truncar + log.
+  if (buttons.length > WHATSAPP_LIMITS.MAX_BUTTONS) {
+    logger.error(
+      { phone: to, count: buttons.length, max: WHATSAPP_LIMITS.MAX_BUTTONS },
+      "sendInteractiveButtons: > 3 botones — se truncan al primero/segundo/tercero",
+    );
+    buttons = buttons.slice(0, WHATSAPP_LIMITS.MAX_BUTTONS);
+  }
+  const safeBody = clampStr(body, WHATSAPP_LIMITS.MAX_BODY);
+  const safeButtons = buttons.map((b) => ({
+    ...b,
+    title: clampStr(b.title, WHATSAPP_LIMITS.MAX_BUTTON_TITLE),
+  }));
+
   try {
     const result = await callWhatsAppAPI("/messages", {
       messaging_product: "whatsapp",
@@ -191,9 +271,9 @@ export async function sendInteractiveButtons(
       type: "interactive",
       interactive: {
         type: "button",
-        body: { text: body },
+        body: { text: safeBody },
         action: {
-          buttons: buttons.map((b) => ({
+          buttons: safeButtons.map((b) => ({
             type: "reply",
             reply: { id: b.id, title: b.title },
           })),
@@ -222,6 +302,35 @@ export async function sendInteractiveList(
   assertTestWhitelist(to);
   await rateLimitWait();
 
+  // Guard: WhatsApp permite máximo 10 rows TOTALES en una lista
+  // (sumando todas las secciones). Truncar preservando orden.
+  let totalRows = 0;
+  const safeSections: typeof sections = [];
+  for (const sec of sections) {
+    if (totalRows >= WHATSAPP_LIMITS.MAX_LIST_ROWS) break;
+    const remaining = WHATSAPP_LIMITS.MAX_LIST_ROWS - totalRows;
+    const rows = sec.rows.slice(0, remaining).map((r) => ({
+      id: r.id,
+      title: clampStr(r.title, WHATSAPP_LIMITS.MAX_ROW_TITLE),
+      ...(r.description !== undefined
+        ? { description: clampStr(r.description, WHATSAPP_LIMITS.MAX_ROW_DESCRIPTION) }
+        : {}),
+    }));
+    if (rows.length > 0) {
+      safeSections.push({ ...sec, rows });
+      totalRows += rows.length;
+    }
+  }
+  const originalRows = sections.reduce((n, s) => n + s.rows.length, 0);
+  if (originalRows > WHATSAPP_LIMITS.MAX_LIST_ROWS) {
+    logger.error(
+      { phone: to, originalRows, kept: totalRows, max: WHATSAPP_LIMITS.MAX_LIST_ROWS },
+      "sendInteractiveList: lista excede 10 rows — se truncan los excedentes",
+    );
+  }
+  const safeBody = clampStr(body, WHATSAPP_LIMITS.MAX_BODY);
+  const safeButtonText = clampStr(buttonText, WHATSAPP_LIMITS.MAX_BUTTON_TITLE);
+
   try {
     const result = await callWhatsAppAPI("/messages", {
       messaging_product: "whatsapp",
@@ -230,10 +339,10 @@ export async function sendInteractiveList(
       type: "interactive",
       interactive: {
         type: "list",
-        body: { text: body },
+        body: { text: safeBody },
         action: {
-          button: buttonText,
-          sections,
+          button: safeButtonText,
+          sections: safeSections,
         },
       },
     });
@@ -261,14 +370,26 @@ export async function sendDocument(
 
     // Paso 2: enviar el documento con el media ID
     await rateLimitWait();
+
+    const safeFilename = clampStr(fileName, WHATSAPP_LIMITS.MAX_DOC_FILENAME);
+    const safeCaption = caption
+      ? clampStr(caption, WHATSAPP_LIMITS.MAX_DOC_CAPTION)
+      : undefined;
+    if (caption && caption.length > WHATSAPP_LIMITS.MAX_DOC_CAPTION) {
+      logger.error(
+        { phone: to, length: caption.length, max: WHATSAPP_LIMITS.MAX_DOC_CAPTION },
+        "sendDocument: caption excede 1024 chars — se trunca",
+      );
+    }
+
     const result = await callWhatsAppAPI("/messages", {
       messaging_product: "whatsapp",
       to,
       type: "document",
       document: {
         id: mediaId,
-        filename: fileName,
-        ...(caption && { caption }),
+        filename: safeFilename,
+        ...(safeCaption && { caption: safeCaption }),
       },
     });
 

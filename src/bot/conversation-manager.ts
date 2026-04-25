@@ -17,6 +17,7 @@ import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
 import { classifyIntent, type ClassifierResult } from "../services/clasificador-ia";
 import { isHumanEscalated, escalateToHuman } from "../services/human-escalation";
+import { detectEscalationTrigger } from "../services/escalation-triggers";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
@@ -264,6 +265,31 @@ export async function handleIncomingMessage(
       notify: {
         target: "admin",
         message: `🙋 *Mensaje de usuario escalado*\n\n📱 ${phone}\n💬 "${message.slice(0, 200)}"`,
+      },
+      needsHuman: true,
+    };
+  }
+
+  // P2.1 — Frases gatillo de escalación inmediata (legal, financiero, urgencia,
+  // frustración larga, disconformidad grave, amenaza de baja). Saltean la IA.
+  const trigger = detectEscalationTrigger(message);
+  if (trigger) {
+    await escalateToHuman(phone, "user_request", {
+      lastMessage: message,
+      intent: `trigger:${trigger.category}:${trigger.matched}`,
+    });
+    return {
+      reply:
+        "Te entendemos. 🙏 Tu mensaje fue derivado a nuestro equipo.\n" +
+        "Una persona se va a comunicar con vos a la brevedad.",
+      notify: {
+        target: "admin",
+        message:
+          `🚨 *ESCALACIÓN AUTOMÁTICA (${trigger.category})*\n\n` +
+          `📱 ${phone}\n` +
+          `💬 "${message.slice(0, 200)}"\n\n` +
+          `Patrón detectado: "${trigger.matched}".\n` +
+          `Requiere contacto humano inmediato.`,
       },
       needsHuman: true,
     };
@@ -734,4 +760,26 @@ function detectarHablarConPersona(message: string): boolean {
     "quiero un humano", "necesito atencion humana", "quiero hablar con una persona",
   ];
   return FRASES.some((frase) => lower.includes(frase));
+}
+
+// ── P0.9 — Reset al arrancar el bot ──────────────────────
+/**
+ * Política acordada con el dueño: cuando el bot enciende, descarta TODOS
+ * los flows en curso. Las donantes que estaban a mitad de un menú vuelven
+ * a empezar desde 0 con su próximo mensaje.
+ *
+ * - Limpia cache en memoria
+ * - Borra `conversation_states` (NO toca `human_escalations` ni `mensajes_log`)
+ *
+ * Llamar UNA vez en `index.ts` justo antes de aceptar tráfico.
+ */
+export async function resetConversationalStateOnStart(): Promise<void> {
+  const prevCacheSize = conversationCache.size;
+  conversationCache.clear();
+  const deleted = await db.delete(conversationStates);
+  const rowCount = (deleted as { rowCount?: number }).rowCount ?? 0;
+  logger.warn(
+    { deletedFlows: rowCount, cachedFlows: prevCacheSize },
+    "P0.9 — Estado conversacional reseteado al arrancar. Bot olvida flows previos.",
+  );
 }

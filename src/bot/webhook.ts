@@ -20,6 +20,8 @@ import { normalizePhone } from "../utils/phone";
 import { db } from "../database";
 import { audioMensajes } from "../database/schema";
 import { isWhitelisted, getCapacidadMessage } from "../services/bot-control";
+import { notifyOutboundSeen } from "../services/bot-takeover";
+import { debounceInbound } from "../services/inbound-debounce";
 
 export function createWebhookRouter(): Router {
   const router = Router();
@@ -58,6 +60,13 @@ export function createWebhookRouter(): Router {
           // Statuses de mensajes salientes (sent, delivered, read, failed)
           if (value?.statuses) {
             for (const status of value.statuses) {
+              // P0.10 — detección pasiva de intervención humana:
+              // si el messageId NO fue registrado por el bot al enviar,
+              // es un outbound ajeno (agente en dashboard / 360 Inbox)
+              // → pausamos el bot para ese teléfono.
+              if (status.status === "sent" && status.id && status.recipient_id) {
+                notifyOutboundSeen(normalizePhone(status.recipient_id), status.id);
+              }
               if (status.status === "failed") {
                 logger.error(
                   { phone: status.recipient_id, messageId: status.id, status: status.status, errors: status.errors },
@@ -114,10 +123,22 @@ export function createWebhookRouter(): Router {
                 return;
               }
 
-              // Procesar asincrónicamente (no bloquear la respuesta 200)
-              processIncomingMessage(phone, text, messageId, mediaInfo || undefined).catch((err) => {
+              // P0.12 — Debounce 10s por teléfono. Si llegan más mensajes
+              // del mismo phone dentro de la ventana, se concatenan y se
+              // responde una sola vez al final del batch.
+              debounceInbound(
+                { phone, text, messageId, mediaInfo: mediaInfo || undefined },
+                {
+                  onFlush: async (batched) =>
+                    processIncomingMessage(
+                      batched.phone,
+                      batched.text,
+                      batched.messageId,
+                      batched.mediaInfo,
+                    ),
+                },
+              ).catch((err) => {
                 logger.error({ phone, messageId, err }, "Error procesando mensaje entrante");
-                // Marcar como error en dedup para auditoría
                 markAsProcessed(messageId, phone, "error").catch(() => {});
               });
             }).catch((err) => {

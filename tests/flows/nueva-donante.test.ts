@@ -28,57 +28,34 @@ describe("nuevaDonanteFlow", () => {
             expect(res.nextStep).toBe(1);
         });
 
-        it("acepta dirección válida", async () => {
+        it("acepta dirección válida → pasa a confirmación", async () => {
             const state = createState("nueva_donante", 1, { nombre: "María" });
             const res = await nuevaDonanteFlow.handle(state, "Av. San Martín 456, Caballito");
             expect(res.data?.direccion).toBe("Av. San Martín 456, Caballito");
-            expect(res.reply).toContain("días");
+            // Flow simplificado: directo a confirmación (sin paso de días).
+            expect(res.reply).toContain("Confirmemos tus datos");
             expect(res.nextStep).toBe(2);
         });
     });
 
-    describe("step 2 - días de preferencia", () => {
-        it("registra días específicos", async () => {
-            const state = createState("nueva_donante", 2, {
-                nombre: "María",
-                direccion: "Av. San Martín 456",
-            });
-            const res = await nuevaDonanteFlow.handle(state, "lunes y jueves");
-            expect(res.data?.diasPreferencia).toBe("lunes y jueves");
-            expect(res.reply).toContain("Confirmemos tus datos");
-            expect(res.nextStep).toBe(3);
-        });
-
-        it("acepta 'cualquier día'", async () => {
-            const state = createState("nueva_donante", 2, {
-                nombre: "María",
-                direccion: "Av. San Martín 456",
-            });
-            const res = await nuevaDonanteFlow.handle(state, "cualquier día me viene bien");
-            expect(res.data?.diasPreferencia).toBe("A coordinar");
-        });
-    });
-
-    describe("step 3 - confirmación", () => {
+    describe("step 2 - confirmación", () => {
         const baseData = {
             nombre: "María López",
             direccion: "Av. San Martín 456, Caballito",
-            diasPreferencia: "Lunes y Jueves",
         };
 
         it("confirma registro", async () => {
-            const state = createState("nueva_donante", 3, baseData);
+            const state = createState("nueva_donante", 2, baseData);
             const res = await nuevaDonanteFlow.handle(state, "1");
             expect(res.reply).toContain("registrada como nueva donante");
             expect(res.endFlow).toBe(true);
             expect(res.data?.confirmado).toBe(true);
-            // Notifica al admin (quien asigna zona y chofer)
             expect(res.notify?.target).toBe("admin");
             expect(res.notify?.message).toContain("María López");
         });
 
         it("corrige → vuelve al inicio", async () => {
-            const state = createState("nueva_donante", 3, baseData);
+            const state = createState("nueva_donante", 2, baseData);
             const res = await nuevaDonanteFlow.handle(state, "no, corrijo");
             expect(res.reply).toContain("nombre completo");
             expect(res.nextStep).toBe(0);

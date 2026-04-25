@@ -14,7 +14,10 @@ jest.mock("../../src/database", () => ({
     db: {
         update: jest.fn().mockReturnValue({
             set: jest.fn().mockReturnValue({
-                where: jest.fn().mockResolvedValue(undefined),
+                where: jest.fn().mockReturnValue({
+                    // chain final: .returning() existe en el flow real
+                    returning: jest.fn().mockResolvedValue([{ telefono: "5411000000" }]),
+                }),
             }),
         }),
     },
@@ -37,9 +40,11 @@ describe("difusionFlow", () => {
         it("opción 2 → muestra menú de donantes", async () => {
             const state = createState("difusion", 0);
             const res = await difusionFlow.handle(state, "2");
-            expect(res.reply).toContain("reclamo");
-            expect(res.reply).toContain("aviso");
-            expect(res.reply).toContain("Otro motivo");
+            // Menú principal viene como botones interactivos.
+            const titles = res.interactive?.buttons?.map((b) => b.title) ?? [];
+            expect(titles.join(" ").toLowerCase()).toContain("reclamo");
+            expect(titles.join(" ").toLowerCase()).toContain("aviso");
+            expect(titles.join(" ").toLowerCase()).toContain("consulta");
             expect(res.endFlow).toBe(true);
         });
 
@@ -47,8 +52,10 @@ describe("difusionFlow", () => {
             const state = createState("difusion", 0);
             const res = await difusionFlow.handle(state, "hola");
             expect(res.reply).toContain("No entendí");
-            expect(res.reply).toContain("*1*");
-            expect(res.reply).toContain("*2*");
+            // Las opciones 1 y 2 vienen ahora como botones interactivos.
+            const ids = res.interactive?.buttons?.map((b) => b.id) ?? [];
+            expect(ids).toContain("1");
+            expect(ids).toContain("2");
             expect(res.nextStep).toBe(0);
         });
     });

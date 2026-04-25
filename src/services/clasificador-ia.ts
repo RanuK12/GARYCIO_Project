@@ -21,6 +21,7 @@
 import { logger } from "../config/logger";
 import { loadTrainingExamples, formatTrainingForPrompt } from "./ia-training";
 import { env } from "../config/env";
+import { cacheGet, cacheSet } from "./ia-cache";
 
 export type Intent =
   | "confirmar_difusion"
@@ -112,6 +113,15 @@ export async function classifyIntent(
     return classifyFallback(message);
   }
 
+  // P1.3 — cache LRU: si ya clasificamos un mensaje idéntico hace poco,
+  // devolvemos el resultado sin pegarle a OpenAI. NO cacheamos resultados
+  // needsHuman=true ni confidence=low (queremos re-evaluar esos casos).
+  const cached = cacheGet(message);
+  if (cached) {
+    logger.debug({ message: message.slice(0, 40) }, "IA cache hit");
+    return cached;
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options?.timeoutMs ?? 8000);
 
@@ -178,7 +188,7 @@ export async function classifyIntent(
       return fallbackResult;
     }
 
-    return {
+    const final: ClassifierResult = {
       intent,
       entities: Array.isArray(parsed.entities) ? parsed.entities : [],
       needsHuman: !!parsed.needsHuman,
@@ -189,6 +199,8 @@ export async function classifyIntent(
         ? (parsed.confidence as "high" | "medium" | "low")
         : "low",
     };
+    cacheSet(message, final);
+    return final;
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof Error && err.name === "AbortError") {

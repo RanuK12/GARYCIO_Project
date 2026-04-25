@@ -6,7 +6,8 @@ describe("reclamoFlow", () => {
         it("muestra menú cuando el mensaje no coincide", async () => {
             const state = createState("reclamo", 0);
             const res = await reclamoFlow.handle(state, "hola");
-            expect(res.reply).toContain("¿Qué tipo de reclamo");
+            // Menú interactivo (lista) en lugar de texto plano.
+            expect(res.interactive?.body).toContain("¿Qué tipo de reclamo");
             expect(res.nextStep).toBe(0);
         });
 
@@ -48,7 +49,8 @@ describe("reclamoFlow", () => {
             const state = createState("reclamo", 0);
             const res = await reclamoFlow.handle(state, "5");
             expect(res.data?.tipoReclamo).toBe("regalo");
-            expect(res.reply).toContain("regalo");
+            // Sub-menú de regalo viene como lista interactiva.
+            expect(res.interactive?.body?.toLowerCase()).toContain("regalo");
             expect(res.nextStep).toBe(1);
         });
 
@@ -81,7 +83,8 @@ describe("reclamoFlow", () => {
         it("opción inválida vuelve a mostrar sub-menú", async () => {
             const state = createState("reclamo", 1, { tipoReclamo: "regalo" });
             const res = await reclamoFlow.handle(state, "3");
-            expect(res.reply).toContain("Opción no válida");
+            // Re-muestra el menú interactivo de regalo.
+            expect(res.interactive?.body?.toLowerCase()).toContain("regalo");
             expect(res.nextStep).toBe(1);
         });
     });

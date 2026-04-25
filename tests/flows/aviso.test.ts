@@ -6,7 +6,8 @@ describe("avisoFlow", () => {
         it("muestra menú cuando no coincide", async () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "hola");
-            expect(res.reply).toContain("¿Por qué motivo");
+            // Ahora el menú vuelve como lista interactiva (no texto plano).
+            expect(res.interactive?.body).toContain("¿Por qué motivo");
             expect(res.nextStep).toBe(0);
         });
 
@@ -46,7 +47,8 @@ describe("avisoFlow", () => {
             const state = createState("aviso", 0);
             const res = await avisoFlow.handle(state, "0");
             expect(res.endFlow).toBe(true);
-            expect(res.reply).toContain("menú principal");
+            // El flow cierra silenciosamente; conversation-manager re-arma el menú principal.
+            expect(res.reply).toBe("");
         });
     });
 

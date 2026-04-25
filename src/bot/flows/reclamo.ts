@@ -4,6 +4,7 @@ import { logger } from "../../config/logger";
 import { db } from "../../database";
 import { donantes, reclamos } from "../../database/schema";
 import { eq } from "drizzle-orm";
+import { mapTipoReclamoIaToDb } from "../../services/ia-enum-mapper";
 
 /**
  * Flow de reclamos de donantes.
@@ -345,14 +346,7 @@ async function handleFotoRegaloRoto(
 async function guardarReclamoEnDB(state: ConversationState, detalle: string | null): Promise<void> {
   try {
     const tipo = state.data.tipoReclamo as string;
-    // Mapear tipo interno al enum de DB
-    const tipoEnum =
-      tipo === "regalo" || tipo?.startsWith("regalo") ? "regalo"
-      : tipo === "falta_bidon_vacio" ? "falta_bidon"
-      : tipo === "no_pasaron" ? "falta_bidon"
-      : tipo === "pelela" ? "nueva_pelela"
-      : tipo === "bidon_sucio" ? "otro"
-      : "otro";
+    const tipoEnum = mapTipoReclamoIaToDb(tipo);
 
     const donanteRow = await db
       .select({ id: donantes.id })
@@ -377,7 +371,7 @@ async function guardarReclamoEnDB(state: ConversationState, detalle: string | nu
 
     await db.insert(reclamos).values({
       donanteId: donanteRow[0].id,
-      tipo: tipoEnum as "regalo" | "falta_bidon" | "nueva_pelela" | "otro",
+      tipo: tipoEnum,
       descripcion: [state.data.labelReclamo, detalle].filter(Boolean).join(" - ") || null,
       estado: "pendiente",
       gravedad,

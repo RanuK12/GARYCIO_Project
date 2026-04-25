@@ -38,6 +38,7 @@ import { registrarContactoDonante } from "../services/contacto-donante";
 import { isDuplicate, markAsProcessed } from "../services/dedup";
 import { escalateToHuman } from "../services/human-escalation";
 import { isPausedFor, getPauseMessage, isWhitelisted } from "../services/bot-control";
+import { isBotPaused } from "../services/bot-takeover";
 import { normalizePhone } from "../utils/phone";
 import type { MediaInfo } from "./webhook";
 
@@ -150,6 +151,18 @@ export async function processIncomingMessage(
   if (isPausedFor(phone)) {
     logger.warn({ phone }, "Bot en PAUSA — mensaje rechazado");
     await sendMessage(phone, getPauseMessage()).catch(() => {});
+    if (messageId) markAsRead(messageId).catch(() => {});
+    return;
+  }
+
+  // ── P0.10: si un humano (agente en 360 Inbox) intervino recientemente,
+  //    el bot se calla por 30 min para no pisar la conversación.
+  //    Detectado pasivamente vía webhook statuses (messageId desconocido).
+  if (isBotPaused(phone)) {
+    logger.info(
+      { phone, text: text.slice(0, 60) },
+      "Bot pausado por intervención humana — ignorando inbound",
+    );
     if (messageId) markAsRead(messageId).catch(() => {});
     return;
   }

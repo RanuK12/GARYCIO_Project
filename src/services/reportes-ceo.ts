@@ -15,11 +15,65 @@ import { addToDeadLetterQueue } from "./dead-letter-queue";
 // Enviar a todos los admin phones
 // ============================================================
 
+// P0.4 — dedup + throttle de notificaciones a admins.
+// Evita spam: mismo mensaje en ≤ 5min se descarta. Cantidad máxima
+// por minuto ≤ 30 (más que eso, se ignora con WARN).
+const NOTIF_DEDUP_MS = 5 * 60 * 1000;
+const NOTIF_THROTTLE_WINDOW_MS = 60 * 1000;
+const NOTIF_THROTTLE_MAX = 30;
+const recentMessages = new Map<string, number>(); // hash → ts
+const sentTimestamps: number[] = [];
+
+function hashMsg(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return String(h);
+}
+
+export function _resetNotificarAdminsThrottle(): void {
+  recentMessages.clear();
+  sentTimestamps.length = 0;
+}
+
 /**
  * Envía un mensaje a todos los teléfonos admin (CEO + hermano + padre).
  * Usa ADMIN_PHONES (comma-separated) + CEO_PHONE.
+ *
+ * P0.4: dedup por hash 5min + throttle global 30 msg/min.
  */
 export async function notificarAdmins(mensaje: string): Promise<void> {
+  const now = Date.now();
+  const h = hashMsg(mensaje);
+
+  // Dedup: mismo mensaje en los últimos 5min, skip.
+  const last = recentMessages.get(h);
+  if (last && now - last < NOTIF_DEDUP_MS) {
+    logger.debug({ hash: h }, "notificarAdmins: dedup — mensaje idéntico reciente, skip");
+    return;
+  }
+
+  // Throttle: cuántos enviamos en la ventana móvil.
+  while (sentTimestamps.length > 0 && now - sentTimestamps[0] > NOTIF_THROTTLE_WINDOW_MS) {
+    sentTimestamps.shift();
+  }
+  if (sentTimestamps.length >= NOTIF_THROTTLE_MAX) {
+    logger.warn(
+      { sentInWindow: sentTimestamps.length, max: NOTIF_THROTTLE_MAX },
+      "notificarAdmins: throttle activo — descartando alerta",
+    );
+    return;
+  }
+
+  recentMessages.set(h, now);
+  sentTimestamps.push(now);
+
+  // Cleanup periódico del Map de hashes
+  if (recentMessages.size > 200) {
+    for (const [k, ts] of recentMessages) {
+      if (now - ts > NOTIF_DEDUP_MS) recentMessages.delete(k);
+    }
+  }
+
   const phones = new Set<string>();
 
   // Agregar CEO_PHONE
