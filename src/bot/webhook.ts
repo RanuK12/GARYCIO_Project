@@ -19,7 +19,7 @@ import { markAsProcessed } from "../services/dedup";
 import { normalizePhone } from "../utils/phone";
 import { db } from "../database";
 import { audioMensajes } from "../database/schema";
-import { isWhitelisted, getCapacidadMessage } from "../services/bot-control";
+import { isWhitelisted } from "../services/bot-control";
 import { notifyOutboundSeen } from "../services/bot-takeover";
 import { debounceInbound } from "../services/inbound-debounce";
 
@@ -114,26 +114,27 @@ export function createWebhookRouter(): Router {
               "Mensaje recibido via webhook",
             );
 
-            // UX — Mark-as-read + typing indicator inmediato.
-            // La donante ve los dos check azules y "escribiendo…" mientras
-            // corre el debounce de 10s. Sin esto, durante esos 10s el chat
-            // queda en silencio y la persona puede pensar que no llegó.
-            // typing_indicator dura ~25s o hasta el próximo outbound.
-            if (messageId) {
-              markAsReadWithTyping(messageId).catch(() => {});
-            }
-
-            // Verificar capacidad controlada (first-come-first-served)
+            // Verificar capacidad controlada (first-come-first-served).
+            // Política de re-launch: las primeras N donantes que escriben
+            // toman slot y el bot las maneja. La N+1 y siguientes quedan
+            // en SILENCIO TOTAL — ni mensaje de capacidad, ni read receipt,
+            // ni typing. Para la donante el chat queda como si no
+            // existiéramos (mensaje en gris ✓✓ delivered, sin azul). Eso
+            // evita "consumir" su ventana 24h y evita interrumpir si un
+            // humano la atiende después.
             isWhitelisted(phone).then((allowed) => {
               if (!allowed) {
-                logger.warn({ phone }, "Mensaje rechazado — no whitelisteado");
-                if (env.TEST_MODE) {
-                  if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
-                  return;
-                }
-                sendMessage(phone, getCapacidadMessage()).catch(() => {});
+                logger.warn({ phone }, "Fuera del cap — silencio total (no read, no typing, no respuesta)");
                 if (messageId) markAsProcessed(messageId, phone, "ignored").catch(() => {});
                 return;
+              }
+
+              // Donante DENTRO del cap — recién acá mostramos lectura
+              // + "escribiendo…" para que sepa que la oímos. typing dura
+              // ~25s o hasta nuestro próximo outbound, así engancha
+              // perfecto con el debounce de 10s.
+              if (messageId) {
+                markAsReadWithTyping(messageId).catch(() => {});
               }
 
               // P0.12 — Debounce 10s por teléfono. Si llegan más mensajes
