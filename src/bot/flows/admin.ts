@@ -1471,28 +1471,29 @@ async function handleAccionEjemploIA(respuesta: string, state: ConversationState
   return handleVerEjemplosIA("ver", state);
 }
 
-// ── Capacidad del bot ────────────────────────────────
+// ── Capacidad del bot — plan de re-launch progresivo ─────
+// Niveles del plan post-incidente. Cada uno se aplica desde el menú
+// admin con un tap. Se sube cuando los logs de WhatsApp están limpios.
+const PLAN_NIVELES: Array<{ id: string; cap: number; titulo: string; desc: string }> = [
+  { id: "set:10",    cap: 10,    titulo: "1) Cap 10 (smoke)",     desc: "Primeras 10 donantes que escriben" },
+  { id: "set:50",    cap: 50,    titulo: "2) Cap 50",             desc: "Subir si 24h sin errores" },
+  { id: "set:200",   cap: 200,   titulo: "3) Cap 200",            desc: "Subir si 24h sin errores" },
+  { id: "set:1000",  cap: 1000,  titulo: "4) Cap 1000",           desc: "Subir si 24h sin errores" },
+  { id: "set:50000", cap: 50000, titulo: "5) 100% (sin tope)",    desc: "Padrón completo" },
+];
+
 async function handleCapacidadBot(): Promise<FlowResponse> {
   const cap = await getCapacidad();
-  const porcentaje = Math.round((cap.activos / cap.limite) * 100);
+  const porcentaje = cap.limite > 0 ? Math.round((cap.activos / cap.limite) * 100) : 0;
   const barras = "█".repeat(Math.round(porcentaje / 10)) + "░".repeat(10 - Math.round(porcentaje / 10));
 
-  const body = `📊 *Capacidad del Bot*
-
-` +
-    `${barras} ${porcentaje}%
-
-` +
-    `👥 Activos: ${cap.activos}
-` +
-    `📈 Límite: ${cap.limite}
-` +
-    `✅ Disponibles: ${cap.disponibles}
-
-` +
-    `Para ajustar el límite, escribí:
-` +
-    `*ajustar [número]* (ej: ajustar 1500)`;
+  const body =
+    `📊 *Capacidad del Bot*\n\n` +
+    `${barras} ${porcentaje}%\n\n` +
+    `👥 Activos: ${cap.activos}\n` +
+    `📈 Límite actual: ${cap.limite}\n` +
+    `✅ Disponibles: ${cap.disponibles}\n\n` +
+    `Elegí el siguiente nivel del plan progresivo o ajustá manualmente.`;
 
   return {
     reply: body,
@@ -1501,22 +1502,67 @@ async function handleCapacidadBot(): Promise<FlowResponse> {
       type: "list",
       body,
       buttonText: "Opciones",
-      sections: [{
-        title: "Capacidad",
-        rows: [
-          { id: "1", title: "Ajustar límite", description: "Cambiar cantidad máxima" },
-          { id: "0", title: "Volver al menú", description: "Regresar" },
-        ],
-      }],
+      sections: [
+        {
+          title: "Plan progresivo",
+          rows: PLAN_NIVELES.map((n) => ({
+            id: n.id,
+            title: n.titulo,
+            description: n.desc,
+          })),
+        },
+        {
+          title: "Manual",
+          rows: [
+            { id: "manual", title: "✏️ Ajustar a otro número", description: "Escribir el límite" },
+            { id: "0", title: "↩️ Volver al menú", description: "Regresar" },
+          ],
+        },
+      ],
     },
   };
 }
 
 async function handleAjustarLimiteBot(respuesta: string): Promise<FlowResponse> {
-  const match = respuesta.match(/\d+/);
+  const trimmed = respuesta.trim();
+
+  // Atajo del plan progresivo: "set:N"
+  if (trimmed.startsWith("set:")) {
+    const n = parseInt(trimmed.slice(4), 10);
+    if (Number.isFinite(n) && n >= 0 && n <= 50000) {
+      await ajustarLimiteDonantes(n);
+      const cap = await getCapacidad();
+      const etiqueta = n >= 50000 ? "*100%* (sin tope efectivo)" : `*${n}* donantes`;
+      return {
+        reply:
+          `✅ Plan progresivo aplicado: límite ahora ${etiqueta}.\n\n` +
+          `📊 Activos: ${cap.activos} / ${cap.limite}\n` +
+          `✅ Disponibles: ${cap.disponibles}\n\n` +
+          `Recordá: las donantes que YA están adentro siguen adentro. Las nuevas\n` +
+          `que escriban irán entrando hasta llegar al nuevo cap.\n\n` +
+          `Monitoreá WhatsApp Web los próximos minutos. Si todo va bien, en 24h\n` +
+          `volvé a este menú y subí al siguiente nivel.`,
+        nextStep: 99,
+      };
+    }
+  }
+
+  // Pedido manual (botón "manual" o texto sin número)
+  if (trimmed === "manual" || !/\d/.test(trimmed)) {
+    return {
+      reply:
+        `✏️ Escribí el nuevo límite como número (ej: 75).\n\n` +
+        `Rango válido: 0 a 50000.\n` +
+        `Tip: 0 = nadie nuevo entra (las que están adentro siguen).`,
+      nextStep: 95,
+    };
+  }
+
+  // Texto con número: "ajustar 1500" o "1500"
+  const match = trimmed.match(/\d+/);
   if (!match) {
     return {
-      reply: `❌ No entendí el número. Escribí *ajustar [número]* (ej: ajustar 1500)`,
+      reply: `❌ No entendí el número. Escribí solo el número (ej: 75).`,
       nextStep: 95,
     };
   }
@@ -1530,10 +1576,10 @@ async function handleAjustarLimiteBot(respuesta: string): Promise<FlowResponse> 
   await ajustarLimiteDonantes(nuevoLimite);
   const cap = await getCapacidad();
   return {
-    reply: `✅ Límite actualizado a *${nuevoLimite}* donantes.
-
-` +
-      `📊 Ahora hay ${cap.activos} activos y ${cap.disponibles} disponibles.`,
-    nextStep: 0,
+    reply:
+      `✅ Límite actualizado a *${nuevoLimite}* donantes.\n\n` +
+      `📊 Activos: ${cap.activos} / ${cap.limite}\n` +
+      `✅ Disponibles: ${cap.disponibles}`,
+    nextStep: 99,
   };
 }

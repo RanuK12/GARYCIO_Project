@@ -173,6 +173,80 @@ async function main(): Promise<void> {
   app.get("/admin/bot/whitelist", (_req, res) => { res.json({ status: "ok", active: isWhitelistActive(), currentLimit: getWhitelistLimit(), rolloutPlan: ROLLOUT_PLAN, testMode: env.TEST_MODE }); });
   app.post("/admin/bot/whitelist", async (req, res) => { const limit = req.body.limit; if (typeof limit !== "number" || limit < 0) { res.status(400).json({error:"limit >= 0"}); return; } await setWhitelistLimit(limit); res.json({status:"ok",limit}); });
 
+  // ── Dashboard agregado: una sola llamada con todo lo que importa ──
+  // Útil para chequear salud antes/después de subir el cap, o para un
+  // endpoint que un script externo (scale.sh) consume.
+  app.get("/admin/dashboard", async (_req, res) => {
+    try {
+      const [
+        capacidadRes,
+        qualityMod,
+        takeoverMod,
+        rateMod,
+      ] = await Promise.all([
+        getCapacidad().catch(() => ({ activos: 0, limite: 0, disponibles: 0 })),
+        import("./services/whatsapp-quality"),
+        import("./services/bot-takeover"),
+        import("./services/rate-limit-adaptive"),
+      ]);
+
+      const [escalaciones] = await db
+        .select({ count: count() })
+        .from((await import("./database/schema")).humanEscalations)
+        .where(eq((await import("./database/schema")).humanEscalations.estado, "activa"))
+        .catch(() => [{ count: 0 }]);
+
+      const dlqStats = await getDLQStats().catch(() => null);
+      const mem = process.memoryUsage();
+      const lastQuality = qualityMod.getLastQualityInfo();
+      const takeover = takeoverMod.takeoverStats();
+      const rate = rateMod.rateLimitStats();
+
+      const cap = capacidadRes;
+      const porcentaje = cap.limite > 0 ? Math.round((cap.activos / cap.limite) * 100) : 0;
+
+      res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        bot: {
+          uptime_seconds: Math.round(process.uptime()),
+          status: getBotState().status,
+          test_mode: env.TEST_MODE,
+        },
+        capacidad: {
+          activos: cap.activos,
+          limite: cap.limite,
+          disponibles: cap.disponibles,
+          porcentaje,
+        },
+        whatsapp_quality: lastQuality ?? { qualityRating: "no-fetched-yet" },
+        bot_takeover: {
+          phones_paused: takeover.paused,
+          bot_sent_ids_tracked: takeover.botSent,
+        },
+        rate_limit: {
+          phones_in_backoff: rate.phonesBackoff,
+          hits_in_window: rate.hitsInWindow,
+          global_throttled: rate.globalThrottled,
+        },
+        escalaciones_activas: escalaciones?.count ?? 0,
+        dead_letter_queue: dlqStats,
+        memory: {
+          rss_mb: Math.round(mem.rss / 1024 / 1024),
+          heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+          heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024),
+        },
+        counters: {
+          requests_total: requestCount,
+          webhooks_processed: webhookCount,
+          errors_4xx_5xx: errorCount,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   // ── Capacidad controlada ──────────────────────────
   app.get("/admin/capacidad", async (_req, res) => {
     try {
