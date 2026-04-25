@@ -502,6 +502,29 @@ export async function markAsRead(messageId: string): Promise<void> {
   }
 }
 
+// ── Mark-as-read + typing indicator ────────────────────
+// Combinado: muestra los dos check azules + "escribiendo…" en el chat
+// de la donante. Se usa al recibir un inbound, antes del debounce de
+// 10s, para que la persona vea que el bot está procesando.
+//
+// Importante: el typing_indicator dura ~25s o hasta el próximo mensaje
+// del bot. Si no respondemos en ese tiempo, desaparece solo. Por eso
+// combina perfectamente con el debounce: arranca al inbound, termina
+// cuando enviamos la respuesta agrupada.
+export async function markAsReadWithTyping(messageId: string): Promise<void> {
+  try {
+    await callWhatsAppAPI("/messages", {
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: messageId,
+      typing_indicator: { type: "text" },
+    });
+  } catch (err) {
+    // No es crítico si falla — fallback silencioso a markAsRead simple.
+    logger.debug({ messageId, err }, "No se pudo marcar leído + typing");
+  }
+}
+
 // ── Envío masivo (usa el rate limiter interno) ──────────
 export async function sendBulkMessages(
   recipients: Array<{ phone: string; message: string }>,

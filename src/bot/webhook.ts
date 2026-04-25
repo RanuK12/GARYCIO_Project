@@ -14,7 +14,7 @@ import { Router, Request, Response } from "express";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { processIncomingMessage } from "./handler";
-import { sendMessage } from "./client";
+import { sendMessage, markAsReadWithTyping } from "./client";
 import { markAsProcessed } from "../services/dedup";
 import { normalizePhone } from "../utils/phone";
 import { db } from "../database";
@@ -113,6 +113,15 @@ export function createWebhookRouter(): Router {
               { phone, text: text.slice(0, 80), messageId, hasMedia: !!mediaInfo },
               "Mensaje recibido via webhook",
             );
+
+            // UX — Mark-as-read + typing indicator inmediato.
+            // La donante ve los dos check azules y "escribiendo…" mientras
+            // corre el debounce de 10s. Sin esto, durante esos 10s el chat
+            // queda en silencio y la persona puede pensar que no llegó.
+            // typing_indicator dura ~25s o hasta el próximo outbound.
+            if (messageId) {
+              markAsReadWithTyping(messageId).catch(() => {});
+            }
 
             // Verificar capacidad controlada (first-come-first-served)
             isWhitelisted(phone).then((allowed) => {

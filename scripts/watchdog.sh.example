@@ -1,0 +1,81 @@
+#!/bin/bash
+# ================================================
+# GARYCIO Watchdog - Kill Switch automático
+# Si el bot está caído MAX_FAILURES veces seguidas, notifica y detiene.
+#
+# IMPORTANTE: este es un .example. Copiar a `scripts/watchdog.sh`
+# (NO commiteado, ver .gitignore) y dejarlo ejecutable. La API key
+# se lee de /opt/garycio/.env — NUNCA ponerla literal en el script.
+# ================================================
+set -u
+
+ENV_FILE="/opt/garycio/.env"
+STATE_FILE="/tmp/garycio_watchdog_failures"
+MAX_FAILURES=3
+HEALTH_URL="http://localhost:3000/health"
+WHATSAPP_API="https://waba-v2.360dialog.io/v1/messages"
+LOG_FILE="/root/watchdog.log"
+
+# Lectura de API key del .env del bot (sin exponer en el script).
+if [ -f "$ENV_FILE" ]; then
+  API_KEY=$(grep -E '^WHATSAPP_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d '"' | tr -d "'")
+else
+  API_KEY=""
+fi
+
+# Lista de admins (mover a env para no hardcodear si crece)
+ADMIN_PHONES=("393445721753" "5491126330388")
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"; }
+
+send_whatsapp() {
+  local phone="$1"
+  local msg="$2"
+  if [ -z "$API_KEY" ]; then
+    log "send_whatsapp skipped: no API_KEY (verificar $ENV_FILE)"
+    return
+  fi
+  curl -s -X POST "$WHATSAPP_API" \
+    -H "D360-API-KEY: $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"messaging_product\": \"whatsapp\",
+      \"recipient_type\": \"individual\",
+      \"to\": \"$phone\",
+      \"type\": \"text\",
+      \"text\": { \"body\": \"$msg\" }
+    }" > /dev/null 2>&1
+}
+
+notify_admins() {
+  local msg="$1"
+  for phone in "${ADMIN_PHONES[@]}"; do
+    send_whatsapp "$phone" "$msg"
+  done
+}
+
+# Si PM2 no tiene el bot online, no monitoreamos (modo apagado intencional).
+pm2_online=$(pm2 describe garycio-bot 2>/dev/null | grep -c "online")
+if [ "$pm2_online" -eq 0 ]; then
+  log "Bot no esta corriendo (PM2). Nada que monitorear."
+  exit 0
+fi
+
+# Health check.
+if curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null 2>&1; then
+  echo 0 > "$STATE_FILE"
+  exit 0
+fi
+
+# Falla → contar.
+FAILURES=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+FAILURES=$((FAILURES + 1))
+echo "$FAILURES" > "$STATE_FILE"
+log "Health check fail #$FAILURES"
+
+if [ "$FAILURES" -ge "$MAX_FAILURES" ]; then
+  log "Bot caído $FAILURES veces — notificando + deteniendo."
+  notify_admins "🚨 GARYCIO bot caído (health $FAILURES fallas seguidas). PM2 detenido. Revisión manual requerida."
+  pm2 stop garycio-bot >> "$LOG_FILE" 2>&1
+  echo 0 > "$STATE_FILE"
+fi

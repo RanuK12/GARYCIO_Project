@@ -13,6 +13,7 @@ import { logger } from "../config/logger";
 import { retryDeadLetterQueue } from "./dead-letter-queue";
 import { verificarProgresoRutas } from "./progreso-ruta";
 import { enviarDifusionNueva } from "./mensajeria-masiva";
+import { checkAndAlertQuality } from "./whatsapp-quality";
 
 /**
  * Tareas programadas del sistema.
@@ -68,6 +69,15 @@ export function initScheduler(): void {
     }
   }, {
     timezone: "America/Argentina/Buenos_Aires",
+  });
+
+  // Quality rating WhatsApp cada 6 horas. notificarAdmins ya tiene
+  // dedup interno, así que un YELLOW persistente solo alerta una vez.
+  cron.schedule("0 */6 * * *", async () => {
+    logger.info("Ejecutando: chequeo de calidad WhatsApp");
+    await checkAndAlertQuality().catch((err) => {
+      logger.error({ err }, "Error chequeando quality rating");
+    });
   });
 
   logger.info("Scheduler inicializado con tareas programadas");

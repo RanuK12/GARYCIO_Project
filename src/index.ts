@@ -789,6 +789,27 @@ async function main(): Promise<void> {
     res.json({ status: "ok", ...rateLimitStats() });
   });
 
+  // ── WhatsApp quality rating ────────────────────────
+  app.get("/admin/whatsapp/quality", async (_req, res) => {
+    try {
+      const { fetchQualityRating, getLastQualityInfo } = await import("./services/whatsapp-quality");
+      const cached = getLastQualityInfo();
+      const fresh = await fetchQualityRating();
+      res.json({ status: "ok", current: fresh, previous: cached });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+  app.post("/admin/whatsapp/quality/check", async (_req, res) => {
+    try {
+      const { checkAndAlertQuality } = await import("./services/whatsapp-quality");
+      const info = await checkAndAlertQuality();
+      res.json({ status: "ok", info });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
   app.listen(env.PORT, () => {
     logger.info({ port: env.PORT }, "Servidor HTTP iniciado");
   });
