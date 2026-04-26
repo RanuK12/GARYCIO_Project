@@ -44,7 +44,7 @@ import type { MediaInfo } from "./webhook";
 
 // ── Timeouts y límites ──
 const PROCESS_TIMEOUT_MS = 25_000; // 25s máximo por mensaje (Meta timeout ≈ 20s)
-const COOLDOWN_MS = 30 * 1000; // 30s entre respuestas al mismo número
+const COOLDOWN_MS = 10 * 1000; // 10s entre respuestas al mismo número (antes 30s, silenciaba a donantes legítimas)
 const MAX_INTERACTIONS_PER_SESSION = 12; // Máximo de respuestas en ventana de 30 min
 
 const lastResponseTime = new Map<string, number>();
@@ -78,6 +78,23 @@ const MENSAJES_IGNORADOS = new Set([
   "si", "sí", "no", "ya",
   "👍", "👌", "🙏", "❤️", "😊", "😂", "🤣", "👋", "✅", "🙌",
 ]);
+
+// Patrones de spam de redes sociales (TikTok, YouTube, Instagram, etc.)
+const SPAM_REDES_SOCIALES = [
+  /tiktok\.com/i,
+  /vm\.tiktok\.com/i,
+  /youtube\.com\/watch/i,
+  /youtu\.be/i,
+  /instagram\.com\/reel/i,
+  /fb\.watch/i,
+  /facebook\.com\/watch/i,
+  /x\.com\/\w+\/status/i,
+  /twitter\.com\/\w+\/status/i,
+];
+
+function esSpamRedesSociales(text: string): boolean {
+  return SPAM_REDES_SOCIALES.some((pat) => pat.test(text));
+}
 
 function esMensajeIgnorado(text: string): boolean {
   const clean = text.trim().toLowerCase()
@@ -176,7 +193,14 @@ export async function processIncomingMessage(
   }
 
   // ── 0c. Anti-spam: rechazar mensajes entrantes excesivos ANTES de procesar ──
+  // También descartar enlaces de redes sociales (TikTok, YouTube, etc.)
   if (!isAdminPhone(phone)) {
+    if (text && esSpamRedesSociales(text)) {
+      logger.info({ phone, text: text.slice(0, 60) }, "Spam de redes sociales detectado — mensaje ignorado");
+      if (messageId) markAsRead(messageId).catch(() => {});
+      return;
+    }
+
     const incData = incomingCount.get(phone);
     if (incData && Date.now() - incData.windowStart < 30 * 60 * 1000) {
       incData.count++;
@@ -222,7 +246,7 @@ export async function processIncomingMessage(
       }
 
       if (checkCooldown(phone)) {
-        logger.debug({ phone, esConfirmacion }, "Cooldown activo — ignorando mensaje");
+        logger.info({ phone, esConfirmacion }, "Cooldown activo (10s) — ignorando mensaje");
         if (messageId) markAsRead(messageId).catch(() => {});
         return;
       }
