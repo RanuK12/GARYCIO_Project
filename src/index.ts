@@ -47,6 +47,11 @@ import {
   toggleTrainingExample,
   deleteTrainingExample,
 } from "./services/ia-training";
+import {
+  listarConsultasPendientes,
+  resolverConsulta,
+  statsConsultas,
+} from "./services/consulta-donante";
 import { db } from "./database";
 import { donantes, reclamos, avisos, reportesBaja, difusionEnvios, donantesBotActivos, configuracionSistema } from "./database/schema";
 import { eq, and, gte, lte, or, ilike, sql, isNull, count, desc } from "drizzle-orm";
@@ -383,6 +388,33 @@ async function main(): Promise<void> {
     try {
       await deleteTrainingExample(id);
       res.json({ status: "ok", id });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  // ── Consultas de donantes ──────────────────────────
+  app.get("/admin/consultas", async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    try {
+      const data = await listarConsultasPendientes(limit);
+      const stats = await statsConsultas();
+      res.json({ status: "ok", stats, data });
+    } catch (err) {
+      res.status(500).json({ status: "error", error: (err as Error).message });
+    }
+  });
+
+  app.post("/admin/consultas/:id/resolver", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { resolvedBy, notas } = req.body || {};
+    if (!resolvedBy) {
+      res.status(400).json({ error: "resolvedBy requerido" });
+      return;
+    }
+    try {
+      await resolverConsulta(id, resolvedBy, notas);
+      res.json({ status: "ok", id, resolvedBy });
     } catch (err) {
       res.status(500).json({ status: "error", error: (err as Error).message });
     }

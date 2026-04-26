@@ -18,6 +18,7 @@ import { lookupRolPorTelefono } from "../services/contacto-donante";
 import { classifyIntent, type ClassifierResult } from "../services/clasificador-ia";
 import { isHumanEscalated, escalateToHuman } from "../services/human-escalation";
 import { detectEscalationTrigger } from "../services/escalation-triggers";
+import { procesarConsultaDonante } from "../services/consulta-donante";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
@@ -718,18 +719,28 @@ async function procesarConIA(
           `⚠️ Requiere contacto manual.`,
       };
       break;
-    case "consulta":
-      if (result.confidence === "low") {
+    case "consulta": {
+      // Usar servicio inteligente de consultas: busca datos reales en la DB
+      // y genera respuesta personalizada (días de recolección, estado, dirección)
+      const consultaResult = await procesarConsultaDonante(phone, message);
+      reply = consultaResult.reply;
+      if (consultaResult.notify) {
+        notify = consultaResult.notify;
+      }
+      // Si la IA indicó baja confianza pero el servicio pudo resolver, no notificar
+      if (result.confidence === "low" && !consultaResult.resuelta) {
         notify = {
           target: "admin",
           message:
-            `❓ *Consulta de donante (baja confianza IA)*\n\n` +
+            `❓ *Consulta de donante (baja confianza IA + no resuelta por bot)*\n\n` +
             `📱 Donante: ${phone}\n` +
             `💬 "${message}"\n\n` +
-            `La IA no pudo clasificar con confianza. Requiere respuesta manual.`,
+            `Tipo detectado: ${consultaResult.tipo}\n` +
+            `La IA no pudo clasificar con confianza y el bot no pudo resolver con datos. Requiere respuesta manual.`,
         };
       }
       break;
+    }
     case "confirmar_difusion":
       notify = {
         target: "admin",

@@ -538,6 +538,26 @@ export const estadoDonanteBot = pgEnum("estado_donante_bot", [
   "liberado",
 ]);
 
+export const estadoConsulta = pgEnum("estado_consulta", [
+  "pendiente",
+  "respondida",
+  "escalada",
+]);
+
+export const consultas = pgTable("consultas", {
+  id: serial("id").primaryKey(),
+  telefono: varchar("telefono", { length: 20 }).notNull(),
+  nombreDonante: varchar("nombre_donante", { length: 150 }),
+  mensaje: text("mensaje").notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull().default("general"),
+  respuestaBot: text("respuesta_bot"),
+  estado: estadoConsulta("estado").default("pendiente"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 100 }),
+});
+
 export const donantesBotActivos = pgTable("donantes_bot_activos", {
   telefono: varchar("telefono", { length: 20 }).primaryKey(),
   nombre: varchar("nombre", { length: 150 }),
