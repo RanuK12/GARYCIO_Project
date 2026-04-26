@@ -18,7 +18,12 @@
 import { logger } from "../config/logger";
 import type { InboundJob } from "./queue";
 
-const DEFAULT_WINDOW_MS = 10_000;
+// 10s era demasiado: la donante mandaba un mensaje (ej. "Belén turletto"),
+// 5s después una queja distinta ("no recogieron mi bidón"), y el bot las
+// concatenaba como un único pensamiento. Resultado: registros con direcciones
+// que dicen "no me trajeron mi regalo". 3s junta ráfagas reales (2 mensajes
+// en segundos) sin agrupar mensajes con cambio de tema.
+const DEFAULT_WINDOW_MS = 3_000;
 
 interface Waiter {
   resolve: () => void;
