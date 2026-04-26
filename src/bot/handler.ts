@@ -276,10 +276,20 @@ export async function processIncomingMessage(
     }
 
     // Si no hay respuesta
-    if (!result.reply && !result.interactive) {
+    // Nota: string vacío "" es diferente de undefined/null. Un template con "" puede
+    // ser un bug, pero NO es "sin respuesta". Solo ignoramos si es realmente undefined/null
+    // y no hay interactive.
+    const hasReply = result.reply !== undefined && result.reply !== null;
+    if (!hasReply && !result.interactive) {
       logger.debug({ phone }, "Sin respuesta (ignorado por clasificador)");
       if (messageId) markAsRead(messageId).catch(() => {});
       return;
+    }
+
+    // Fallback de cortesía: si el reply es string vacío pero hay una intención,
+    // enviar al menos un mensaje amable para no dejar a la donante en silencio.
+    if (hasReply && result.reply.trim() === "") {
+      result.reply = "Recibimos tu mensaje. Te respondemos a la brevedad. 😊";
     }
 
     // Si fue escalado a humano, enviar reply y notificaciones pero NO registrar interacción

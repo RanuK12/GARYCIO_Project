@@ -11,7 +11,7 @@
 import { ConversationState, FlowType, FlowResponse, InteractiveMessage, detectFlow, getFlowByName, isAdminPhone } from "./flows";
 import type { MediaInfo } from "./webhook";
 import { db } from "../database";
-import { conversationStates, difusionEnvios, mensajesLog } from "../database/schema";
+import { conversationStates, difusionEnvios, mensajesLog, donantes } from "../database/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "../config/logger";
 import { lookupRolPorTelefono } from "../services/contacto-donante";
@@ -368,6 +368,20 @@ export async function handleIncomingMessage(
       return { reply, notify };
     }
 
+    // Donante existente con datos completos → NUNCA re-registrar
+    if (rol === "donante" && donorEstado && donorEstado !== "nueva") {
+      const donanteExistente = await db
+        .select({ nombre: donantes.nombre, direccion: donantes.direccion })
+        .from(donantes)
+        .where(eq(donantes.telefono, phone))
+        .limit(1);
+
+      if (donanteExistente.length > 0 && donanteExistente[0].nombre && donanteExistente[0].direccion) {
+        logger.info({ phone, estado: donorEstado, nombre: donanteExistente[0].nombre }, "Donante con datos completos — evitando re-registro");
+        // No iniciar nueva_donante; continuar con clasificación IA normal
+      }
+    }
+
     // 3c. Para donantes: detectar keyword
     const detectedFlow = detectFlow(message, phone);
     if (detectedFlow) {
@@ -610,7 +624,7 @@ async function procesarConIA(
       text: "Hola! Soy el asistente de GARYCIO. ¿En qué te puedo ayudar?",
       showMenu: true,
     },
-    agradecimiento: { text: "", showMenu: false },
+    agradecimiento: { text: "¡De nada! 😊 Estamos para ayudarte. Si necesitás algo más, escribinos cuando quieras.", showMenu: false },
     irrelevante: { text: "", showMenu: false },
     menu_opcion: { text: "", showMenu: true },
     multiple_issues: {
@@ -619,7 +633,20 @@ async function procesarConIA(
     },
   };
 
-  const template = respuestas[result.intent] || { text: "Recibimos tu mensaje. Te respondemos a la brevedad.", showMenu: false };
+  // ── Detección de mensajes mixtos: si dice "gracias" PERO tiene una solicitud real,
+  //    forzar a consulta para no quedar en silencio ──
+  let effectiveIntent = result.intent;
+  if (result.intent === "agradecimiento" || result.intent === "irrelevante") {
+    const lowerMsg = message.toLowerCase();
+    const verbosSolicitud = ["retiren", "pasen", "traigan", "lleven", "vayan", "dejen", "traer", "llevar", "retirar", "pasar"];
+    const tieneSolicitud = verbosSolicitud.some((v) => lowerMsg.includes(v));
+    if (tieneSolicitud) {
+      logger.info({ phone, originalIntent: result.intent }, "Mensaje mixto detectado (agradecimiento + solicitud) → forzado a consulta");
+      effectiveIntent = "consulta";
+    }
+  }
+
+  const template = respuestas[effectiveIntent] || { text: "Recibimos tu mensaje. Te respondemos a la brevedad.", showMenu: false };
 
   let reply = template.text;
   let interactive: InteractiveMessage | undefined;

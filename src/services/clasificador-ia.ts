@@ -258,8 +258,14 @@ export function classifyFallback(message: string): ClassifierResult {
   // Menú numérico
   if (/^[1-4]$/.test(lower)) return { intent: "menu_opcion", entities: [], needsHuman: false, sentiment: "calm", confidence: "high" };
 
-  // Reclamo
-  if (["no pasaron", "no vinieron", "no paso", "reclamo", "queja", "falta el bidon", "bidon sucio", "pelela"].some((p) => lower.includes(p))) {
+  // Reclamo (queja explícita sobre servicio)
+  // Excluir preguntas de disponibilidad como "no pueden pasar hoy?" que son consultas,
+  // no reclamos formales.
+  const esReclamoFormal = ["no pasaron", "no vinieron", "reclamo", "queja", "falta el bidon", "bidon sucio", "pelela"].some((p) => lower.includes(p));
+  const esNoPaso = lower.includes("no paso") || lower.includes("no pasan");
+  const esPreguntaDisponibilidad = /no (pueden|pod(e|é|eis|éis)) pasar/.test(lower) || /no (van|vienen) (hoy|mañana|esta semana)/.test(lower);
+
+  if (esReclamoFormal || (esNoPaso && !esPreguntaDisponibilidad)) {
     return {
       intent: "reclamo",
       entities: [{ type: "tipoReclamo", value: "otro" }],
