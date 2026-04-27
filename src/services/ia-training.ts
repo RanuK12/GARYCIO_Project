@@ -19,6 +19,7 @@ export interface TrainingExample {
   respuestaEsperada: string | null;
   contexto: string | null;
   prioridad: number;
+  activo: boolean;
 }
 
 // Cache en memoria (TTL 5 minutos)
@@ -44,6 +45,7 @@ export async function loadTrainingExamples(): Promise<TrainingExample[]> {
         respuestaEsperada: iaTrainingExamples.respuestaEsperada,
         contexto: iaTrainingExamples.contexto,
         prioridad: iaTrainingExamples.prioridad,
+        activo: iaTrainingExamples.activo,
       })
       .from(iaTrainingExamples)
       .where(eq(iaTrainingExamples.activo, true))
@@ -57,6 +59,7 @@ export async function loadTrainingExamples(): Promise<TrainingExample[]> {
       respuestaEsperada: r.respuestaEsperada,
       contexto: r.contexto,
       prioridad: r.prioridad ?? 0,
+      activo: r.activo ?? true,
     }));
 
     cacheTime = now;
@@ -151,6 +154,7 @@ export async function listTrainingExamples(options?: {
       respuestaEsperada: iaTrainingExamples.respuestaEsperada,
       contexto: iaTrainingExamples.contexto,
       prioridad: iaTrainingExamples.prioridad,
+      activo: iaTrainingExamples.activo,
     })
     .from(iaTrainingExamples)
     .where(whereClause)
@@ -171,6 +175,7 @@ export async function listTrainingExamples(options?: {
       respuestaEsperada: r.respuestaEsperada,
       contexto: r.contexto,
       prioridad: r.prioridad ?? 0,
+      activo: r.activo ?? true,
     })),
     total: Number(total),
   };

@@ -17,9 +17,7 @@ import { sendMessage } from "../bot/client";
 import { env } from "../config/env";
 
 const MSG_ESCALACION =
-  "Tu mensaje fue derivado a un representante de nuestro equipo. 🙋\n\n" +
-  "Una persona se va a comunicar con vos a la brevedad para ayudarte personalmente.\n\n" +
-  "Por favor esperá unos minutos.";
+  "Tu caso ya fue derivado a nuestro equipo. Te van a contactar a la brevedad. No es necesario que sigas escribiendo, ya tenemos tu mensaje.";
 
 // Cache en memoria para no consultar DB en cada mensaje
 const escalatedCache = new Map<string, { reason: string; ts: number }>();
@@ -90,6 +88,7 @@ export async function escalateToHuman(
   phone: string,
   reason: "ia_fail" | "frustration" | "multiple_issues" | "user_request" | "system_error",
   context?: { lastMessage?: string; intent?: string; error?: string },
+  sendMessageToUser: boolean = true
 ): Promise<void> {
   logger.warn({ phone, reason, context }, "Escalación humana activada");
 
@@ -138,9 +137,11 @@ export async function escalateToHuman(
   });
 
   // 3. Avisar al usuario
-  await sendMessage(phone, MSG_ESCALACION).catch((err) => {
-    logger.error({ err, phone }, "Error enviando mensaje de escalación al usuario");
-  });
+  if (sendMessageToUser) {
+    await sendMessage(phone, MSG_ESCALACION).catch((err) => {
+      logger.error({ err, phone }, "Error enviando mensaje de escalación al usuario");
+    });
+  }
 }
 
 /**

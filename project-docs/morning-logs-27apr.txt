@@ -1,0 +1,854 @@
+2026-04-27T10:00:00: {"level":30,"time":1777284000635,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: reintento de Dead Letter Queue"}
+2026-04-27T10:00:00: {"level":30,"time":1777284000636,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T10:00:00: {"level":30,"time":1777284000636,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T10:00:00: {"level":30,"time":1777284000652,"pid":555825,"hostname":"garycio-bot","total":0,"msg":"Reintentando mensajes de DLQ"}
+2026-04-27T10:00:00: {"level":30,"time":1777284000652,"pid":555825,"hostname":"garycio-bot","retried":0,"succeeded":0,"failed":0,"discarded":0,"msg":"Reintento de DLQ completado"}
+2026-04-27T10:03:34: {"level":30,"time":1777284214345,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:01: {"level":30,"time":1777284361425,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:06:02: {"level":30,"time":1777284362136,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:02: {"level":30,"time":1777284362833,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:03: {"level":40,"time":1777284363597,"pid":555825,"hostname":"garycio-bot","phone":"5491151181293","messageId":"wamid.HBgNNTQ5MTE1MTE4MTI5MxUCABIYIEFDNjdEMDNCOTg0NEVCOTQyMTFBNjhFMEZCOTVBNjA3AA==","reason":"pre-boot","ageSec":245941,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:06:03: {"level":30,"time":1777284363598,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:06:04: {"level":30,"time":1777284364305,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:05: {"level":30,"time":1777284365032,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:05: {"level":40,"time":1777284365744,"pid":555825,"hostname":"garycio-bot","phone":"5491140867860","messageId":"wamid.HBgNNTQ5MTE0MDg2Nzg2MBUCABIYIEE1RjBGMjk3NUVGNDkwRjZGNjYyQzhFNkQ0NDkwQUYyAA==","reason":"pre-boot","ageSec":233631,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:06:05: {"level":30,"time":1777284365745,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:06: {"level":30,"time":1777284366453,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:38: {"level":30,"time":1777284398014,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","text":"Buenos días espero pasen hoy por Pringles 3499 Lanus Este","messageId":"wamid.HBgNNTQ5MTE1NTA3MTEwNxUCABIYIEFDMjVCM0NCRDM0ODIyQUQwOEJFNkEyQ0Q5NkY2NzAxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:06:38: {"level":30,"time":1777284398015,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:06:38: {"level":30,"time":1777284398036,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","activos":11,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:06:41: {"level":30,"time":1777284401040,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","batched":1,"preview":"Buenos días espero pasen hoy por Pringles 3499 Lanus Este","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:06:41: {"level":30,"time":1777284401087,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","estado":"inactiva","nombre":"Yo soy donante hace 15 años mi nombre es Norma Corso","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T10:06:43: {"level":30,"time":1777284403183,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:43: {"level":30,"time":1777284403392,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:06:44: {"level":30,"time":1777284404146,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:08:16: {"level":30,"time":1777284496672,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","text":"1","messageId":"wamid.HBgNNTQ5MTE1NTA3MTEwNxUCABIYIEFDREMxRkNEQkRGNjFFRTM1NDk2NjE5ODNBMTM5OUNBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:08:16: {"level":30,"time":1777284496672,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:08:19: {"level":30,"time":1777284499676,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","batched":1,"preview":"1","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:08:22: {"level":30,"time":1777284502069,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:08:22: {"level":30,"time":1777284502699,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:09:23: {"level":30,"time":1777284563242,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","text":"Pringles 3499 Lanus Este","messageId":"wamid.HBgNNTQ5MTE1NTA3MTEwNxUCABIYIEFDOUIyM0VDM0ZCMzAxRDY2Njc4NUVCRjUyRjFERkJGAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:09:23: {"level":30,"time":1777284563242,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:09:26: {"level":30,"time":1777284566246,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","batched":1,"preview":"Pringles 3499 Lanus Este","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:09:26: {"level":30,"time":1777284566800,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T10:09:28: {"level":30,"time":1777284568156,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:09:28: {"level":30,"time":1777284568501,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:09:28: {"level":30,"time":1777284568972,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:09:44: {"level":30,"time":1777284584097,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:11:06: {"level":30,"time":1777284666029,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:11:20: {"level":30,"time":1777284680659,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","text":"No Ami me avisaron que lunes y jueves pero no pasaron igual hoy ya lo saque","messageId":"wamid.HBgNNTQ5MTE1NTA3MTEwNxUCABIYIEFDNzU5NzFDMjhERUFBNDA4QzkzOUNFNTgwNjZBMEQzAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:11:20: {"level":30,"time":1777284680659,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:11:23: {"level":30,"time":1777284683663,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","batched":1,"preview":"No Ami me avisaron que lunes y jueves pero no pasaron igual hoy ya lo saque","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:11:25: {"level":30,"time":1777284685837,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:11:25: {"level":30,"time":1777284685972,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:11:40: {"level":30,"time":1777284700594,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","text":"Gracias","messageId":"wamid.HBgNNTQ5MTE1NTA3MTEwNxUCABIYIEFDNTY4MkUxQTcxNzcxMDFGRDQ1N0VEQjZGMDY0OTYyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:11:40: {"level":30,"time":1777284700595,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:11:43: {"level":30,"time":1777284703600,"pid":555825,"hostname":"garycio-bot","phone":"5491155071107","batched":1,"preview":"Gracias","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:18:35: {"level":30,"time":1777285115418,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","text":"https://youtu.be/Q_tTzDKTwlg?si=Eu1NJbS17Q-WMa5s","messageId":"wamid.HBgNNTQ5MTEzMTQ4NDE4NhUCABIYIEFDREU0OTlFMThBNDdEODI1NUJBMUVCQjdEMEMzM0VEAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:18:35: {"level":30,"time":1777285115419,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:18:38: {"level":30,"time":1777285118441,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","batched":1,"preview":"https://youtu.be/Q_tTzDKTwlg?si=Eu1NJbS17Q-WMa5s","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:18:38: {"level":30,"time":1777285118444,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","text":"https://youtu.be/Q_tTzDKTwlg?si=Eu1NJbS17Q-WMa5s","msg":"Spam de redes sociales detectado — mensaje ignorado"}
+2026-04-27T10:19:22: {"level":30,"time":1777285162900,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:20:00: {"level":30,"time":1777285200371,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T10:20:00: {"level":30,"time":1777285200371,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T10:31:01: {"level":30,"time":1777285861161,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","text":"https://youtu.be/1FuqU-n6mMU?si=aWb_28jdsXeFPoX_","messageId":"wamid.HBgNNTQ5MTEzMTQ4NDE4NhUCABIYIEFDMEUxN0MwODFFRTMzNkFDNDBFRDQ4QTlFMjk3NTVDAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:31:01: {"level":30,"time":1777285861162,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:31:04: {"level":30,"time":1777285864178,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","batched":1,"preview":"https://youtu.be/1FuqU-n6mMU?si=aWb_28jdsXeFPoX_","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:31:04: {"level":30,"time":1777285864180,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","text":"https://youtu.be/1FuqU-n6mMU?si=aWb_28jdsXeFPoX_","msg":"Spam de redes sociales detectado — mensaje ignorado"}
+2026-04-27T10:31:46: {"level":30,"time":1777285906301,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/.git/config","status":404,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:31:47: {"level":30,"time":1777285907015,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/.env","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:36:28: {"level":30,"time":1777286188754,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:36:47: {"level":30,"time":1777286207774,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:36:49: {"level":30,"time":1777286209416,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:36:51: {"level":30,"time":1777286211011,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:36:52: {"level":40,"time":1777286212739,"pid":555825,"hostname":"garycio-bot","phone":"5491137898405","messageId":"wamid.HBgNNTQ5MTEzNzg5ODQwNRUCABIYIEFDNDdCOTA5MzM0NUNFNEY5M0UyMEVEQjVGMzE1NDg2AA==","reason":"pre-boot","ageSec":238410,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:36:52: {"level":30,"time":1777286212740,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:38:09: {"level":30,"time":1777286289180,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:38:13: {"level":30,"time":1777286293987,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:38:33: {"level":30,"time":1777286313207,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:38:33: {"level":30,"time":1777286313333,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:38:55: {"level":30,"time":1777286335293,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:38:57: {"level":30,"time":1777286337613,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:39:05: {"level":30,"time":1777286345561,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:05: {"level":30,"time":1777286345731,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:09: {"level":30,"time":1777286349923,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:10: {"level":30,"time":1777286350377,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:17: {"level":30,"time":1777286357804,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:25: {"level":30,"time":1777286365432,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:37: {"level":30,"time":1777286377213,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:38: {"level":30,"time":1777286378247,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:39: {"level":30,"time":1777286379442,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:40: {"level":30,"time":1777286380393,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:41: {"level":40,"time":1777286381570,"pid":555825,"hostname":"garycio-bot","phone":"5491131484186","messageId":"wamid.HBgNNTQ5MTEzMTQ4NDE4NhUCABIYIEFDMDI3OEM0OTIxRjZFODg0RTU1NTYxRTNFOEI1NUNFAA==","reason":"pre-boot","ageSec":214337,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:39:41: {"level":30,"time":1777286381571,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:39:42: {"level":40,"time":1777286382756,"pid":555825,"hostname":"garycio-bot","phone":"5491166308842","messageId":"wamid.HBgNNTQ5MTE2NjMwODg0MhUCABIYIEFDOTM0NTBGRkE4MkJDN0VCRjcyODBDOTY5MUFDOEI3AA==","reason":"pre-boot","ageSec":207121,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:39:42: {"level":30,"time":1777286382756,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:39:44: {"level":40,"time":1777286384031,"pid":555825,"hostname":"garycio-bot","phone":"5491122428051","messageId":"wamid.HBgNNTQ5MTEyMjQyODA1MRUCABIYIEFDRTk5NUU0MzY1OUQzMzk5NEMwMDUwREQ4NjJBMkE3AA==","reason":"pre-boot","ageSec":158340,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:39:44: {"level":30,"time":1777286384031,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:39:45: {"level":30,"time":1777286385305,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:39:58: {"level":30,"time":1777286398310,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:00: {"level":30,"time":1777286400029,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T10:40:00: {"level":30,"time":1777286400029,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T10:40:08: {"level":30,"time":1777286408762,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:10: {"level":30,"time":1777286410660,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:11: {"level":30,"time":1777286411343,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Muchas gracias","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDRTJFOTFCMjZCNTlERDU2MDM3MjRCQzI3RTk2MDA5AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:40:11: {"level":30,"time":1777286411343,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:11: {"level":30,"time":1777286411348,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","activos":12,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:40:14: {"level":30,"time":1777286414350,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Muchas gracias","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:40:35: {"level":30,"time":1777286435684,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:40:37: {"level":30,"time":1777286437631,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:40: {"level":30,"time":1777286440580,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:40: {"level":30,"time":1777286440655,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:41: {"level":30,"time":1777286441513,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:40:58: {"level":30,"time":1777286458140,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:40:58: {"level":30,"time":1777286458773,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:02: {"level":30,"time":1777286462983,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:12: {"level":30,"time":1777286472855,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:15: {"level":30,"time":1777286475597,"pid":555825,"hostname":"garycio-bot","phone":"5491160354785","text":"Buen día oí pasan por pedernera 2348 pasiyo Alfonso Lanús este","messageId":"wamid.HBgNNTQ5MTE2MDM1NDc4NRUCABIYIEFDQ0NFQjM2RjhBNDNBNjBCOUQ4NTQ5OEQ2NkI1RDU2AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:41:15: {"level":30,"time":1777286475597,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:41:15: {"level":30,"time":1777286475603,"pid":555825,"hostname":"garycio-bot","phone":"5491160354785","activos":13,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:41:18: {"level":30,"time":1777286478605,"pid":555825,"hostname":"garycio-bot","phone":"5491160354785","batched":1,"preview":"Buen día oí pasan por pedernera 2348 pasiyo Alfonso Lanús este","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:41:18: {"level":30,"time":1777286478635,"pid":555825,"hostname":"garycio-bot","phone":"5491160354785","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T10:41:20: {"level":30,"time":1777286480622,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:20: {"level":30,"time":1777286480936,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:21: {"level":30,"time":1777286481245,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:25: {"level":30,"time":1777286485021,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:26: {"level":30,"time":1777286486221,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:26: {"level":30,"time":1777286486665,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:39: {"level":30,"time":1777286499180,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:41:39: {"level":30,"time":1777286499184,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:44: {"level":30,"time":1777286504108,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:44: {"level":30,"time":1777286504535,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:57: {"level":30,"time":1777286517891,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:41:58: {"level":30,"time":1777286518829,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:06: {"level":30,"time":1777286526041,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:06: {"level":30,"time":1777286526355,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:42:18: {"level":30,"time":1777286538428,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:18: {"level":30,"time":1777286538644,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:22: {"level":30,"time":1777286542307,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:22: {"level":30,"time":1777286542646,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:42:36: {"level":30,"time":1777286556759,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:37: {"level":30,"time":1777286557720,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","text":"Si si muchas gracias","messageId":"wamid.HBgNNTQ5MTE1NjYyMjAzNxUCABIYIEFDNjA3RDNENjAyNjJCODA5ODBDQzExODVBQ0QyNzVDAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:42:37: {"level":30,"time":1777286557721,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:42:37: {"level":30,"time":1777286557734,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","activos":14,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:42:40: {"level":30,"time":1777286560737,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","batched":1,"preview":"Si si muchas gracias","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:42:43: {"level":30,"time":1777286563007,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:43: {"level":30,"time":1777286563344,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:42:50: {"level":30,"time":1777286570082,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:42:55: {"level":30,"time":1777286575570,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:42:57: {"level":40,"time":1777286577953,"pid":555825,"hostname":"garycio-bot","phone":"5491165052736","messageId":"wamid.HBgNNTQ5MTE2NTA1MjczNhUCABIYIEFDQUU2NTU2MUVBNTYwQzI2NzBCNkZFNjVDODc3NkE2AA==","reason":"pre-boot","ageSec":600546,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:42:57: {"level":30,"time":1777286577954,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:42:59: {"level":30,"time":1777286579198,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:00: {"level":30,"time":1777286580425,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:01: {"level":40,"time":1777286581527,"pid":555825,"hostname":"garycio-bot","phone":"5491136438417","messageId":"wamid.HBgNNTQ5MTEzNjQzODQxNxUCABIYIEFDREE3QkEyNDhBNTIwRTUxRjU2QkM4NjhFMzM0MzQ4AA==","reason":"pre-boot","ageSec":512152,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:43:01: {"level":30,"time":1777286581528,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:02: {"level":30,"time":1777286582313,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:02: {"level":30,"time":1777286582535,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:03: {"level":30,"time":1777286583608,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:04: {"level":30,"time":1777286584151,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:43:04: {"level":50,"time":1777286584825,"pid":555825,"hostname":"garycio-bot","phone":"549110000019","messageId":"wamid.HBgMNTQ5MTEwMDAwMDE5FQIAERgSMTYxMEI5Qzc1RjlGQzE1Njg1AA==","status":"failed","errors":[{"code":131026,"title":"Message undeliverable","message":"Message undeliverable","error_data":{"details":"Message Undeliverable."}}],"msg":"WhatsApp delivery FAILED"}
+2026-04-27T10:43:04: {"level":30,"time":1777286584825,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:43:05: {"level":30,"time":1777286585919,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:43:06: {"level":30,"time":1777286586954,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:07: {"level":30,"time":1777286587652,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","text":"0","messageId":"wamid.HBgNNTQ5MTE1NjYyMjAzNxUCABIYIEFDMEMxMzUwMUYzMzhCQ0YzRUI3NTlENzVCRkZCMDhCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:43:07: {"level":30,"time":1777286587652,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:08: {"level":30,"time":1777286588109,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","text":"Aquí el miércoles pasado retirarón el bidón y no dejaron el vació .","messageId":"wamid.HBgNNTQ5MTEzNTgxNzA0NhUCABIYIEFDNTlEMDMxOEZDRDlERTA4NDk1RDI4MTkwOTMzQkE0AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:43:08: {"level":30,"time":1777286588109,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:08: {"level":30,"time":1777286588114,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","activos":15,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:43:08: {"level":30,"time":1777286588207,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:09: {"level":40,"time":1777286589278,"pid":555825,"hostname":"garycio-bot","phone":"5491123308554","messageId":"wamid.HBgNNTQ5MTEyMzMwODU1NBUCABIYIEFDNTJEM0FEM0E5QTM5OUQzNTY0NzRFQ0EwMzBCNjA3AA==","reason":"pre-boot","ageSec":310513,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:43:09: {"level":30,"time":1777286589278,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:10: {"level":40,"time":1777286590311,"pid":555825,"hostname":"garycio-bot","phone":"5491169758822","messageId":"wamid.HBgNNTQ5MTE2OTc1ODgyMhUCABIYIEE1MjAwNzI0QTU5REFGNjU3MUEyNDNCNDJBNkVCMUVEAA==","reason":"pre-boot","ageSec":249603,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:43:10: {"level":30,"time":1777286590312,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:10: {"level":30,"time":1777286590655,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","batched":1,"preview":"0","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:43:11: {"level":30,"time":1777286591116,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","batched":1,"preview":"Aquí el miércoles pasado retirarón el bidón y no dejaron el vació .","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:43:11: {"level":30,"time":1777286591146,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","estado":"inactiva","nombre":"Iris Ines Antual","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T10:43:11: {"level":30,"time":1777286591542,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:12: {"level":30,"time":1777286592748,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:13: {"level":30,"time":1777286593351,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","intent":"reclamo","needsHuman":false,"sentiment":"calm","confidence":"high","msg":"Mensaje clasificado por IA"}
+2026-04-27T10:43:13: {"level":40,"time":1777286593938,"pid":555825,"hostname":"garycio-bot","phone":"5491134533115","messageId":"wamid.HBgNNTQ5MTEzNDUzMzExNRUCABIYIEFDQzcxRTcxREQzMjg0QzYyODY1NDM3QjU5RTdBRjQyAA==","reason":"pre-boot","ageSec":245745,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:43:13: {"level":30,"time":1777286593939,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:14: {"level":30,"time":1777286594719,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","intent":"reclamo","respuesta":"Lamentamos mucho el inconveniente, Iris. Vamos a notificar a","msg":"Respuesta generada por IA contextual"}
+2026-04-27T10:43:14: {"level":30,"time":1777286594719,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","intent":"reclamo","msg":"Respuesta generada por IA contextual"}
+2026-04-27T10:43:15: {"level":30,"time":1777286595050,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:15: {"level":30,"time":1777286595274,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T10:43:16: {"level":30,"time":1777286596136,"pid":555825,"hostname":"garycio-bot","reclamoId":322,"gravedad":"leve","escalado":false,"msg":"Reclamo guardado en DB"}
+2026-04-27T10:43:16: {"level":30,"time":1777286596308,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:17: {"level":30,"time":1777286597131,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:17: {"level":30,"time":1777286597363,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:17: {"level":30,"time":1777286597644,"pid":555825,"hostname":"garycio-bot","phone":"5491168861964","text":"Buenas semana para ustedes también 🙌","messageId":"wamid.HBgNNTQ5MTE2ODg2MTk2NBUCABIYIEFDRDdGOUYxNUVFNkQ3RUMwNzg1RjhDOUNDMUJGMUU4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:43:17: {"level":30,"time":1777286597644,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:17: {"level":30,"time":1777286597649,"pid":555825,"hostname":"garycio-bot","phone":"5491168861964","activos":16,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:43:18: {"level":30,"time":1777286598674,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:18: {"level":30,"time":1777286598681,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:20: {"level":30,"time":1777286600186,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:20: {"level":30,"time":1777286600650,"pid":555825,"hostname":"garycio-bot","phone":"5491168861964","batched":1,"preview":"Buenas semana para ustedes también 🙌","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:43:20: {"level":30,"time":1777286600842,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:22: {"level":30,"time":1777286602846,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:23: {"level":30,"time":1777286603490,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:23: {"level":30,"time":1777286603850,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:27: {"level":30,"time":1777286607854,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:43:28: {"level":30,"time":1777286608119,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:43:31: {"level":30,"time":1777286611889,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:05: {"level":30,"time":1777286645706,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:06: {"level":30,"time":1777286646101,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:44:16: {"level":30,"time":1777286656188,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:33: {"level":30,"time":1777286673156,"pid":555825,"hostname":"garycio-bot","phone":"5491128743339","text":"Si.ke.paso","messageId":"wamid.HBgNNTQ5MTEyODc0MzMzORUCABIYIEFDN0Y3RTk4MjQ1OThGQTM2MzU5MjFCN0U5QzM5MzQ0AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:44:33: {"level":30,"time":1777286673156,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:33: {"level":30,"time":1777286673170,"pid":555825,"hostname":"garycio-bot","phone":"5491128743339","activos":17,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T10:44:36: {"level":30,"time":1777286676173,"pid":555825,"hostname":"garycio-bot","phone":"5491128743339","batched":1,"preview":"Si.ke.paso","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:44:38: {"level":30,"time":1777286678318,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:39: {"level":30,"time":1777286679047,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:44:46: {"level":30,"time":1777286686721,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:44:46: {"level":30,"time":1777286686902,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:53: {"level":30,"time":1777286693484,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:53: {"level":30,"time":1777286693670,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:44:53: {"level":30,"time":1777286693911,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:03: {"level":30,"time":1777286703361,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:04: {"level":30,"time":1777286704656,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:05: {"level":30,"time":1777286705604,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:06: {"level":30,"time":1777286706347,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:06: {"level":30,"time":1777286706627,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:07: {"level":30,"time":1777286707317,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:08: {"level":30,"time":1777286708117,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:08: {"level":30,"time":1777286708318,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:08: {"level":30,"time":1777286708873,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:09: {"level":40,"time":1777286709670,"pid":555825,"hostname":"garycio-bot","phone":"5491138828455","messageId":"wamid.HBgNNTQ5MTEzODgyODQ1NRUCABIYIEFDMDRCNDgxMjJFNEVCQTRCMjE2Q0IyNUZCMDRFMzRGAA==","reason":"pre-boot","ageSec":224822,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:45:09: {"level":30,"time":1777286709670,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:17: {"level":30,"time":1777286717421,"pid":555825,"hostname":"garycio-bot","phone":"5491128743339","text":"Si","messageId":"wamid.HBgNNTQ5MTEyODc0MzMzORUCABIYIEFDM0JBMjk1MEQyQTA1MDAzODUyRkRGRkQ0NTYwMEI4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:45:17: {"level":30,"time":1777286717421,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:19: {"level":30,"time":1777286719167,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:20: {"level":30,"time":1777286720425,"pid":555825,"hostname":"garycio-bot","phone":"5491128743339","batched":1,"preview":"Si","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:45:22: {"level":30,"time":1777286722134,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:34: {"level":30,"time":1777286734154,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:34: {"level":30,"time":1777286734941,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:40: {"level":30,"time":1777286740509,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","text":"Gracias justo cuando pasaron no me encontraba en casa tengo mi esposo internado ","messageId":"wamid.HBgNNTQ5MTEzNTgxNzA0NhUCABIYIEFDMzA1QzFCQzE0RjFCQ0I3QTIwNzExNjE2Nzk1NDRDAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T10:45:40: {"level":30,"time":1777286740509,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:43: {"level":30,"time":1777286743514,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","batched":1,"preview":"Gracias justo cuando pasaron no me encontraba en casa tengo mi esposo internado ","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T10:45:43: {"level":30,"time":1777286743541,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","estado":"inactiva","nombre":"Iris Ines Antual","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T10:45:44: {"level":30,"time":1777286744393,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","intent":"consulta","needsHuman":false,"sentiment":"calm","confidence":"medium","msg":"Mensaje clasificado por IA"}
+2026-04-27T10:45:45: {"level":30,"time":1777286745754,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","intent":"consulta","respuesta":"Lamento mucho escuchar lo de tu esposo, Iris. Espero que se ","msg":"Respuesta generada por IA contextual"}
+2026-04-27T10:45:46: {"level":30,"time":1777286746332,"pid":555825,"hostname":"garycio-bot","phone":"5491135817046","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T10:45:46: {"level":30,"time":1777286746938,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:46: {"level":30,"time":1777286746985,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:47: {"level":30,"time":1777286747423,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:48: {"level":30,"time":1777286748392,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:48: {"level":30,"time":1777286748818,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:52: {"level":30,"time":1777286752342,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:52: {"level":30,"time":1777286752750,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:45:54: {"level":30,"time":1777286754893,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:00: {"level":30,"time":1777286760737,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:06: {"level":30,"time":1777286766203,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:46:14: {"level":30,"time":1777286774214,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:14: {"level":30,"time":1777286774801,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:20: {"level":30,"time":1777286780278,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:24: {"level":30,"time":1777286784694,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:43: {"level":30,"time":1777286803167,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:46:58: {"level":30,"time":1777286818104,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:00: {"level":30,"time":1777286820492,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:00: {"level":30,"time":1777286820712,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:09: {"level":30,"time":1777286829280,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:23: {"level":30,"time":1777286843730,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:47:27: {"level":30,"time":1777286847997,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:47:42: {"level":30,"time":1777286862472,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:45: {"level":30,"time":1777286865815,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:49: {"level":30,"time":1777286869749,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:47:50: {"level":30,"time":1777286870003,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:48:10: {"level":30,"time":1777286890226,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:48:10: {"level":30,"time":1777286890331,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:48:37: {"level":30,"time":1777286917590,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:48:40: {"level":30,"time":1777286920397,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:48:41: {"level":30,"time":1777286921163,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:48:41: {"level":30,"time":1777286921805,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:48:58: {"level":30,"time":1777286938723,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:48:58: {"level":30,"time":1777286938981,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:49:15: {"level":30,"time":1777286955576,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:49:16: {"level":30,"time":1777286956994,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:49:27: {"level":30,"time":1777286967041,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:49:53: {"level":30,"time":1777286993762,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:49:54: {"level":30,"time":1777286994654,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:06: {"level":30,"time":1777287006707,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:50:06: {"level":30,"time":1777287006811,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:11: {"level":30,"time":1777287011054,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:11: {"level":30,"time":1777287011063,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:24: {"level":30,"time":1777287024211,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:26: {"level":30,"time":1777287026608,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:29: {"level":30,"time":1777287029247,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:50:29: {"level":30,"time":1777287029285,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:41: {"level":30,"time":1777287101777,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:42: {"level":30,"time":1777287102664,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:43: {"level":30,"time":1777287103367,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:51:44: {"level":30,"time":1777287104217,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:45: {"level":30,"time":1777287105306,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:51:46: {"level":30,"time":1777287106174,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:51:46: {"level":30,"time":1777287106929,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:47: {"level":30,"time":1777287107791,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:51:48: {"level":30,"time":1777287108518,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:01: {"level":40,"time":1777287121191,"pid":555825,"hostname":"garycio-bot","phone":"5491168664420","messageId":"wamid.HBgNNTQ5MTE2ODY2NDQyMBUCABIYIEFDRjM2MTMwREQxNjRBMjc5ODE0RkQ5QzNFNzQ0M0JDAA==","reason":"pre-boot","ageSec":586865,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:52:01: {"level":30,"time":1777287121192,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:52:01: {"level":40,"time":1777287121863,"pid":555825,"hostname":"garycio-bot","phone":"5491168185671","messageId":"wamid.HBgNNTQ5MTE2ODE4NTY3MRUCABIYIEFDMTRCMzlGMjYwNURFQkRFRUE4ODc1RjJCMjk5ODM5AA==","reason":"pre-boot","ageSec":577292,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:52:01: {"level":30,"time":1777287121864,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:52:02: {"level":30,"time":1777287122675,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:03: {"level":30,"time":1777287123448,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:52:04: {"level":40,"time":1777287124151,"pid":555825,"hostname":"garycio-bot","phone":"5491132153575","messageId":"wamid.HBgNNTQ5MTEzMjE1MzU3NRUCABIYIEFDQjZDQTlBNzBEN0ExRTczOTFBNjA4QTA0QkNDRTE1AA==","reason":"pre-boot","ageSec":506467,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:52:04: {"level":30,"time":1777287124152,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:52:04: {"level":40,"time":1777287124829,"pid":555825,"hostname":"garycio-bot","phone":"5491140794363","messageId":"wamid.HBgNNTQ5MTE0MDc5NDM2MxUCABIYIEFDRjk5Q0FENDQ5Mzc5QjFBRThCN0NBNEQ3MTRGNTgxAA==","reason":"pre-boot","ageSec":491130,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:52:04: {"level":30,"time":1777287124829,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:05: {"level":40,"time":1777287125627,"pid":555825,"hostname":"garycio-bot","phone":"5491132693176","messageId":"wamid.HBgNNTQ5MTEzMjY5MzE3NhUCABIYIEFDMUFBNUQyMEI2RjNDQ0ExOTQ5NzIwRkFGRDZBM0I1AA==","reason":"pre-boot","ageSec":423560,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T10:52:05: {"level":30,"time":1777287125627,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:06: {"level":30,"time":1777287126495,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:07: {"level":30,"time":1777287127275,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:07: {"level":30,"time":1777287127955,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:08: {"level":30,"time":1777287128628,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:09: {"level":30,"time":1777287129435,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:10: {"level":30,"time":1777287130131,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T10:52:16: {"level":30,"time":1777287136393,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:49: {"level":30,"time":1777287169716,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:49: {"level":30,"time":1777287169975,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:52:50: {"level":30,"time":1777287170126,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:57:45: {"level":30,"time":1777287465788,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:57:46: {"level":30,"time":1777287466676,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:57:55: {"level":30,"time":1777287475791,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:57:55: {"level":30,"time":1777287475870,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:03: {"level":30,"time":1777287483839,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:03: {"level":30,"time":1777287483979,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:20: {"level":30,"time":1777287500039,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:21: {"level":30,"time":1777287501648,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:27: {"level":30,"time":1777287507783,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:28: {"level":30,"time":1777287508230,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:41: {"level":30,"time":1777287521120,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:43: {"level":30,"time":1777287523522,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:55: {"level":30,"time":1777287535290,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:58:55: {"level":30,"time":1777287535597,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:00: {"level":30,"time":1777287540646,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:59:00: {"level":30,"time":1777287540805,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T10:59:01: {"level":30,"time":1777287541003,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:17: {"level":30,"time":1777287557880,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:18: {"level":30,"time":1777287558214,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:22: {"level":30,"time":1777287562341,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:23: {"level":30,"time":1777287563112,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:41: {"level":30,"time":1777287581527,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:42: {"level":30,"time":1777287582199,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:47: {"level":30,"time":1777287587139,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:47: {"level":30,"time":1777287587272,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:47: {"level":30,"time":1777287587367,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T10:59:59: {"level":30,"time":1777287599201,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:00: {"level":30,"time":1777287600762,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T11:00:00: {"level":30,"time":1777287600762,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T11:00:04: {"level":30,"time":1777287604477,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:29: {"level":30,"time":1777287629523,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","text":"Hola buen dia okey muchas gracias si yo estoy les pido por favor tirelon adentro","messageId":"wamid.HBgNNTQ5MTE1OTMyNDcyOBUCABIYIEFDNDIyRjA0RjE3N0Y4QTRFMTcwQTIwQzFBRkUwRDBCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:00:29: {"level":30,"time":1777287629523,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:29: {"level":30,"time":1777287629529,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","activos":18,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:00:31: {"level":30,"time":1777287631832,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:00:32: {"level":30,"time":1777287632489,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:32: {"level":30,"time":1777287632531,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","batched":1,"preview":"Hola buen dia okey muchas gracias si yo estoy les pido por favor tirelon adentro","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:00:35: {"level":30,"time":1777287635203,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:35: {"level":30,"time":1777287635545,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:42: {"level":30,"time":1777287642307,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:42: {"level":30,"time":1777287642473,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:00:58: {"level":30,"time":1777287658764,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Gracias. Y felitaciones.  Por los chicos  que  recoletan    muy  educado","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDQ0RDRUQyQ0JGQTA5QkI3QTY4NUE4RjNGNEM3MzZBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:00:58: {"level":30,"time":1777287658764,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:00: {"level":30,"time":1777287660005,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:00: {"level":30,"time":1777287660059,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:00: {"level":30,"time":1777287660483,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:01: {"level":30,"time":1777287661572,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:01: {"level":30,"time":1777287661768,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Gracias. Y felitaciones.  Por los chicos  que  recoletan    muy  educado","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:01:02: {"level":30,"time":1777287662176,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:03: {"level":30,"time":1777287663981,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","text":"Buen dia que dia pasaran por mi casa.","messageId":"wamid.HBgNNTQ5MTEyNzg0MDkwNRUCABIYIEFDMURGMTE5QzdDOUJDOUQzMDA1RkU3ODE2REE4NEI4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:01:03: {"level":30,"time":1777287663982,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:03: {"level":30,"time":1777287663986,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","activos":19,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:01:04: {"level":30,"time":1777287664040,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:04: {"level":30,"time":1777287664193,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:01:05: {"level":30,"time":1777287665235,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:05: {"level":30,"time":1777287665804,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:06: {"level":30,"time":1777287666988,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","batched":1,"preview":"Buen dia que dia pasaran por mi casa.","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:01:07: {"level":30,"time":1777287667000,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","estado":"inactiva","nombre":"Maria Rosa Veneziano","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:01:08: {"level":30,"time":1777287668085,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","intent":"consulta","needsHuman":false,"sentiment":"calm","confidence":"high","msg":"Mensaje clasificado por IA"}
+2026-04-27T11:01:10: {"level":30,"time":1777287670030,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","intent":"consulta","respuesta":"Buen día, María Rosa! Pasamos a retirar el bidón los martes ","msg":"Respuesta generada por IA contextual"}
+2026-04-27T11:01:10: {"level":30,"time":1777287670273,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:01:10: {"level":30,"time":1777287670676,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:01:12: {"level":30,"time":1777287672781,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:13: {"level":30,"time":1777287673004,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:13: {"level":30,"time":1777287673151,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:16: {"level":30,"time":1777287676903,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:39: {"level":30,"time":1777287699471,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","text":"Yo ya estoy registrada desde hace años","messageId":"wamid.HBgNNTQ5MTE1OTMyNDcyOBUCABIYIEFDODBCMTc1MzdFQjREOUYxNTM4NzgwMUIyOUU1NEExAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:01:39: {"level":30,"time":1777287699471,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:42: {"level":30,"time":1777287702473,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","batched":1,"preview":"Yo ya estoy registrada desde hace años","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:01:42: {"level":30,"time":1777287702514,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:43: {"level":30,"time":1777287703984,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:45: {"level":30,"time":1777287705111,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","paso":"nombre","mensaje":"Yo ya estoy registrada desde hace años","parsed":{"accion":"ya_donante","valor":null,"confianza":"alta","interpretacion":"La donante indica que ya está registrada desde hace años."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:01:45: {"level":30,"time":1777287705871,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:01:47: {"level":30,"time":1777287707255,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:47: {"level":30,"time":1777287707449,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:01:47: {"level":30,"time":1777287707471,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:48: {"level":30,"time":1777287708021,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:48: {"level":30,"time":1777287708437,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:50: {"level":30,"time":1777287710092,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:57: {"level":30,"time":1777287717123,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:01:57: {"level":30,"time":1777287717229,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:01: {"level":30,"time":1777287721368,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","text":"Pregunto porque en mi casa esta semana no pasaron","messageId":"wamid.HBgNNTQ5MTEyNzg0MDkwNRUCABIYIEFDNkIzOTc2NEYyQUZFMTczODA1RENCMzRFMTM2RjJBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:02:01: {"level":30,"time":1777287721368,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:04: {"level":30,"time":1777287724371,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","batched":1,"preview":"Pregunto porque en mi casa esta semana no pasaron","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:02:04: {"level":30,"time":1777287724419,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","estado":"inactiva","nombre":"Maria Rosa Veneziano","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:02:05: {"level":30,"time":1777287725540,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","intent":"consulta","needsHuman":false,"sentiment":"calm","confidence":"high","msg":"Mensaje clasificado por IA"}
+2026-04-27T11:02:07: {"level":30,"time":1777287727067,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","intent":"consulta","respuesta":"Entiendo tu preocupación, María Rosa. Lamentamos que no haya","msg":"Respuesta generada por IA contextual"}
+2026-04-27T11:02:07: {"level":30,"time":1777287727715,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:02:09: {"level":30,"time":1777287729612,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:02:09: {"level":30,"time":1777287729672,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:10: {"level":30,"time":1777287730222,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:12: {"level":30,"time":1777287732388,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:02:23: {"level":30,"time":1777287743265,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:23: {"level":30,"time":1777287743324,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:23: {"level":30,"time":1777287743399,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:27: {"level":30,"time":1777287747265,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:28: {"level":30,"time":1777287748315,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:29: {"level":30,"time":1777287749262,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:29: {"level":30,"time":1777287749679,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:30: {"level":30,"time":1777287750462,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:02:39: {"level":30,"time":1777287759127,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:02:40: {"level":30,"time":1777287760224,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Siiiii  es la primera vez","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDOEI2RkM1MDc3MzJFMUI0MDIzMzM3MjQ2RDM0NkYxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:02:40: {"level":30,"time":1777287760224,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:40: {"level":30,"time":1777287760716,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:40: {"level":30,"time":1777287760847,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:43: {"level":30,"time":1777287763228,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Siiiii  es la primera vez","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:02:44: {"level":30,"time":1777287764343,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","text":"Buenísimo yo me llamo miriam isabel Dos santos","messageId":"wamid.HBgNNTQ5MTE1OTMyNDcyOBUCABIYIEFDQjA4RjkyMzMxOTIwQzEzOEZGMDExRDU5QTA5OTAyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:02:44: {"level":30,"time":1777287764343,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:44: {"level":30,"time":1777287764387,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","paso":"nombre","mensaje":"Siiiii  es la primera vez","parsed":{"accion":"no_entiendo","valor":null,"confianza":"baja","interpretacion":"La donante menciona que es la primera vez, pero no proporciona su nombre."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:02:45: {"level":30,"time":1777287765049,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:45: {"level":30,"time":1777287765162,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:45: {"level":30,"time":1777287765293,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:45: {"level":30,"time":1777287765301,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:45: {"level":30,"time":1777287765431,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:46: {"level":30,"time":1777287766670,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:02:46: {"level":30,"time":1777287766973,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:47: {"level":30,"time":1777287767106,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:47: {"level":30,"time":1777287767219,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:02:47: {"level":30,"time":1777287767347,"pid":555825,"hostname":"garycio-bot","phone":"5491159324728","batched":1,"preview":"Buenísimo yo me llamo miriam isabel Dos santos","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:02:49: {"level":30,"time":1777287769291,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:49: {"level":30,"time":1777287769919,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:50: {"level":30,"time":1777287770766,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","text":"Okey","messageId":"wamid.HBgNNTQ5MTEyNzg0MDkwNRUCABIYIEFDMjY3RkU2QTA3QUQzMTE0RjA5NEE2NzdEQTBFOEQwAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:02:50: {"level":30,"time":1777287770767,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:02:51: {"level":30,"time":1777287771092,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:51: {"level":30,"time":1777287771473,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:02:53: {"level":30,"time":1777287773770,"pid":555825,"hostname":"garycio-bot","phone":"5491127840905","batched":1,"preview":"Okey","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:02:59: {"level":30,"time":1777287779837,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:06: {"level":30,"time":1777287786557,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:13: {"level":30,"time":1777287793918,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:17: {"level":30,"time":1777287797058,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Dorca dufour","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDQjIyRUVBRjdGRjYyRTREOEJENEY0QjBEMkZDQjg5AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:03:17: {"level":30,"time":1777287797058,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:17: {"level":30,"time":1777287797337,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:17: {"level":30,"time":1777287797343,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:18: {"level":30,"time":1777287798200,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:18: {"level":30,"time":1777287798270,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:20: {"level":30,"time":1777287800062,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Dorca dufour","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:03:21: {"level":30,"time":1777287801228,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","paso":"nombre","mensaje":"Dorca dufour","parsed":{"accion":"continuar","valor":"Dorca Dufour","confianza":"alta","interpretacion":"La donante está proporcionando su nombre: Dorca Dufour"},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:03:23: {"level":30,"time":1777287803390,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:23: {"level":30,"time":1777287803479,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:27: {"level":30,"time":1777287807149,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:27: {"level":30,"time":1777287807152,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:27: {"level":30,"time":1777287807231,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:03:40: {"level":30,"time":1777287820620,"pid":555825,"hostname":"garycio-bot","phone":"5491166965658","text":"Muy amable gracias","messageId":"wamid.HBgNNTQ5MTE2Njk2NTY1OBUCABIYIEFDQjQ1MUQyQkM1RkVFQjBFREY4NzQ5NkRBMThFODg5AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:03:40: {"level":30,"time":1777287820620,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:40: {"level":30,"time":1777287820625,"pid":555825,"hostname":"garycio-bot","phone":"5491166965658","activos":20,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:03:43: {"level":30,"time":1777287823627,"pid":555825,"hostname":"garycio-bot","phone":"5491166965658","batched":1,"preview":"Muy amable gracias","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:03:43: {"level":30,"time":1777287823637,"pid":555825,"hostname":"garycio-bot","phone":"5491166965658","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:03:45: {"level":30,"time":1777287825659,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:45: {"level":30,"time":1777287825827,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Buen dia","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDRUIwNEI1MUIyOUY5MjA2QzQxMjJFQTQ3Q0JGMTlDAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:03:45: {"level":30,"time":1777287825827,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:45: {"level":30,"time":1777287825832,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","activos":21,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:03:45: {"level":30,"time":1777287825839,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:46: {"level":30,"time":1777287826287,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:47: {"level":30,"time":1777287827230,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:48: {"level":30,"time":1777287828835,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Buen dia","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:03:48: {"level":30,"time":1777287828864,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","estado":"inactiva","nombre":"Sahara Arguello","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:03:49: {"level":30,"time":1777287829875,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","intent":"saludo","needsHuman":false,"sentiment":"calm","confidence":"high","msg":"Mensaje clasificado por IA"}
+2026-04-27T11:03:50: {"level":30,"time":1777287830935,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","intent":"saludo","respuesta":"Buen día, Sahara! Soy el asistente de GARYCIO. ¿En qué te pu","msg":"Respuesta generada por IA contextual"}
+2026-04-27T11:03:50: {"level":30,"time":1777287830935,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","intent":"saludo","msg":"Respuesta generada por IA contextual"}
+2026-04-27T11:03:53: {"level":30,"time":1777287833063,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:53: {"level":30,"time":1777287833530,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:54: {"level":30,"time":1777287834014,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:03:54: {"level":30,"time":1777287834112,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:02: {"level":30,"time":1777287842532,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:03: {"level":30,"time":1777287843391,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:04: {"level":30,"time":1777287844342,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:04:05: {"level":30,"time":1777287845341,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:13: {"level":30,"time":1777287853206,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","text":"__IMAGEN__","messageId":"wamid.HBgNNTQ5MTE1MjIxNjk3NhUCABIYIEFDNTQyOTJDRTkyRjJCMDA3RjlBMkEzMjJDMzZEQjExAA==","hasMedia":true,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:04:13: {"level":30,"time":1777287853207,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:04:13: {"level":30,"time":1777287853212,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","activos":22,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:04:14: {"level":30,"time":1777287854628,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Si se q los miércoles y sábados son los días de recoleccion","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDNDAxMUI0MzFCMUU4QjJGQUZFNDg2Q0Y3MTUwMUY4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:04:14: {"level":30,"time":1777287854628,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:16: {"level":30,"time":1777287856215,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","batched":1,"preview":"__IMAGEN__","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:04:16: {"level":30,"time":1777287856226,"pid":555825,"hostname":"garycio-bot","telefono":"5491152216976","msg":"Nuevo contacto de donante registrado automáticamente"}
+2026-04-27T11:04:17: {"level":30,"time":1777287857630,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Si se q los miércoles y sábados son los días de recoleccion","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:04:17: {"level":30,"time":1777287857643,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","estado":"inactiva","nombre":"Sahara Arguello","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:04:18: {"level":30,"time":1777287858370,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:04:18: {"level":30,"time":1777287858385,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:18: {"level":30,"time":1777287858753,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","intent":"consulta","needsHuman":false,"sentiment":"calm","confidence":"medium","msg":"Mensaje clasificado por IA"}
+2026-04-27T11:04:20: {"level":30,"time":1777287860556,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:21: {"level":30,"time":1777287861193,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:23: {"level":30,"time":1777287863319,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:23: {"level":30,"time":1777287863636,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:29: {"level":30,"time":1777287869857,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","text":"Ami vecina le dieron y Ami no me dejaron","messageId":"wamid.HBgNNTQ5MTE1MjIxNjk3NhUCABIYIEFDNDQ2NDhDNEZGMkRFNTg3RUEzMTg1RUQ5RUFCNDBCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:04:29: {"level":30,"time":1777287869857,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:32: {"level":30,"time":1777287872860,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","batched":1,"preview":"Ami vecina le dieron y Ami no me dejaron","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:04:34: {"level":30,"time":1777287874056,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","paso":"nombre","mensaje":"Ami vecina le dieron y Ami no me dejaron","parsed":{"accion":"queja","valor":null,"confianza":"alta","interpretacion":"La donante se queja de que a su vecina le dieron algo y a ella no."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:04:34: {"level":30,"time":1777287874590,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:04:36: {"level":30,"time":1777287876105,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:36: {"level":30,"time":1777287876146,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:36: {"level":30,"time":1777287876532,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:36: {"level":30,"time":1777287876629,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:38: {"level":30,"time":1777287878886,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:40: {"level":30,"time":1777287880832,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:04:41: {"level":30,"time":1777287881246,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:04:42: {"level":30,"time":1777287882182,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:07: {"level":30,"time":1777287907139,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","text":"Irma Edith Isabel Oliva  28.2.67","messageId":"wamid.HBgNNTQ5MTE1MjIxNjk3NhUCABIYIEFDMjUwREI0NDJCMDU1OEVENkM2NDhENDA2MjUyNjVBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:05:07: {"level":30,"time":1777287907139,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:08: {"level":30,"time":1777287908573,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"admin","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBQzQ1OUQ2QzhGRkYxMEE2QzRBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:05:08: {"level":30,"time":1777287908573,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:10: {"level":30,"time":1777287910143,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","batched":1,"preview":"Irma Edith Isabel Oliva  28.2.67","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:05:11: {"level":30,"time":1777287911574,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"admin","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:05:12: {"level":30,"time":1777287912450,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:05:12: {"level":30,"time":1777287912684,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:13: {"level":30,"time":1777287913931,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:14: {"level":30,"time":1777287914317,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:17: {"level":30,"time":1777287917601,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","text":"Agrelo esquina rastra","messageId":"wamid.HBgNNTQ5MTE1MjIxNjk3NhUCABIYIEFDMDJFNTZBMDFCOTgyODEwMTY3MEQxMDQxMUJDQjkxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:05:17: {"level":30,"time":1777287917601,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:20: {"level":30,"time":1777287920605,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","batched":1,"preview":"Agrelo esquina rastra","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:05:20: {"level":30,"time":1777287920611,"pid":555825,"hostname":"garycio-bot","phone":"5491152216976","esConfirmacion":false,"msg":"Cooldown activo (10s) — ignorando mensaje"}
+2026-04-27T11:05:24: {"level":30,"time":1777287924086,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"14","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBMDRDMkQ4QjNDQjI1N0I5Qjk5AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:05:24: {"level":30,"time":1777287924086,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:27: {"level":30,"time":1777287927087,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"14","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:05:28: {"level":30,"time":1777287928996,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:05:29: {"level":30,"time":1777287929666,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:06:44: {"level":30,"time":1777288004221,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:06:45: {"level":30,"time":1777288005294,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:06:54: {"level":30,"time":1777288014712,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:06:54: {"level":30,"time":1777288014951,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:07:19: {"level":30,"time":1777288039513,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:20: {"level":30,"time":1777288040044,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:29: {"level":30,"time":1777288049302,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:30: {"level":30,"time":1777288050741,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:32: {"level":30,"time":1777288052000,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:32: {"level":30,"time":1777288052226,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:34: {"level":30,"time":1777288054846,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:07:35: {"level":30,"time":1777288055233,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:38: {"level":30,"time":1777288058662,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:38: {"level":30,"time":1777288058992,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:07:54: {"level":30,"time":1777288074753,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:07:54: {"level":30,"time":1777288074933,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:07:54: {"level":30,"time":1777288074957,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:07:54: {"level":30,"time":1777288074981,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:21: {"level":30,"time":1777288101869,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"El viernes a la noche saque el bidón por si pasan temprano. El sábado 11 y media","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDODVDNDJDMzRBNzM5NUU0NDc4MTk3NjAyMjNGRURGAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:08:21: {"level":30,"time":1777288101869,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:24: {"level":30,"time":1777288104874,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"El viernes a la noche saque el bidón por si pasan temprano. El sábado 11 y media","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:08:24: {"level":30,"time":1777288104927,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","estado":"inactiva","nombre":"Sahara Arguello","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:08:26: {"level":30,"time":1777288106025,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:26: {"level":30,"time":1777288106374,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","intent":"multiple_issues","needsHuman":true,"sentiment":"angry","confidence":"high","msg":"Mensaje clasificado por IA"}
+2026-04-27T11:08:26: {"level":40,"time":1777288106374,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","reason":"multiple_issues","context":{"lastMessage":"El viernes a la noche saque el bidón por si pasan temprano. El sábado 11 y media pasaron y no retiraron el bidón . Retiraron el bidón de la casa de enfrente de mí vecina y el mío no. Y x eso ya no quiero ser más donante. Lo hacía de muy buen agrado pero no me gusta lo q hicieron.","intent":"multiple_issues"},"msg":"Escalación humana activada"}
+2026-04-27T11:08:28: {"level":30,"time":1777288108419,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:29: {"level":30,"time":1777288109090,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:29: {"level":30,"time":1777288109103,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:29: {"level":30,"time":1777288109559,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:29: {"level":30,"time":1777288109924,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:30: {"level":30,"time":1777288110068,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:30: {"level":30,"time":1777288110224,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:42: {"level":30,"time":1777288122796,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:43: {"level":30,"time":1777288123295,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:08:44: {"level":30,"time":1777288124678,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:45: {"level":30,"time":1777288125453,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:46: {"level":30,"time":1777288126321,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:08:46: {"level":30,"time":1777288126401,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:46: {"level":30,"time":1777288126648,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:46: {"level":30,"time":1777288126670,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:47: {"level":30,"time":1777288127167,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:08:48: {"level":30,"time":1777288128041,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:48: {"level":30,"time":1777288128930,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:08:49: {"level":30,"time":1777288129837,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:20: {"level":30,"time":1777288160014,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Buen día a q hora pasan los recolectores por Hungría y los recuerdos y yerbal po","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDNTM5ODI4NDEyNDk4Qjc3MDRBRDg3RUM1NjU2RDgyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:09:20: {"level":30,"time":1777288160014,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:20: {"level":30,"time":1777288160021,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","activos":23,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:09:23: {"level":30,"time":1777288163023,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Buen día a q hora pasan los recolectores por Hungría y los recuerdos y yerbal po","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:09:25: {"level":30,"time":1777288165132,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:25: {"level":30,"time":1777288165576,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:48: {"level":30,"time":1777288188554,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Yo ya estoy anotada desde hace 5 años","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDMUI5QUQyODY4QzgxMjQwQjIzMTVFMTdBOTA5MkY1AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:09:48: {"level":30,"time":1777288188554,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:51: {"level":30,"time":1777288191558,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Yo ya estoy anotada desde hace 5 años","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:09:53: {"level":30,"time":1777288193070,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","paso":"nombre","mensaje":"Yo ya estoy anotada desde hace 5 años","parsed":{"accion":"ya_donante","valor":null,"confianza":"alta","interpretacion":"La donante indica que ya está registrada desde hace 5 años."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:09:53: {"level":30,"time":1777288193710,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:09:54: {"level":30,"time":1777288194923,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:55: {"level":30,"time":1777288195350,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:56: {"level":30,"time":1777288196229,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:56: {"level":30,"time":1777288196334,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:59: {"level":30,"time":1777288199161,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:09:59: {"level":30,"time":1777288199334,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:07: {"level":30,"time":1777288207769,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Buenas tardes me llamo sosa Sandra beatriz tengo 55 años vivo en los recursos 40","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDNjI2RTE0ODIyNzBFOTg2MThEMTYwRkNDQURERDYyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:10:07: {"level":30,"time":1777288207769,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:09: {"level":30,"time":1777288209482,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:10:10: {"level":30,"time":1777288210058,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:10: {"level":30,"time":1777288210771,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Buenas tardes me llamo sosa Sandra beatriz tengo 55 años vivo en los recursos 40","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:10:11: {"level":30,"time":1777288211071,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:13: {"level":30,"time":1777288213023,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:13: {"level":30,"time":1777288213261,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:16: {"level":30,"time":1777288216123,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:17: {"level":30,"time":1777288217890,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:10:17: {"level":30,"time":1777288217966,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:18: {"level":30,"time":1777288218190,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","text":"Gracias igual para usted","messageId":"wamid.HBgNNTQ5MTE1NjYyMjAzNxUCABIYIEFDRjc4NUExMEY5QzEzNTk5MkIwNzIwMDQ5N0JGNkM0AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:10:18: {"level":30,"time":1777288218191,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:21: {"level":30,"time":1777288221193,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","batched":1,"preview":"Gracias igual para usted","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:10:22: {"level":30,"time":1777288222299,"pid":555825,"hostname":"garycio-bot","phone":"5491156622037","paso":"nombre","mensaje":"Gracias igual para usted","parsed":{"accion":"no_entiendo","valor":null,"confianza":"baja","interpretacion":"La donante agradece pero no proporciona su nombre."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:10:24: {"level":30,"time":1777288224825,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:24: {"level":30,"time":1777288224928,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:28: {"level":30,"time":1777288228326,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Buenas tardes me llamo sosa Sandra beatriz tengo 55 años vivo en los recursos 40","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDODBCQkFDRjdEMDUxQTg3NTY2REFBREVERUUzOEMxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:10:28: {"level":30,"time":1777288228326,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:31: {"level":30,"time":1777288231328,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Buenas tardes me llamo sosa Sandra beatriz tengo 55 años vivo en los recursos 40","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:10:32: {"level":30,"time":1777288232569,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","paso":"nombre","mensaje":"Buenas tardes me llamo sosa Sandra beatriz tengo 55 años viv","parsed":{"accion":"continuar","valor":"Sandra Beatriz Sosa","confianza":"alta","interpretacion":"La donante se llama Sandra Beatriz Sosa."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:10:35: {"level":30,"time":1777288235152,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:10:35: {"level":30,"time":1777288235494,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:36: {"level":30,"time":1777288236529,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:38: {"level":30,"time":1777288238003,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:38: {"level":30,"time":1777288238033,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:47: {"level":30,"time":1777288247496,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Salta y  aconcagua. 5262","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDQ0Y2OTRFNTFDQTJDQTU0RjY0Nzg4MTFGOTY0M0MyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:10:47: {"level":30,"time":1777288247496,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:50: {"level":30,"time":1777288250499,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Salta y  aconcagua. 5262","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:10:52: {"level":30,"time":1777288252385,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","paso":"direccion","mensaje":"Salta y  aconcagua. 5262","parsed":{"accion":"continuar","valor":"Salta y Aconcagua 5262","confianza":"alta","interpretacion":"La donante proporcionó su dirección: Salta y Aconcagua 5262"},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:10:55: {"level":30,"time":1777288255342,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:55: {"level":30,"time":1777288255479,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:10:55: {"level":30,"time":1777288255786,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Los recuerdos 4011 entre Hungría y yerbal","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDRUI0QThCRUI4RDdEQ0ZGQzNBMDAyQUQ4NkU3NzdCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:10:55: {"level":30,"time":1777288255786,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:10:58: {"level":30,"time":1777288258789,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Los recuerdos 4011 entre Hungría y yerbal","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:11:00: {"level":30,"time":1777288260302,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","paso":"direccion","mensaje":"Los recuerdos 4011 entre Hungría y yerbal","parsed":{"accion":"continuar","valor":"Los Recuerdos 4011 entre Hungría y Yerbal","confianza":"alta","interpretacion":"La donante proporcionó su dirección completa."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:11:02: {"level":30,"time":1777288262102,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:02: {"level":30,"time":1777288262269,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:03: {"level":30,"time":1777288263197,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:06: {"level":30,"time":1777288266683,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:06: {"level":30,"time":1777288266689,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:18: {"level":30,"time":1777288278428,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","text":"Si","messageId":"wamid.HBgNNTQ5MTE2MDUzNzE0OBUCABIYIEFDMkNGRTIxQjVDMzRBMkJERjJFQjUzNEFENEU3RTU3AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:11:18: {"level":30,"time":1777288278428,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:19: {"level":30,"time":1777288279655,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:19: {"level":30,"time":1777288279726,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:11:21: {"level":30,"time":1777288281367,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","text":"Si","messageId":"wamid.HBgNNTQ5MTE2MjUxOTM0ORUCABIYIEFDNzU4NjE1NEIyMTQ4OTgxMDRENTMzREE0RDE1QzNBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:11:21: {"level":30,"time":1777288281367,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:21: {"level":30,"time":1777288281431,"pid":555825,"hostname":"garycio-bot","phone":"5491160537148","batched":1,"preview":"Si","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:11:24: {"level":30,"time":1777288284370,"pid":555825,"hostname":"garycio-bot","phone":"5491162519349","batched":1,"preview":"Si","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:11:33: {"level":30,"time":1777288293819,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:33: {"level":30,"time":1777288293900,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:11:53: {"level":30,"time":1777288313299,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Ruben de Rosa 1955 temperley","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDREE5QUYxMTFFQUQyRjkxRkQ4QTQ2QjIxNDQ3MTZCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:11:53: {"level":30,"time":1777288313299,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:11:56: {"level":30,"time":1777288316198,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:56: {"level":30,"time":1777288316224,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:11:56: {"level":30,"time":1777288316301,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Ruben de Rosa 1955 temperley","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:11:56: {"level":30,"time":1777288316308,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:11:58: {"level":30,"time":1777288318488,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:58: {"level":30,"time":1777288318561,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:11:59: {"level":30,"time":1777288319502,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:12:00: {"level":30,"time":1777288320835,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:12:05: {"level":30,"time":1777288325282,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:12:05: {"level":30,"time":1777288325902,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:13:56: {"level":30,"time":1777288436067,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"No lo vi pasar . A las 14 y 30 me di cuenta q el bidón seguía en la vereda y el ","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDOEQ3RjYyRjQ0MTQ3RUE5QzVGMTdFNjdCRkUyRDIyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:13:56: {"level":30,"time":1777288436067,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:13:59: {"level":30,"time":1777288439089,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"No lo vi pasar . A las 14 y 30 me di cuenta q el bidón seguía en la vereda y el ","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:13:59: {"level":30,"time":1777288439122,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:14:01: {"level":30,"time":1777288441275,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:01: {"level":30,"time":1777288441469,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:01: {"level":30,"time":1777288441529,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:03: {"level":30,"time":1777288443026,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:08: {"level":30,"time":1777288448173,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:08: {"level":30,"time":1777288448376,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:26: {"level":30,"time":1777288466393,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"pausar","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBRUVERjlGNjkxMDk1RkM2MzIxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:14:26: {"level":30,"time":1777288466393,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:29: {"level":30,"time":1777288469393,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"pausar","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:14:29: {"level":40,"time":1777288469425,"pid":555825,"hostname":"garycio-bot","by":"admin_whatsapp","reason":"Pausado desde panel admin","msg":"Bot PAUSADO"}
+2026-04-27T11:14:31: {"level":30,"time":1777288471335,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:32: {"level":30,"time":1777288472074,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:38: {"level":30,"time":1777288478806,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"↩️ Más acciones","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBNEUzRThFNkFENTE1MkNFQzRGAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:14:38: {"level":30,"time":1777288478806,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:41: {"level":30,"time":1777288481807,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"↩️ Más acciones","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:14:43: {"level":30,"time":1777288483676,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:14:44: {"level":30,"time":1777288484761,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:15:38: {"level":30,"time":1777288538820,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:15:41: {"level":30,"time":1777288541744,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:15:42: {"level":30,"time":1777288542080,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:15:58: {"level":30,"time":1777288558228,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:15:58: {"level":30,"time":1777288558266,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:03: {"level":30,"time":1777288563516,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:03: {"level":30,"time":1777288563953,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:04: {"level":30,"time":1777288564423,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Te comento q el día miércoles pasaron a retirar el bidón de mí casa. Y a las dos","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDNjY2MDZCNjdCMkU5QkY1MjQ1RTA5Q0U5MEQ0MjREAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:16:04: {"level":30,"time":1777288564423,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:16:07: {"level":30,"time":1777288567426,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Te comento q el día miércoles pasaron a retirar el bidón de mí casa. Y a las dos","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:16:07: {"level":40,"time":1777288567427,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Bot en PAUSA — mensaje rechazado"}
+2026-04-27T11:16:09: {"level":30,"time":1777288569439,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:10: {"level":30,"time":1777288570036,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:15: {"level":30,"time":1777288575876,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:15: {"level":30,"time":1777288575887,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:16:32: {"level":30,"time":1777288592737,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"reanudar","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBMDI4RjE5Mjk0NDk4MzAxRDRCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:16:32: {"level":30,"time":1777288592737,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:35: {"level":30,"time":1777288595738,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"reanudar","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:16:35: {"level":30,"time":1777288595769,"pid":555825,"hostname":"garycio-bot","by":"admin_whatsapp","msg":"Bot REANUDADO"}
+2026-04-27T11:16:37: {"level":30,"time":1777288597808,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:38: {"level":30,"time":1777288598716,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:41: {"level":30,"time":1777288601609,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"↩️ Más acciones","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBRjlDNjE1NDBBRTQ4RkNDNzNBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:16:41: {"level":30,"time":1777288601609,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:44: {"level":30,"time":1777288604609,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"↩️ Más acciones","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:16:46: {"level":30,"time":1777288606777,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:16:47: {"level":30,"time":1777288607280,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:18:10: {"level":30,"time":1777288690699,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:18:55: {"level":30,"time":1777288735296,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"whitelist","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBQ0E1Q0Y3ODM2QjU0MkE2OTY4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:18:55: {"level":30,"time":1777288735296,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:18:58: {"level":30,"time":1777288738297,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"whitelist","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:19:00: {"level":30,"time":1777288740311,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:01: {"level":30,"time":1777288741142,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:23: {"level":30,"time":1777288763368,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","text":"admin","messageId":"wamid.HBgNNTQ5MTEyNjMzMDM4OBUCABIYFDNBNUI1NUIwNjBCMzBBNkQ1Q0ExAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:19:23: {"level":30,"time":1777288763368,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:26: {"level":30,"time":1777288766368,"pid":555825,"hostname":"garycio-bot","phone":"5491126330388","batched":1,"preview":"admin","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:19:28: {"level":30,"time":1777288768388,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:29: {"level":30,"time":1777288769333,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:46: {"level":30,"time":1777288786544,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Entonces si ya volví a confirmar q ya era donante y el sábado ocurre esto lo tom","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDNDQyMzU5RjJDODZENDQ0ODE0RDVFREM4MjBGREYzAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:19:46: {"level":30,"time":1777288786544,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:49: {"level":30,"time":1777288789547,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Entonces si ya volví a confirmar q ya era donante y el sábado ocurre esto lo tom","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:19:49: {"level":30,"time":1777288789555,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:19:51: {"level":30,"time":1777288791296,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:51: {"level":30,"time":1777288791580,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:19:52: {"level":30,"time":1777288792264,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:19:52: {"level":30,"time":1777288792555,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:20:00: {"level":30,"time":1777288800395,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T11:20:00: {"level":30,"time":1777288800395,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T11:20:18: {"level":30,"time":1777288818788,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:20:18: {"level":30,"time":1777288818900,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:20:59: {"level":30,"time":1777288859036,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Si me decís q esto no vuelve a ocurrir yo sigo donando","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDQTk1NzY0RUUxODE3MTREN0JBRDQzRjkwMTdFOUU3AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:20:59: {"level":30,"time":1777288859037,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:21:02: {"level":30,"time":1777288862059,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Si me decís q esto no vuelve a ocurrir yo sigo donando","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:21:02: {"level":30,"time":1777288862084,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:21:04: {"level":30,"time":1777288864351,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:04: {"level":30,"time":1777288864353,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:05: {"level":30,"time":1777288865046,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:05: {"level":30,"time":1777288865204,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:21:16: {"level":30,"time":1777288876360,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:16: {"level":30,"time":1777288876412,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:38: {"level":30,"time":1777288898044,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"El miércoles dejo el bidón afuera .","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDN0JFQjZCMjNCNzk0QzQ5QTg4QURCNzgwMTdBOTlCAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:21:38: {"level":30,"time":1777288898045,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:41: {"level":30,"time":1777288901063,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"El miércoles dejo el bidón afuera .","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:21:41: {"level":30,"time":1777288901068,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:21:43: {"level":30,"time":1777288903193,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:43: {"level":30,"time":1777288903391,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:43: {"level":30,"time":1777288903627,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:21:44: {"level":30,"time":1777288904735,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:50: {"level":30,"time":1777288910217,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:50: {"level":30,"time":1777288910234,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:51: {"level":30,"time":1777288911496,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Discúlpame x el reclamo","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDMDlENzgxQjdBNDk0QzI3RkQ1QTk2N0QxNDgxMkI4AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:21:51: {"level":30,"time":1777288911496,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:54: {"level":30,"time":1777288914499,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Discúlpame x el reclamo","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:21:54: {"level":30,"time":1777288914504,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:21:56: {"level":30,"time":1777288916626,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:56: {"level":30,"time":1777288916671,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:57: {"level":30,"time":1777288917110,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:21:57: {"level":30,"time":1777288917500,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:22:26: {"level":30,"time":1777288946666,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","text":"Te confirmo que sigo siendo donante","messageId":"wamid.HBgNNTQ5MTE1OTQ0NTI1NhUCABIYIEFDOTczMzFENjg1MjY2RTcyNTgyMzcwOERGNDU0MTBFAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:22:26: {"level":30,"time":1777288946666,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:22:29: {"level":30,"time":1777288949670,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","batched":1,"preview":"Te confirmo que sigo siendo donante","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:22:29: {"level":30,"time":1777288949675,"pid":555825,"hostname":"garycio-bot","phone":"5491159445256","msg":"Usuario escalado — mensaje derivado a humano"}
+2026-04-27T11:22:31: {"level":30,"time":1777288951520,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:22:31: {"level":30,"time":1777288951752,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:22:32: {"level":30,"time":1777288952658,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:22:33: {"level":30,"time":1777288953233,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:25:58: {"level":30,"time":1777289158785,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"Buen día! Cómo te va? Te paso mi domicilio x el reclamo que hice. Falto dejar 1 ","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDQzdERDdCMzg0OUJCODgyRkQ1OTIxMzI1QzM3NTQzAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:25:58: {"level":30,"time":1777289158785,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:25:58: {"level":30,"time":1777289158813,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","activos":24,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:26:01: {"level":30,"time":1777289161815,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"Buen día! Cómo te va? Te paso mi domicilio x el reclamo que hice. Falto dejar 1 ","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:26:01: {"level":30,"time":1777289161856,"pid":555825,"hostname":"garycio-bot","telefono":"5491134102909","msg":"Nuevo contacto de donante registrado automáticamente"}
+2026-04-27T11:26:03: {"level":30,"time":1777289163965,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:26:04: {"level":30,"time":1777289164422,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:26:15: {"level":30,"time":1777289175023,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"0","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDRUNBOEU0OTVFNDhGRThGN0FEMkEzMENFNjMzRDk2AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:26:15: {"level":30,"time":1777289175023,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:26:18: {"level":30,"time":1777289178025,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"0","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:27:11: {"level":30,"time":1777289231198,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"Soy donante.","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDNjFCMjRDNzRBQkJBQkU3NTU2RkRGMTM5RTU5MTA3AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:27:11: {"level":30,"time":1777289231199,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:27:14: {"level":30,"time":1777289234203,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"Soy donante.","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:27:15: {"level":30,"time":1777289235360,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","paso":"nombre","mensaje":"Soy donante.","parsed":{"accion":"ya_donante","valor":null,"confianza":"alta","interpretacion":"La donante indica que ya está registrada como donante."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:27:15: {"level":30,"time":1777289235873,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:27:17: {"level":30,"time":1777289237154,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:27:17: {"level":30,"time":1777289237496,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:27:18: {"level":30,"time":1777289238207,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:27:19: {"level":30,"time":1777289239363,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:27:41: {"level":30,"time":1777289261111,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:28:28: {"level":30,"time":1777289308003,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"Yo hable el viernes a éste número. Qué precisas?","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDQkQzN0Q2Qjk3RjBGMERGRTcwREQ2MzMyOTk1OENEAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:28:28: {"level":30,"time":1777289308003,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:28:31: {"level":30,"time":1777289311006,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"Yo hable el viernes a éste número. Qué precisas?","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:28:32: {"level":30,"time":1777289312956,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:28:33: {"level":30,"time":1777289313373,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:28:51: {"level":30,"time":1777289331415,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:28:51: {"level":30,"time":1777289331520,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:28:51: {"level":30,"time":1777289331523,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:29:14: {"level":30,"time":1777289354599,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"No figura en la base de datos mi registro?","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDRTg1MUQ3RkY4QUU3RTZFRTUyQ0VCQUQ4NTQxNEU3AA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:29:14: {"level":30,"time":1777289354599,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:29:17: {"level":30,"time":1777289357604,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"No figura en la base de datos mi registro?","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:29:18: {"level":30,"time":1777289358798,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","paso":"nombre","mensaje":"No figura en la base de datos mi registro?","parsed":{"accion":"ya_donante","valor":null,"confianza":"alta","interpretacion":"La donante está preguntando si ya está registrada en la base de datos."},"msg":"IA interpretó mensaje del flow nueva-donante"}
+2026-04-27T11:29:19: {"level":30,"time":1777289359363,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","msg":"Reclamo/escalación — NO se marca como leído"}
+2026-04-27T11:29:20: {"level":30,"time":1777289360807,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:29:21: {"level":30,"time":1777289361252,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:29:21: {"level":30,"time":1777289361387,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:30:04: {"level":30,"time":1777289404204,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:31:51: {"level":30,"time":1777289511756,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:31:51: {"level":30,"time":1777289511812,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:32:10: {"level":30,"time":1777289530846,"pid":555825,"hostname":"garycio-bot","phone":"5491157609490","text":"Buen día bien","messageId":"wamid.HBgNNTQ5MTE1NzYwOTQ5MBUCABIYIEFDRTFGNTkyOTQzMkQ1QkNDNjRBMkZEOTQxRkJFNEZBAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:32:10: {"level":30,"time":1777289530846,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:32:10: {"level":30,"time":1777289530852,"pid":555825,"hostname":"garycio-bot","phone":"5491157609490","activos":25,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:32:13: {"level":30,"time":1777289533855,"pid":555825,"hostname":"garycio-bot","phone":"5491157609490","batched":1,"preview":"Buen día bien","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:32:16: {"level":30,"time":1777289536106,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:32:16: {"level":30,"time":1777289536940,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:32:21: {"level":30,"time":1777289541701,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:36:00: {"level":30,"time":1777289760575,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:36:34: {"level":30,"time":1777289794898,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"No tengo idea.","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDNkQzMjhENEIxNEM4NEFBQTk4MzhEOTY0Q0ZFRjMxAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:36:34: {"level":30,"time":1777289794899,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:36:37: {"level":30,"time":1777289797920,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"No tengo idea.","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:36:39: {"level":30,"time":1777289799820,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:36:40: {"level":30,"time":1777289800041,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:36:41: {"level":30,"time":1777289801652,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:37:26: {"level":30,"time":1777289846869,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":2,"msg":"HTTP request"}
+2026-04-27T11:37:33: {"level":30,"time":1777289853528,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"X éso te digo de pasarte mi domicilio","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDNjQ5NDFDNjgyNUJCM0JFRkRDNzZFMEQ0ODEzMkVDAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:37:33: {"level":30,"time":1777289853529,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:37:36: {"level":30,"time":1777289856550,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"X éso te digo de pasarte mi domicilio","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:37:38: {"level":30,"time":1777289858750,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:37:38: {"level":30,"time":1777289858845,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:37:40: {"level":30,"time":1777289860880,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:37:42: {"level":30,"time":1777289862804,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:10: {"level":30,"time":1777289890131,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"Como te dije no lo sé","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDODM0N0Y0QjM2MkIwQjNCMDRDM0MyMkI4MUNDMkMyAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:38:10: {"level":30,"time":1777289890131,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:13: {"level":30,"time":1777289893135,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"Como te dije no lo sé","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:38:14: {"level":30,"time":1777289894924,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:15: {"level":30,"time":1777289895591,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:17: {"level":30,"time":1777289897408,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:19: {"level":40,"time":1777289899039,"pid":555825,"hostname":"garycio-bot","phone":"5491131213149","messageId":"wamid.HBgNNTQ5MTEzMTIxMzE0ORUCABIYIEFDM0M1RDZDODUzMzBEMkUwODdBQjYwQkQ3NTI5M0Y4AA==","reason":"pre-boot","ageSec":249829,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T11:38:19: {"level":30,"time":1777289899040,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:19: {"level":30,"time":1777289899806,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:20: {"level":30,"time":1777289900582,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:21: {"level":30,"time":1777289901458,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:22: {"level":30,"time":1777289902378,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:23: {"level":30,"time":1777289903150,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:23: {"level":30,"time":1777289903947,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:38:24: {"level":40,"time":1777289904723,"pid":555825,"hostname":"garycio-bot","phone":"5491149799048","messageId":"wamid.HBgNNTQ5MTE0OTc5OTA0OBUCABIYIEFDRUQwQzUzMTMzQjI5MDVBRDY4NDBGODNDQTQxMEJCAA==","reason":"pre-boot","ageSec":158137,"msg":"Mensaje viejo o pre-boot — descartado sin procesar"}
+2026-04-27T11:38:24: {"level":30,"time":1777289904724,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:38:25: {"level":30,"time":1777289905705,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:39:44: {"level":30,"time":1777289984572,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","text":"Vamos desde el comienzo , quieto hablar con un humano","messageId":"wamid.HBgNNTQ5MTEzNDEwMjkwORUCABIYIEFDMzM2QjBDQjA5REY4NzA2ODYxRjk5OUM5QzEyNjBFAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:39:44: {"level":30,"time":1777289984572,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:39:47: {"level":30,"time":1777289987583,"pid":555825,"hostname":"garycio-bot","phone":"5491134102909","batched":1,"preview":"Vamos desde el comienzo , quieto hablar con un humano","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:39:49: {"level":30,"time":1777289989867,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:39:49: {"level":30,"time":1777289989936,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:40:00: {"level":30,"time":1777290000132,"pid":555825,"hostname":"garycio-bot","msg":"Ejecutando: verificación de progreso de rutas"}
+2026-04-27T11:40:00: {"level":30,"time":1777290000132,"pid":555825,"hostname":"garycio-bot","vehiculosVerificados":0,"notificacionesEnviadas":0,"msg":"Progreso de rutas verificado"}
+2026-04-27T11:40:09: {"level":30,"time":1777290009695,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:40:33: {"level":30,"time":1777290033646,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:40:33: {"level":30,"time":1777290033689,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:40:33: {"level":30,"time":1777290033748,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:43:42: {"level":30,"time":1777290222411,"pid":555825,"hostname":"garycio-bot","phone":"5491163586166","text":"Buen día!! No hay problema es que yo trabajo y si dejan los bidones y no estamos","messageId":"wamid.HBgNNTQ5MTE2MzU4NjE2NhUCABIYIEFDMzM1Rjk3N0U0N0I1RkNBNzIxOTIyODI4QzEzNjhFAA==","hasMedia":false,"msg":"Mensaje recibido via webhook"}
+2026-04-27T11:43:42: {"level":30,"time":1777290222411,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:43:42: {"level":30,"time":1777290222437,"pid":555825,"hostname":"garycio-bot","phone":"5491163586166","activos":26,"limite":30,"msg":"Nuevo donante activado en el bot"}
+2026-04-27T11:43:45: {"level":30,"time":1777290225441,"pid":555825,"hostname":"garycio-bot","phone":"5491163586166","batched":1,"preview":"Buen día!! No hay problema es que yo trabajo y si dejan los bidones y no estamos","msg":"Debounce: flush batch de mensajes"}
+2026-04-27T11:43:45: {"level":30,"time":1777290225497,"pid":555825,"hostname":"garycio-bot","phone":"5491163586166","estado":"inactiva","nombre":"Irma Rible","msg":"Donante con datos completos — evitando re-registro"}
+2026-04-27T11:43:47: {"level":30,"time":1777290227870,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:43:48: {"level":30,"time":1777290228262,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:45:38: {"level":30,"time":1777290338094,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:45:38: {"level":30,"time":1777290338178,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:45:39: {"level":30,"time":1777290339036,"pid":555825,"hostname":"garycio-bot","method":"GET","path":"/","status":404,"duration":0,"msg":"HTTP request"}
+2026-04-27T11:45:42: {"level":30,"time":1777290342896,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:45:43: {"level":30,"time":1777290343134,"pid":555825,"hostname":"garycio-bot","method":"POST","path":"/webhook","status":200,"duration":1,"msg":"HTTP request"}
+2026-04-27T11:45:43: {"level":30,"time":1777290343469,"pid":555825,"hostname":"garycio-bot","signal":"SIGINT","msg":"Señal de apagado recibida. Cerrando..."}

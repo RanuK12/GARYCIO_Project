@@ -270,7 +270,7 @@ function extractTextFromMessage(message: any): string | null {
         return message.interactive.button_reply.title || message.interactive.button_reply.id;
       }
       if (message.interactive?.type === "list_reply") {
-        return message.interactive.list_reply.title || message.interactive.list_reply.id;
+        return message.interactive.list_reply.id || message.interactive.list_reply.title;
       }
       return null;
     case "button":

@@ -1,6 +1,6 @@
 import { FlowHandler, ConversationState, FlowResponse, InteractiveMessage } from "./types";
 import { db } from "../../database";
-import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios, iaFeedback, audioMensajes } from "../../database/schema";
+import { donantes, reclamos, reportesBaja, encuestasRegalo, difusionEnvios, iaFeedback, audioMensajes, humanEscalations, mensajesLog } from "../../database/schema";
 import { eq, and, desc, sql, ilike, count, like } from "drizzle-orm";
 import { logger } from "../../config/logger";
 import { obtenerResumenProgreso } from "../../services/progreso-ruta";
@@ -10,6 +10,8 @@ import { sendDocument } from "../../bot/client";
 import { generarXLSContactosNuevos, activarDonante, limpiarTmpViejos } from "../../services/exportar-contactos";
 import { getBotState, pauseBot, resumeBot, emergencyStop, setWhitelistLimit, getWhitelistLimit, ROLLOUT_PLAN, getCapacidad, ajustarLimiteDonantes } from "../../services/bot-control";
 import { addTrainingExample, listTrainingExamples, toggleTrainingExample, deleteTrainingExample } from "../../services/ia-training";
+import { classifyIntent, type ClassifierResult } from "../../services/clasificador-ia";
+import { resolveHumanEscalation } from "../../services/human-escalation";
 
 /**
  * Flujo para administradores.
@@ -28,7 +30,18 @@ import { addTrainingExample, listTrainingExamples, toggleTrainingExample, delete
  * 50 - Progreso de rutas del día
  * 60 - Resultados de encuesta
  * 70 - Generar reporte diario PDF
+ * 80 - Revisar IA feedback
+ * 90 - Bot control
+ * 91 - Agregar ejemplo IA
+ * 92 - Ver ejemplos IA
+ * 93 - Acción sobre ejemplo IA
+ * 95 - Ajustar límite bot
  * 99 - Volver al menú o finalizar
+ * 100 - Gestionar IA (hub)
+ * 101 - Simular clasificación IA
+ * 102 - Reclasificar desde feedback
+ * 103 - Ver escalaciones activas
+ * 104 - Resolver escalación
  */
 export const adminFlow: FlowHandler = {
   name: "admin",
@@ -45,7 +58,8 @@ export const adminFlow: FlowHandler = {
       case 12: return await handleConfirmarActivacion(respuesta, state);
       case 20: return await handleBuscarDonante(respuesta);
       case 21: return await handleDetalleDonante(respuesta, state);
-      case 30: return await handleReclamosPendientes();
+      case 30: return await handleReclamosPendientes(state);
+      case 31: return await handleAccionReclamo(respuesta, state);
       case 40: return await handleBajasPendientes();
       case 50: return handleProgresoRutas();
       case 60: return await handleResultadosEncuesta();
@@ -53,10 +67,18 @@ export const adminFlow: FlowHandler = {
       case 80: return await handleRevisarFeedbackIA(respuesta, state);
       case 90: return await handleBotControlMenu(respuesta, state);
       case 91: return await handleAgregarEjemploIA(respuesta, state);
-      case 95: return await handleAjustarLimiteBot(respuesta);
       case 92: return await handleVerEjemplosIA(respuesta, state);
       case 93: return await handleAccionEjemploIA(respuesta, state);
+      case 94: return await handleAccionAudio(respuesta, state);
+      case 95: return await handleAjustarLimiteBot(respuesta);
       case 99: return await handleVolverOFinalizar(respuesta);
+      case 100: return await handleGestionarIA(respuesta, state);
+      case 101: return await handleSimularClasificacion(respuesta, state);
+      case 102: return await handleReclasificarFeedback(respuesta, state);
+      case 103: return await handleVerEscalaciones(respuesta, state);
+      case 104: return await handleResolverEscalacion(respuesta, state);
+      case 110: return await handleControlBotHub(respuesta, state);
+      case 111: return await handleEstadoServidor();
       default:
         return handleBienvenida();
     }
@@ -65,7 +87,7 @@ export const adminFlow: FlowHandler = {
 
 // ── Bienvenida (menú interactivo WhatsApp) ──────────
 function handleBienvenida(): FlowResponse {
-  // WhatsApp permite MAXIMO 10 rows en listas interactivas
+  // WhatsApp permite MAXIMO 10 rows en listas interactivas (usamos 9)
   return {
     reply: "",
     nextStep: 1,
@@ -77,23 +99,22 @@ function handleBienvenida(): FlowResponse {
         title: "Gestión",
         rows: [
           { id: "1", title: "Contactos nuevos", description: "Revisar, agendar y exportar XLS" },
-          { id: "3", title: "Reclamos pendientes", description: "Sin resolver" },
+          { id: "3", title: "Reclamos pendientes", description: "Ver, resolver y limpiar" },
         ],
       }, {
         title: "Operación",
         rows: [
-          { id: "11", title: "Resumen rápido", description: "Stats del día en un vistazo" },
+          { id: "11", title: "Resumen del día", description: "Stats, mensajes, IA, servidor" },
           { id: "8", title: "Reporte diario PDF", description: "Generar y enviar" },
         ],
       }, {
         title: "Control",
         rows: [
-          { id: "14", title: "Control del bot", description: "Estado, pausa, capacidad, IA" },
-          { id: "20", title: "Capacidad del bot", description: "Ver y ajustar limite" },
-          { id: "19", title: "Audios pendientes", description: "Escuchar audios de donantes" },
-          { id: "18", title: "Entrenar IA", description: "Agregar ejemplos de clasificacion" },
-          { id: "13", title: "Revisar IA feedback", description: "Ver fallos e interpretaciones IA" },
-          { id: "9", title: "Finalizar", description: "Cerrar panel admin" },
+          { id: "14", title: "Control del bot", description: "Pausar, reiniciar, limpiar" },
+          { id: "22", title: "Estado del servidor", description: "RAM, uptime, errores, DB" },
+          { id: "20", title: "Capacidad del bot", description: "Ver y ajustar límite" },
+          { id: "19", title: "Audios pendientes", description: "Revisar y marcar atendidos" },
+          { id: "21", title: "Gestionar IA", description: "Entrenar, simular, escalar" },
         ],
       }],
     },
@@ -104,33 +125,43 @@ function handleBienvenida(): FlowResponse {
 async function handleMenu(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const opcion = respuesta.toLowerCase().trim();
   const menuMap: Record<string, string> = {
+    // Títulos exactos de la lista interactiva
     "contactos nuevos": "1",
+    "reclamos pendientes": "3",
+    "resumen del día": "11",
+    "resumen del dia": "11",
+    "resumen rápido": "11",
+    "resumen rapido": "11",
+    "reporte diario pdf": "8",
+    "control del bot": "14",
+    "estado del servidor": "22",
+    "capacidad del bot": "20",
+    "audios pendientes": "19",
+    "gestionar ia": "21",
+    "finalizar": "9",
+    // Aliases adicionales
     "exportar xls": "12",
     "buscar donante": "2",
-    "reclamos pendientes": "3",
     "reportes de baja": "4",
     "progreso de rutas": "5",
     "encuesta mensual": "6",
     "lista de comandos": "7",
-    "reporte diario pdf": "8",
-    "finalizar": "9",
     "estado difusión": "10",
     "estado difusion": "10",
-    "resumen rápido": "11",
-    "resumen rapido": "11",
     "revisar ia feedback": "13",
     "ia feedback": "13",
     "feedback ia": "13",
-    "estado del bot": "14",
-    "estado bot": "14",
-    "pausar bot": "15",
-    "reanudar bot": "16",
+    "estado del bot": "22",
+    "estado bot": "22",
+    "pausar bot": "14",
+    "reanudar bot": "14",
     "whitelist": "17",
     "whitelist progresiva": "17",
     "entrenar ia": "18",
     "entrenar": "18",
-    "audios pendientes": "19",
     "audios": "19",
+    "ia": "21",
+    "capacidad": "20",
   };
   const choice = menuMap[opcion] || opcion;
 
@@ -143,7 +174,7 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
         nextStep: 20,
       };
     case "3":
-      return await handleReclamosPendientes();
+      return await handleReclamosPendientes({ ...state, data: { paginaReclamos: 0 } });
     case "4":
       return await handleBajasPendientes();
     case "5":
@@ -159,28 +190,28 @@ async function handleMenu(respuesta: string, state: ConversationState): Promise<
     case "10":
       return await handleEstadoDifusion();
     case "11":
-      return await handleResumenRapido();
+      return await handleResumenDelDia();
     case "12":
       return await handleExportarXLS(state.phone);
     case "13":
       return await handleRevisarFeedbackIA("ver", state);
     case "14":
-      return handleBotStatus();
-    case "15":
-      return handleBotPause();
-    case "16":
-      return handleBotResume();
+      return handleControlBotMenu();
     case "17":
       return handleBotWhitelist();
     case "18":
       return handleEntrenarIA();
     case "19":
     case "audios pendientes":
-      return await handleAudiosPendientes();
+      return await handleAudiosPendientes({ ...state, data: { paginaAudios: 0 } });
     case "20":
     case "capacidad":
     case "capacidad del bot":
       return await handleCapacidadBot();
+    case "21":
+      return handleGestionarIAMenu();
+    case "22":
+      return await handleEstadoServidor();
     default:
       return handleBienvenida();
   }
@@ -541,25 +572,17 @@ async function handleDetalleDonante(respuesta: string, state: ConversationState)
 }
 
 // ── Reclamos pendientes ──────────────────────────────────
-async function handleReclamosPendientes(): Promise<FlowResponse> {
-  const pendientes = await db
-    .select({
-      id: reclamos.id,
-      tipo: reclamos.tipo,
-      descripcion: reclamos.descripcion,
-      estado: reclamos.estado,
-      gravedad: reclamos.gravedad,
-      fechaCreacion: reclamos.fechaCreacion,
-      donanteId: reclamos.donanteId,
-    })
-    .from(reclamos)
-    .where(
-      sql`${reclamos.estado} IN ('pendiente', 'notificado_chofer', 'seguimiento_enviado')`,
-    )
-    .orderBy(desc(reclamos.fechaCreacion))
-    .limit(15);
+async function handleReclamosPendientes(state: ConversationState): Promise<FlowResponse> {
+  const pagina = state.data?.paginaReclamos ?? 0;
+  const PAGE = 10;
+  const offset = pagina * PAGE;
 
-  if (pendientes.length === 0) {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(reclamos)
+    .where(sql`${reclamos.estado} IN ('pendiente', 'notificado_chofer', 'seguimiento_enviado')`);
+
+  if (total === 0) {
     return {
       reply: "",
       nextStep: 99,
@@ -574,35 +597,109 @@ async function handleReclamosPendientes(): Promise<FlowResponse> {
     };
   }
 
+  const pendientes = await db
+    .select({
+      id: reclamos.id,
+      tipo: reclamos.tipo,
+      descripcion: reclamos.descripcion,
+      estado: reclamos.estado,
+      gravedad: reclamos.gravedad,
+      fechaCreacion: reclamos.fechaCreacion,
+      donanteId: reclamos.donanteId,
+    })
+    .from(reclamos)
+    .where(sql`${reclamos.estado} IN ('pendiente', 'notificado_chofer', 'seguimiento_enviado')`)
+    .orderBy(desc(reclamos.fechaCreacion))
+    .limit(PAGE)
+    .offset(offset);
+
+  const totalPaginas = Math.ceil(total / PAGE);
   const gravedadEmoji: Record<string, string> = {
-    leve: "🟡",
-    moderado: "🟠",
-    grave: "🔴",
-    critico: "🚨",
+    leve: "🟡", moderado: "🟠", grave: "🔴", critico: "🚨",
   };
 
-  let lista = `⚠️ *Reclamos pendientes* (${pendientes.length})\n\n`;
-  for (const r of pendientes) {
+  let lista = `⚠️ *Reclamos pendientes* (${total} total) — Pág. ${pagina + 1}/${totalPaginas}\n\n`;
+  for (const [i, r] of pendientes.entries()) {
     const fecha = r.fechaCreacion ? new Date(r.fechaCreacion).toLocaleDateString("es-AR") : "?";
     const emoji = gravedadEmoji[r.gravedad || "leve"] || "⚠️";
-    lista += `${emoji} #${r.id} | ${r.tipo} | ${r.estado}\n`;
+    lista += `*${offset + i + 1}.* ${emoji} ${r.tipo} | ${r.estado}\n`;
     lista += `  📅 ${fecha}`;
-    if (r.descripcion) lista += ` | ${r.descripcion.slice(0, 40)}`;
-    lista += "\n\n";
+    if (r.descripcion) lista += ` | ${r.descripcion.slice(0, 35)}`;
+    lista += "\n";
   }
+  lista += "\n─────────────\n";
+  lista += "Número = resolver";
+  if (pagina > 0) lista += " | *A* = ant.";
+  if (pagina + 1 < totalPaginas) lista += " | *S* = sig.";
+  lista += "\n*L* = limpiar resueltos viejos | *0* menú";
+
+  if (lista.length > 4000) lista = lista.slice(0, 3990) + "...\n*0* menú";
 
   return {
     reply: lista,
-    nextStep: 99,
-    interactive: {
-      type: "buttons",
-      body: "¿Querés hacer algo más?",
-      buttons: [
-        { id: "1", title: "Volver al menú" },
-        { id: "2", title: "Finalizar" },
-      ],
-    },
+    nextStep: 31,
+    data: { reclamoIds: pendientes.map(r => r.id), paginaReclamos: pagina, totalReclamos: total },
   };
+}
+
+// ── Acción sobre reclamo (resolver, paginar, limpiar) ──
+async function handleAccionReclamo(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+  if (cmd === "0" || cmd === "menu" || cmd === "menú") return handleBienvenida();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  // Paginación
+  if (cmd === "s" || cmd === "a") {
+    const pag = state.data?.paginaReclamos ?? 0;
+    const total = state.data?.totalReclamos ?? 0;
+    const totalPag = Math.ceil(total / 10);
+    let nuevaPag = pag;
+    if (cmd === "s" && pag + 1 < totalPag) nuevaPag = pag + 1;
+    if (cmd === "a" && pag > 0) nuevaPag = pag - 1;
+    return handleReclamosPendientes({ ...state, data: { ...state.data, paginaReclamos: nuevaPag } });
+  }
+
+  // Limpiar resueltos viejos (> 7 días)
+  if (cmd === "l" || cmd === "limpiar") {
+    const result = await db.execute(sql`
+      DELETE FROM reclamos
+      WHERE estado = 'resuelto' AND fecha_creacion < NOW() - INTERVAL '7 days'
+    `);
+    const deleted = (result as any).rowCount ?? 0;
+    return {
+      reply: `🧹 ${deleted} reclamos resueltos antiguos eliminados.`,
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `✅ Limpieza completada. ${deleted} reclamos eliminados.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Ver reclamos" },
+        ],
+      },
+    };
+  }
+
+  // Resolver por número
+  const idx = parseInt(respuesta) - 1;
+  const ids: number[] = state.data?.reclamoIds || [];
+  if (!isNaN(idx) && idx >= 0 && idx < ids.length) {
+    await db.update(reclamos).set({ estado: "resuelto" } as any).where(eq(reclamos.id, ids[idx]));
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `✅ Reclamo #${ids[idx]} marcado como resuelto.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Ver reclamos" },
+        ],
+      },
+    };
+  }
+
+  return handleReclamosPendientes(state);
 }
 
 // ── Bajas pendientes ──────────────────────────────────
@@ -847,50 +944,93 @@ async function handleEstadoDifusion(): Promise<FlowResponse> {
   };
 }
 
-// ── Resumen rápido (stats del día) ───────────────────────
-async function handleResumenRapido(): Promise<FlowResponse> {
+// ── Resumen del día (stats accionables) ───────────────────────
+async function handleResumenDelDia(): Promise<FlowResponse> {
+  const hoy = new Date();
+  const fechaStr = hoy.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+
+  // Donantes activas (donando)
+  const [{ activas }] = await db
+    .select({ activas: count() })
+    .from(donantes)
+    .where(eq(donantes.donandoActualmente, true));
+
+  // Donantes habilitadas en bot
+  const [{ habilitadas }] = await db.execute<{ habilitadas: number }>(sql`
+    SELECT count(*) as habilitadas FROM donantes_bot_activos WHERE estado = 'activo'
+  `).then(r => [{ habilitadas: Number(r.rows?.[0]?.habilitadas ?? 0) }]);
+
+  // Contactos nuevos (pendientes de completar datos)
   const [{ nuevos }] = await db
     .select({ nuevos: count() })
     .from(donantes)
     .where(and(eq(donantes.estado, "nueva"), eq(donantes.donandoActualmente, false)));
 
-  const [{ reclamosPendientes }] = await db
-    .select({ reclamosPendientes: count() })
+  // Mensajes hoy (entrantes y salientes)
+  const mensajesHoy = await db.execute<{ dir: string; cnt: number }>(sql`
+    SELECT direccion_msg as dir, count(*) as cnt
+    FROM mensajes_log
+    WHERE created_at >= CURRENT_DATE
+    GROUP BY direccion_msg
+  `);
+  const entrantes = Number(mensajesHoy.rows?.find(r => r.dir === "entrante")?.cnt ?? 0);
+  const salientes = Number(mensajesHoy.rows?.find(r => r.dir === "saliente")?.cnt ?? 0);
+
+  // IA: escalaciones hoy vs mensajes procesados
+  const [{ escalacionesHoy }] = await db.execute<{ escalacionesHoy: number }>(sql`
+    SELECT count(*) as "escalacionesHoy"
+    FROM human_escalations
+    WHERE created_at >= CURRENT_DATE
+  `).then(r => [{ escalacionesHoy: Number(r.rows?.[0]?.escalacionesHoy ?? 0) }]);
+  const iaResueltos = Math.max(0, entrantes - escalacionesHoy);
+  const iaPct = entrantes > 0 ? Math.round((iaResueltos / entrantes) * 100) : 100;
+
+  // Reclamos abiertos
+  const [{ reclamosAbiertos }] = await db
+    .select({ reclamosAbiertos: count() })
     .from(reclamos)
     .where(sql`${reclamos.estado} IN ('pendiente', 'notificado_chofer', 'seguimiento_enviado')`);
 
+  // Bajas pendientes
   const [{ bajasPendientes }] = await db
     .select({ bajasPendientes: count() })
     .from(reportesBaja)
     .where(eq(reportesBaja.confirmado, false));
 
-  const [difusion] = await db
-    .select({
-      total: count(),
-      confirmadas: sql<number>`COUNT(*) FILTER (WHERE ${difusionEnvios.confirmado} = true)`,
-    })
-    .from(difusionEnvios);
+  // Audios sin atender
+  const [{ audiosPendientes }] = await db
+    .select({ audiosPendientes: count() })
+    .from(audioMensajes)
+    .where(eq(audioMensajes.atendido, false));
 
-  const dif = difusion || { total: 0, confirmadas: 0 };
-  const pctDif = Number(dif.total) > 0 ? Math.round((Number(dif.confirmadas) / Number(dif.total)) * 100) : 0;
+  // Training examples activos
+  const [{ trainingActivos }] = await db.execute<{ trainingActivos: number }>(sql`
+    SELECT count(*) as "trainingActivos" FROM ia_training_examples WHERE activo = true
+  `).then(r => [{ trainingActivos: Number(r.rows?.[0]?.trainingActivos ?? 0) }]);
 
-  const [{ activas }] = await db
-    .select({ activas: count() })
-    .from(donantes)
-    .where(eq(donantes.donandoActualmente, true));
+  // Server mini-status
+  const mem = process.memoryUsage();
+  const uptimeMin = Math.floor(process.uptime() / 60);
+  const uptimeStr = uptimeMin >= 60 ? `${Math.floor(uptimeMin / 60)}h ${uptimeMin % 60}min` : `${uptimeMin}min`;
+
+  const body =
+    `📊 *Resumen del día* (${fechaStr})\n\n` +
+    `👥 Donantes: *${activas}* activas | *${habilitadas}* en bot\n` +
+    `🆕 Contactos nuevos: *${nuevos}*\n` +
+    `📩 Mensajes hoy: *${entrantes}* entrantes | *${salientes}* salientes\n` +
+    `🤖 IA: *${iaResueltos}* resueltos | *${escalacionesHoy}* escalados | *${iaPct}%* éxito\n` +
+    `⚠️ Reclamos abiertos: *${reclamosAbiertos}*\n` +
+    `🔴 Bajas pendientes: *${bajasPendientes}*\n` +
+    `🎤 Audios sin atender: *${audiosPendientes}*\n` +
+    `🧠 Training examples: *${trainingActivos}* activos\n\n` +
+    `💻 Servidor: ${Math.round(mem.rss / 1024 / 1024)}MB RAM | ${uptimeStr} uptime`;
 
   return {
     reply: "",
     nextStep: 99,
     interactive: {
       type: "buttons",
-      body:
-        `📊 *Resumen rápido*\n\n` +
-        `👥 Donantes activas: *${activas}*\n` +
-        `🆕 Contactos nuevos: *${nuevos}*\n` +
-        `⚠️ Reclamos pendientes: *${reclamosPendientes}*\n` +
-        `🔴 Bajas sin confirmar: *${bajasPendientes}*\n` +
-        `📨 Difusión: *${dif.confirmadas}*/${dif.total} (${pctDif}%)`,
+      body,
       buttons: [
         { id: "1", title: "Volver al menú" },
         { id: "2", title: "Finalizar" },
@@ -1020,55 +1160,105 @@ async function handleRevisarFeedbackIA(respuesta: string, state: ConversationSta
   };
 }
 
-// ── Lista de comandos ──────────────────────────────────
-// -- Audios pendientes --
-async function handleAudiosPendientes(): Promise<FlowResponse> {
-  const pendientes = await db
-    .select()
+// ── Audios pendientes (con paginación) ──
+async function handleAudiosPendientes(state: ConversationState): Promise<FlowResponse> {
+  const pagina = state.data?.paginaAudios ?? 0;
+  const PAGE = 10;
+  const offset = pagina * PAGE;
+
+  const [{ total }] = await db
+    .select({ total: count() })
     .from(audioMensajes)
-    .where(eq(audioMensajes.atendido, false))
-    .orderBy(desc(audioMensajes.createdAt))
-    .limit(15);
-  if (pendientes.length === 0) {
+    .where(eq(audioMensajes.atendido, false));
+
+  if (total === 0) {
     return {
       reply: "",
       nextStep: 99,
       interactive: {
         type: "buttons",
-        body: `✅ No hay audios pendientes de atencion.`,
+        body: "✅ No hay audios pendientes de atención.",
         buttons: [
-          { id: "1", title: "Volver al menu" },
+          { id: "1", title: "Volver al menú" },
           { id: "2", title: "Finalizar" },
         ],
       },
     };
   }
-  let body = `📢 *Audios pendientes* (` + pendientes.length + `)
 
-`;
+  const pendientes = await db
+    .select()
+    .from(audioMensajes)
+    .where(eq(audioMensajes.atendido, false))
+    .orderBy(desc(audioMensajes.createdAt))
+    .limit(PAGE)
+    .offset(offset);
+
+  const totalPaginas = Math.ceil(total / PAGE);
+
+  let body = `🎤 *Audios pendientes* (${total} total) — Pág. ${pagina + 1}/${totalPaginas}\n\n`;
   for (const [i, a] of pendientes.entries()) {
     const fecha = a.createdAt ? new Date(a.createdAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "?";
-    body += `*` + (i + 1) + `.* 📱 ` + a.telefono + ` — ` + fecha + `
-`;
+    body += `*${offset + i + 1}.* 📱 ${a.telefono} — ${fecha}\n`;
   }
-  body += `
-Escribi el *numero* para marcar como atendido, o *0* para volver.`;
+  body += "\n─────────────\n";
+  body += "Número = marcar atendido";
+  if (pagina > 0) body += " | *A* = ant.";
+  if (pagina + 1 < totalPaginas) body += " | *S* = sig.";
+  body += "\n*T* = marcar todos | *0* menú";
+
+  if (body.length > 4000) body = body.slice(0, 3990) + "...\n*0* menú";
+
   return {
     reply: body,
     nextStep: 94,
-    data: { audioIds: pendientes.map((a) => a.id) },
+    data: { audioIds: pendientes.map(a => a.id), paginaAudios: pagina, totalAudios: total },
   };
 }
 
-// -- Accion sobre audio pendiente --
+// ── Acción sobre audio pendiente ──
 async function handleAccionAudio(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const cmd = respuesta.toLowerCase().trim();
-  if (cmd === "0" || cmd === "menu") return handleBienvenida();
-  if (cmd === "salir" || cmd === "finalizar") return { reply: "OK Sesion finalizada.", endFlow: true };
+  if (cmd === "0" || cmd === "menu" || cmd === "menú") return handleBienvenida();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  // Paginación
+  if (cmd === "s" || cmd === "a") {
+    const pag = state.data?.paginaAudios ?? 0;
+    const total = state.data?.totalAudios ?? 0;
+    const totalPag = Math.ceil(total / 10);
+    let nuevaPag = pag;
+    if (cmd === "s" && pag + 1 < totalPag) nuevaPag = pag + 1;
+    if (cmd === "a" && pag > 0) nuevaPag = pag - 1;
+    return handleAudiosPendientes({ ...state, data: { ...state.data, paginaAudios: nuevaPag } });
+  }
+
+  // Marcar todos como atendidos
+  if (cmd === "t" || cmd === "todos" || cmd === "marcar todos") {
+    const result = await db
+      .update(audioMensajes)
+      .set({ atendido: true, atendidoPor: state.phone, updatedAt: new Date() })
+      .where(eq(audioMensajes.atendido, false));
+    const updated = (result as any).rowCount ?? 0;
+    return {
+      reply: "",
+      nextStep: 99,
+      interactive: {
+        type: "buttons",
+        body: `✅ ${updated} audios marcados como atendidos.`,
+        buttons: [
+          { id: "1", title: "Volver al menú" },
+          { id: "2", title: "Finalizar" },
+        ],
+      },
+    };
+  }
+
+  // Marcar individual por número
   const idx = parseInt(respuesta) - 1;
   const ids: number[] = state.data?.audioIds || [];
   if (isNaN(idx) || idx < 0 || idx >= ids.length) {
-    return { reply: "Numero no valido. Elegi de la lista o *0* para volver:", nextStep: 94 };
+    return { reply: "Número no válido. Elegí de la lista o *0* para volver:", nextStep: 94 };
   }
   const audioId = ids[idx];
   await db
@@ -1076,14 +1266,14 @@ async function handleAccionAudio(respuesta: string, state: ConversationState): P
     .set({ atendido: true, atendidoPor: state.phone, updatedAt: new Date() })
     .where(eq(audioMensajes.id, audioId));
   return {
-    reply: `✅ Audio #` + (idx + 1) + ` marcado como atendido.`,
+    reply: "",
     nextStep: 99,
     interactive: {
       type: "buttons",
-      body: "Queres hacer algo mas?",
+      body: `✅ Audio #${((state.data?.paginaAudios ?? 0) * 10) + idx + 1} marcado como atendido.`,
       buttons: [
-        { id: "1", title: "Volver al menu" },
-        { id: "2", title: "Finalizar" },
+        { id: "1", title: "Volver al menú" },
+        { id: "2", title: "Ver audios" },
       ],
     },
   };
@@ -1162,17 +1352,44 @@ async function handleVolverOFinalizar(respuesta: string): Promise<FlowResponse> 
 // ════════════════════════════════════════════════════════════
 
 // ── Bot Status ──
-function handleBotStatus(): FlowResponse {
-  const state = getBotState();
+// ── Estado del Servidor (info técnica detallada) ──
+async function handleEstadoServidor(): Promise<FlowResponse> {
+  const botState = getBotState();
   const mem = process.memoryUsage();
+  const uptimeMin = Math.floor(process.uptime() / 60);
+  const uptimeStr = uptimeMin >= 60 ? `${Math.floor(uptimeMin / 60)}h ${uptimeMin % 60}min` : `${uptimeMin}min`;
+
+  // DB size
+  const dbSize = await db.execute<{ size: string }>(sql`
+    SELECT pg_size_pretty(pg_database_size('garycio')) as size
+  `).then(r => r.rows?.[0]?.size ?? "?").catch(() => "?");
+
+  // Total donantes
+  const [{ totalDonantes }] = await db.select({ totalDonantes: count() }).from(donantes);
+
+  // Mensajes hoy
+  const [{ msgsHoy }] = await db.execute<{ msgsHoy: number }>(sql`
+    SELECT count(*) as "msgsHoy" FROM mensajes_log WHERE created_at >= CURRENT_DATE
+  `).then(r => [{ msgsHoy: Number(r.rows?.[0]?.msgsHoy ?? 0) }]);
+
+  // Health check
+  let healthStatus = "?";
+  try {
+    const resp = await fetch("http://localhost:3000/health");
+    const health = await resp.json() as any;
+    healthStatus = health.status === "ok" ? "🟢 OK" : "🔴 Error";
+  } catch { healthStatus = "⚠️ No response"; }
+
   const body =
-    `🤖 *Estado del Bot*\n\n` +
-    `Estado: *${state.status}*\n` +
-    `Uptime: ${Math.floor(process.uptime() / 60)} min\n` +
-    `Memoria: ${Math.round(mem.rss / 1024 / 1024)} MB\n` +
-    `Whitelist: ${getWhitelistLimit() === 0 ? "Full" : getWhitelistLimit() + " donantes"}\n\n` +
-    `Plan rollout:\n` +
-    ROLLOUT_PLAN.map((p) => `  Día ${p.day}: ${p.label}`).join("\n");
+    `📈 *Estado del Servidor*\n\n` +
+    `${healthStatus} Status: *${botState.status}*\n` +
+    `⏱️ Uptime: *${uptimeStr}*\n` +
+    `💾 RAM: *${Math.round(mem.rss / 1024 / 1024)}MB* / 1500MB (${Math.round(mem.rss / 1024 / 1024 / 15)}%)\n` +
+    `🗄️ Heap: ${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB\n` +
+    `📊 DB: *${dbSize}* | ${totalDonantes} donantes\n` +
+    `📩 Mensajes hoy: *${msgsHoy}*\n` +
+    `📋 Whitelist: ${getWhitelistLimit() === 0 ? "Full" : getWhitelistLimit() + " donantes"}\n\n` +
+    `Versión: 0.2.0`;
 
   return {
     reply: "",
@@ -1188,38 +1405,152 @@ function handleBotStatus(): FlowResponse {
   };
 }
 
-// ── Bot Pause ──
-function handleBotPause(): FlowResponse {
-  pauseBot("admin_whatsapp", "Pausado desde panel admin");
+// ── Control del Bot (menú de comandos) ──
+function handleControlBotMenu(): FlowResponse {
   return {
     reply: "",
-    nextStep: 99,
+    nextStep: 110,
     interactive: {
-      type: "buttons",
-      body: "⏸️ *Bot PAUSADO*\n\nEl bot ahora responde \"en mantenimiento\" a todos los usuarios.\n\nLos admins siguen pudiendo usar el panel.",
-      buttons: [
-        { id: "1", title: "Volver al menú" },
-        { id: "2", title: "Finalizar" },
-      ],
+      type: "list",
+      body: "🤖 *Control del Bot*\n\n¿Qué acción querés ejecutar?",
+      buttonText: "Ver acciones",
+      sections: [{
+        title: "Acciones",
+        rows: [
+          { id: "pausar", title: "⏸️ Pausar bot", description: "Responde 'en mantenimiento'" },
+          { id: "reanudar", title: "▶️ Reanudar bot", description: "Volver a atender mensajes" },
+          { id: "limpiar_audios", title: "🧹 Limpiar audios viejos", description: "Marcar > 3 días como atendidos" },
+          { id: "limpiar_reclamos", title: "🧹 Limpiar reclamos", description: "Eliminar resueltos > 7 días" },
+          { id: "limpiar_escalaciones", title: "🧹 Limpiar escalaciones", description: "Resolver activas > 48h" },
+          { id: "whitelist", title: "📋 Whitelist", description: "Ajustar límite progresivo" },
+          { id: "volver", title: "↩️ Volver al menú", description: "Regresar" },
+        ],
+      }],
     },
   };
 }
 
-// ── Bot Resume ──
-function handleBotResume(): FlowResponse {
-  resumeBot("admin_whatsapp");
-  return {
-    reply: "",
-    nextStep: 99,
-    interactive: {
-      type: "buttons",
-      body: "▶️ *Bot REANUDADO*\n\nEl bot está atendiendo mensajes normalmente.",
-      buttons: [
-        { id: "1", title: "Volver al menú" },
-        { id: "2", title: "Finalizar" },
-      ],
-    },
-  };
+// ── Hub de Control del Bot (handler de acciones) ──
+async function handleControlBotHub(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "volver" || cmd === "0" || cmd === "menu" || cmd === "menú" || cmd === "↩️ volver al menú" || cmd === "volver al menú" || cmd === "volver al menu") {
+    return handleBienvenida();
+  }
+
+  // Pausar bot
+  if (cmd === "pausar" || cmd === "⏸️ pausar bot" || cmd === "pausar bot") {
+    pauseBot("admin_whatsapp", "Pausado desde panel admin");
+    return {
+      reply: "",
+      nextStep: 110,
+      interactive: {
+        type: "buttons",
+        body: "⏸️ *Bot PAUSADO*\n\nEl bot responde \"en mantenimiento\" a todos.\nLos admins siguen pudiendo usar el panel.",
+        buttons: [
+          { id: "volver_control", title: "↩️ Más acciones" },
+          { id: "volver_menu", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  // Reanudar bot
+  if (cmd === "reanudar" || cmd === "▶️ reanudar bot" || cmd === "reanudar bot") {
+    resumeBot("admin_whatsapp");
+    return {
+      reply: "",
+      nextStep: 110,
+      interactive: {
+        type: "buttons",
+        body: "▶️ *Bot REANUDADO*\n\nAtendiendo mensajes normalmente.",
+        buttons: [
+          { id: "volver_control", title: "↩️ Más acciones" },
+          { id: "volver_menu", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  // Limpiar audios viejos (> 3 días)
+  if (cmd === "limpiar_audios" || cmd === "🧹 limpiar audios viejos" || cmd === "limpiar audios viejos" || cmd === "limpiar audios") {
+    const result = await db
+      .update(audioMensajes)
+      .set({ atendido: true, atendidoPor: "auto-cleanup", updatedAt: new Date() })
+      .where(and(
+        eq(audioMensajes.atendido, false),
+        sql`${audioMensajes.createdAt} < NOW() - INTERVAL '3 days'`,
+      ));
+    const updated = (result as any).rowCount ?? 0;
+    return {
+      reply: "",
+      nextStep: 110,
+      interactive: {
+        type: "buttons",
+        body: `🧹 *Audios limpiados*\n\n${updated} audios > 3 días marcados como atendidos.`,
+        buttons: [
+          { id: "volver_control", title: "↩️ Más acciones" },
+          { id: "volver_menu", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  // Limpiar reclamos resueltos (> 7 días)
+  if (cmd === "limpiar_reclamos" || cmd === "🧹 limpiar reclamos" || cmd === "limpiar reclamos") {
+    const result = await db.execute(sql`
+      DELETE FROM reclamos WHERE estado = 'resuelto' AND fecha_creacion < NOW() - INTERVAL '7 days'
+    `);
+    const deleted = (result as any).rowCount ?? 0;
+    return {
+      reply: "",
+      nextStep: 110,
+      interactive: {
+        type: "buttons",
+        body: `🧹 *Reclamos limpiados*\n\n${deleted} reclamos resueltos > 7 días eliminados.`,
+        buttons: [
+          { id: "volver_control", title: "↩️ Más acciones" },
+          { id: "volver_menu", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  // Limpiar escalaciones viejas (> 48h)
+  if (cmd === "limpiar_escalaciones" || cmd === "🧹 limpiar escalaciones" || cmd === "limpiar escalaciones") {
+    const result = await db.execute(sql`
+      UPDATE human_escalations SET estado = 'resuelta', resolved_at = NOW(), resolved_by = 'auto-cleanup'
+      WHERE estado = 'activa' AND created_at < NOW() - INTERVAL '48 hours'
+    `);
+    const resolved = (result as any).rowCount ?? 0;
+    return {
+      reply: "",
+      nextStep: 110,
+      interactive: {
+        type: "buttons",
+        body: `🧹 *Escalaciones limpiadas*\n\n${resolved} escalaciones > 48h resueltas automáticamente.`,
+        buttons: [
+          { id: "volver_control", title: "↩️ Más acciones" },
+          { id: "volver_menu", title: "Volver al menú" },
+        ],
+      },
+    };
+  }
+
+  // Whitelist
+  if (cmd === "whitelist" || cmd === "📋 whitelist") {
+    return handleBotWhitelist();
+  }
+
+  // Botones de retorno
+  if (cmd === "volver_control" || cmd === "↩️ más acciones" || cmd === "más acciones") {
+    return handleControlBotMenu();
+  }
+  if (cmd === "volver_menu") {
+    return handleBienvenida();
+  }
+
+  return handleControlBotMenu();
 }
 
 // ── Bot Whitelist ──
@@ -1235,7 +1566,7 @@ function handleBotWhitelist(): FlowResponse {
   return { reply: body, nextStep: 90, data: { botControlAction: "whitelist" } };
 }
 
-// ── Bot Control Menu (handler genérico para opciones de control) ──
+// ── Bot Control Menu (handler genérico para whitelist input) ──
 async function handleBotControlMenu(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const action = state.data?.botControlAction;
   const cmd = respuesta.toLowerCase().trim();
@@ -1292,27 +1623,37 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
   const step = state.data?.iaTrainingStep ?? "mensaje";
   const cmd = respuesta.toLowerCase().trim();
 
-  if (cmd === "0" || cmd === "cancelar" || cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "salir" || cmd === "3") return handleBienvenida();
+  // Navegación: volver al menú de Gestionar IA (no al menú principal)
+  if (cmd === "0" || cmd === "cancelar" || cmd === "volver" || cmd === "menu" || cmd === "menú"
+    || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "salir"
+    || cmd === "3" || cmd === "finalizar") return handleGestionarIAMenu();
+
+  // "Agregar otro" desde botones post-guardado (step 99 redirige acá con "1")
+  if (cmd === "1" || cmd === "agregar otro") {
+    return {
+      reply: "📝 *Nuevo ejemplo*\n\nEscribí el mensaje del usuario que querés enseñarle al bot:\n\n(ej: \"no pasaron el martes\")\n\n*0* para volver.",
+      nextStep: 91,
+      data: { iaTrainingStep: "intencion" },
+    };
+  }
 
   if (step === "mensaje") {
     return {
-      reply: "📝 *Paso 1/3*\n\nEscribí el mensaje del usuario que querés enseñarle al bot:\n\n(ej: \"no pasaron el martes\")\n\n*Cancelar* para volver.",
+      reply: "📝 *Paso 1/3*\n\nEscribí el mensaje del usuario que querés enseñarle al bot:\n\n(ej: \"no pasaron el martes\")\n\n*0* para volver.",
       nextStep: 91,
       data: { ...state.data, iaTrainingStep: "intencion", iaMensaje: respuesta },
     };
   }
 
   if (step === "intencion") {
-    const mensaje = state.data?.iaMensaje;
-    if (!mensaje) return handleEntrenarIA();
-
+    const mensaje = state.data?.iaMensaje || respuesta;
     return {
       reply: "",
       nextStep: 91,
-      data: { ...state.data, iaTrainingStep: "respuesta", iaIntencion: respuesta },
+      data: { ...state.data, iaTrainingStep: "respuesta", iaMensaje: mensaje, iaIntencion: respuesta },
       interactive: {
         type: "list",
-        body: `📝 *Paso 2/3*\n\nMensaje: "${mensaje}"\n\n¿Qué intención tiene?`,
+        body: `📝 *Paso 2/3*\n\nMensaje: "${mensaje.slice(0, 60)}"\n\n¿Qué intención tiene?`,
         buttonText: "Elegir intención",
         sections: [{
           title: "Intenciones",
@@ -1336,7 +1677,7 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
     const intencion = state.data?.iaIntencion || respuesta;
 
     return {
-      reply: `📝 *Paso 3/3 (opcional)*\n\nMensaje: "${mensaje}"\nIntención: ${intencion}\n\nEscribí cómo debería responder el bot (o *saltear* para solo entrenar clasificación):`,
+      reply: `📝 *Paso 3/3 (opcional)*\n\nMensaje: "${(mensaje || "").slice(0, 60)}"\nIntención: ${intencion}\n\nEscribí cómo debería responder el bot (o *saltear* para solo entrenar clasificación):`,
       nextStep: 91,
       data: { ...state.data, iaTrainingStep: "confirmar", iaIntencion: intencion, iaRespuesta: respuesta },
     };
@@ -1348,7 +1689,7 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
     let respuestaEsperada = state.data?.iaRespuesta;
     if (respuestaEsperada === "saltear" || respuestaEsperada === "skip") respuestaEsperada = undefined;
 
-    if (!mensaje || !intencion) return handleEntrenarIA();
+    if (!mensaje || !intencion) return handleGestionarIAMenu();
 
     try {
       const id = await addTrainingExample({
@@ -1362,14 +1703,14 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
 
       return {
         reply: "",
-        nextStep: 99,
+        nextStep: 91,
+        data: { iaTrainingStep: "agregar_otro" },
         interactive: {
           type: "buttons",
-          body: `✅ *Ejemplo #${id} guardado*\n\nMensaje: "${mensaje}"\nIntención: ${intencion}\n${respuestaEsperada ? "Respuesta: " + respuestaEsperada : ""}\n\nEl bot usará este ejemplo para mejorar sus clasificaciones.`,
+          body: `✅ *Ejemplo #${id} guardado*\n\nMensaje: "${(mensaje || "").slice(0, 50)}"\nIntención: ${intencion}\n\nEl bot usará este ejemplo para mejorar.`,
           buttons: [
             { id: "1", title: "Agregar otro" },
-            { id: "2", title: "Volver al menú" },
-            { id: "3", title: "Finalizar" },
+            { id: "0", title: "↩️ Gestionar IA" },
           ],
         },
       };
@@ -1379,37 +1720,67 @@ async function handleAgregarEjemploIA(respuesta: string, state: ConversationStat
     }
   }
 
-  return handleEntrenarIA();
+  // step "agregar_otro" — handler para botones post-guardado
+  if (step === "agregar_otro") {
+    if (cmd === "1" || cmd === "agregar otro") {
+      return {
+        reply: "📝 *Nuevo ejemplo*\n\nEscribí el mensaje del usuario:\n\n*0* para volver.",
+        nextStep: 91,
+        data: { iaTrainingStep: "intencion" },
+      };
+    }
+    return handleGestionarIAMenu();
+  }
+
+  return handleGestionarIAMenu();
 }
 
 // ── Ver ejemplos IA ──
 async function handleVerEjemplosIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const cmd = respuesta.toLowerCase().trim();
 
-  if (cmd === "1" || cmd === "volver al menú" || cmd === "volver") return handleEntrenarIA();
-  if (cmd === "2" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú"
+    || cmd === "volver al menu" || cmd === "↩️ volver") return handleGestionarIAMenu();
+  if (cmd === "1" || cmd === "volver al menú") return handleGestionarIAMenu();
+  if (cmd === "2" || cmd === "finalizar" || cmd === "salir") return { reply: "✅ Sesión finalizada.", endFlow: true };
 
-  // Si escribió un número, es para ver detalle/acción
+  // Si escribió un número, mostrar detalle y acciones
   const idx = parseInt(respuesta);
   if (!isNaN(idx) && idx > 0) {
-    return {
-      reply: "",
-      nextStep: 93,
-      data: { ...state.data, iaEjemploSeleccionado: idx },
-      interactive: {
-        type: "buttons",
-        body: `Ejemplo #${idx}\n\n¿Qué querés hacer?`,
-        buttons: [
-          { id: "activar", title: "Activar" },
-          { id: "desactivar", title: "Desactivar" },
-          { id: "eliminar", title: "Eliminar" },
-          { id: "volver", title: "Volver" },
-        ],
-      },
-    };
+    const ids: number[] = state.data?.iaEjemplosIds || [];
+    if (idx <= ids.length) {
+      // Buscar detalle del ejemplo
+      const { examples } = await listTrainingExamples({ limit: 100 });
+      const ejemplo = examples.find(e => e.id === ids[idx - 1]);
+      const detalle = ejemplo
+        ? `📝 *Ejemplo #${idx}*\n\n` +
+          `💬 Mensaje: "${ejemplo.mensajeUsuario.slice(0, 120)}"\n\n` +
+          `🎯 Intención: *${ejemplo.intencionCorrecta}*\n` +
+          `📊 Estado: ${ejemplo.activo ? "✅ Activo" : "⏸️ Inactivo"}\n` +
+          (ejemplo.respuestaEsperada
+            ? `\n🤖 Respuesta IA: "${ejemplo.respuestaEsperada.slice(0, 200)}"\n`
+            : "\n🤖 Respuesta: (solo clasificación, sin respuesta fija)\n") +
+          `\n¿Qué querés hacer?`
+        : `Ejemplo #${idx}\n\n¿Qué querés hacer?`;
+
+      return {
+        reply: "",
+        nextStep: 93,
+        data: { ...state.data, iaEjemploSeleccionado: idx },
+        interactive: {
+          type: "buttons",
+          body: detalle,
+          buttons: [
+            { id: ejemplo?.activo ? "desactivar" : "activar", title: ejemplo?.activo ? "⏸️ Desactivar" : "✅ Activar" },
+            { id: "eliminar", title: "🗑️ Eliminar" },
+            { id: "volver", title: "↩️ Volver" },
+          ],
+        },
+      };
+    }
   }
 
-  const { examples, total } = await listTrainingExamples({ activo: true, limit: 10 });
+  const { examples, total } = await listTrainingExamples({ limit: 10 });
 
   if (examples.length === 0) {
     return {
@@ -1417,7 +1788,7 @@ async function handleVerEjemplosIA(respuesta: string, state: ConversationState):
       nextStep: 99,
       interactive: {
         type: "buttons",
-        body: "🧠 No hay ejemplos de entrenamiento activos.",
+        body: "🧠 No hay ejemplos de entrenamiento cargados.",
         buttons: [
           { id: "1", title: "Agregar ejemplo" },
           { id: "2", title: "Volver al menú" },
@@ -1428,7 +1799,8 @@ async function handleVerEjemplosIA(respuesta: string, state: ConversationState):
 
   let body = `🧠 *Ejemplos de entrenamiento* (${total} total)\n\n`;
   for (const [i, ex] of examples.entries()) {
-    body += `*${i + 1}.* [${ex.intencionCorrecta}] "${ex.mensajeUsuario.slice(0, 40)}"\n`;
+    const estado = ex.activo ? "✅" : "⏸️";
+    body += `*${i + 1}.* ${estado} [${ex.intencionCorrecta}] "${ex.mensajeUsuario.slice(0, 35)}"\n`;
   }
   body += "\nEscribí el *número* para acciones, o *0* para volver.";
 
@@ -1445,7 +1817,7 @@ async function handleAccionEjemploIA(respuesta: string, state: ConversationState
   const idx: number | undefined = state.data?.iaEjemploSeleccionado;
   const ids: number[] = state.data?.iaEjemplosIds || [];
 
-  if (cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "salir" || cmd === "cancelar" || cmd === "0") return handleEntrenarIA();
+  if (cmd === "volver" || cmd === "↩️ volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar" || cmd === "cancelar" || cmd === "0") return handleVerEjemplosIA("ver", state);
   if (!idx || idx < 1 || idx > ids.length) return handleVerEjemplosIA("ver", state);
 
   const exampleId = ids[idx - 1];
@@ -1496,7 +1868,7 @@ async function handleCapacidadBot(): Promise<FlowResponse> {
     `Elegí el siguiente nivel del plan progresivo o ajustá manualmente.`;
 
   return {
-    reply: body,
+    reply: "",
     nextStep: 95,
     interactive: {
       type: "list",
@@ -1525,6 +1897,12 @@ async function handleCapacidadBot(): Promise<FlowResponse> {
 
 async function handleAjustarLimiteBot(respuesta: string): Promise<FlowResponse> {
   const trimmed = respuesta.trim();
+  const cmd = trimmed.toLowerCase();
+
+  // Volver al menú principal
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "↩️ volver al menú" || cmd === "volver al menú" || cmd === "volver al menu" || cmd === "regresar") {
+    return handleBienvenida();
+  }
 
   // Atajo del plan progresivo: "set:N"
   if (trimmed.startsWith("set:")) {
@@ -1582,4 +1960,516 @@ async function handleAjustarLimiteBot(respuesta: string): Promise<FlowResponse> 
       `✅ Disponibles: ${cap.disponibles}`,
     nextStep: 99,
   };
+}
+
+
+// ════════════════════════════════════════════════════════════
+// GESTIONAR IA — Hub unificado de gestión de conversaciones IA
+// ════════════════════════════════════════════════════════════
+
+// ── Menú principal del hub IA ──
+function handleGestionarIAMenu(): FlowResponse {
+  return {
+    reply: "",
+    nextStep: 100,
+    interactive: {
+      type: "list",
+      body: "🧠 *Gestión de IA y Conversaciones*\n\n¿Qué querés hacer?",
+      buttonText: "Ver opciones",
+      sections: [{
+        title: "Diagnóstico",
+        rows: [
+          { id: "simular", title: "🔬 Simular clasificación", description: "Probar cómo clasifica la IA un mensaje" },
+          { id: "escalaciones", title: "🚨 Escalaciones activas", description: "Ver y resolver donantes escaladas" },
+          { id: "feedback", title: "📊 Feedback IA", description: "Fallos e interpretaciones recientes" },
+        ],
+      }, {
+        title: "Entrenamiento",
+        rows: [
+          { id: "entrenar", title: "📝 Agregar ejemplo", description: "Enseñar clasificación al bot" },
+          { id: "ejemplos", title: "📋 Ver ejemplos", description: "Listar, activar o desactivar" },
+          { id: "reclasificar", title: "🔄 Reclasificar fallos", description: "Corregir IA y entrenar automaticamente" },
+        ],
+      }, {
+        title: "Navegación",
+        rows: [
+          { id: "0", title: "↩️ Volver al menú", description: "Panel principal" },
+        ],
+      }],
+    },
+  };
+}
+
+// ── Hub IA — dispatcher ──
+async function handleGestionarIA(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "menú" || cmd === "volver al menú" || cmd === "volver al menu") return handleBienvenida();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  switch (cmd) {
+    case "simular":
+    case "simular clasificación":
+    case "simular clasificacion":
+    case "🔬 simular clasificación":
+      return {
+        reply: "🔬 *Simular clasificación IA*\n\nEscribí el mensaje que querés probar:\n\n(ej: \"no pasaron a retirar mi bidón\")\n\n*0* para volver.",
+        nextStep: 101,
+      };
+
+    case "escalaciones":
+    case "escalaciones activas":
+    case "🚨 escalaciones activas":
+      return await handleVerEscalaciones("ver", state);
+
+    case "feedback":
+    case "feedback ia":
+    case "📊 feedback ia":
+      return await handleRevisarFeedbackIA("ver", state);
+
+    case "entrenar":
+    case "agregar ejemplo":
+    case "📝 agregar ejemplo":
+      return handleEntrenarIA();
+
+    case "ejemplos":
+    case "ver ejemplos":
+    case "📋 ver ejemplos":
+      return await handleVerEjemplosIA("ver", state);
+
+    case "reclasificar":
+    case "reclasificar fallos":
+    case "🔄 reclasificar fallos":
+      return await handleReclasificarFeedback("ver", state);
+
+    default:
+      return handleGestionarIAMenu();
+  }
+}
+
+// ── Simular clasificación IA ──
+async function handleSimularClasificacion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "↩️ volver") return handleGestionarIAMenu();
+
+  // Botón "Probar otro" → re-prompt
+  if (cmd === "otro" || cmd === "🔬 probar otro") {
+    return {
+      reply: "🔬 Escribí otro mensaje para probar:\n\n*0* para volver.",
+      nextStep: 101,
+    };
+  }
+
+  // Botón "Entrenar con este" → ir al wizard con datos pre-cargados
+  if (cmd === "entrenar_este" || cmd === "📝 entrenar con este") {
+    const ultimoMsg = state.data?.ultimoMensajeSimulado;
+    const ultimoResult = state.data?.ultimoResultadoSimulado;
+    if (ultimoMsg) {
+      return {
+        reply: "",
+        nextStep: 91,
+        data: { iaTrainingStep: "respuesta", iaMensaje: ultimoMsg },
+        interactive: {
+          type: "list",
+          body: `📝 *Entrenar IA*\n\nMensaje: "${ultimoMsg.slice(0, 60)}"\nIA detectó: ${ultimoResult?.intent || "?"}\n\n¿Cuál es la intención CORRECTA?`,
+          buttonText: "Elegir intención",
+          sections: [{
+            title: "Intenciones",
+            rows: [
+              { id: "reclamo", title: "Reclamo" },
+              { id: "consulta", title: "Consulta" },
+              { id: "aviso", title: "Aviso" },
+              { id: "baja", title: "Baja" },
+              { id: "hablar_persona", title: "Hablar persona" },
+              { id: "saludo", title: "Saludo" },
+              { id: "agradecimiento", title: "Agradecimiento" },
+              { id: "irrelevante", title: "Irrelevante" },
+              { id: "confirmar_difusion", title: "Confirmar difusión" },
+            ],
+          }],
+        },
+      };
+    }
+    return handleGestionarIAMenu();
+  }
+
+  // El usuario envió un mensaje a clasificar
+  try {
+    const result = await classifyIntent(respuesta, { timeoutMs: 10000 });
+
+    const sentimentEmoji: Record<string, string> = {
+      calm: "😊",
+      frustrated: "😤",
+      angry: "🤬",
+    };
+
+    const confidenceEmoji: Record<string, string> = {
+      high: "🟢",
+      medium: "🟡",
+      low: "🔴",
+    };
+
+    const entities = result.entities.length > 0
+      ? result.entities.map((e) => `  • ${e.type}: ${e.value}`).join("\n")
+      : "  (ninguna)";
+
+    const body =
+      `🔬 *Resultado de clasificación*\n\n` +
+      `💬 Mensaje: "${respuesta.slice(0, 80)}"\n\n` +
+      `🎯 Intent: *${result.intent}*\n` +
+      `${confidenceEmoji[result.confidence] || "⚪"} Confianza: *${result.confidence}*\n` +
+      `${sentimentEmoji[result.sentiment] || "😐"} Sentimiento: *${result.sentiment}*\n` +
+      `🙋 Necesita humano: *${result.needsHuman ? "SÍ" : "No"}*\n\n` +
+      `📦 Entidades:\n${entities}\n\n` +
+      `${result.confidence === "low" ? "⚠️ Baja confianza — considerá agregar un ejemplo de entrenamiento.\n\n" : ""}` +
+      `Escribí otro mensaje para probar, o *0* para volver.`;
+
+    return {
+      reply: "",
+      nextStep: 101,
+      interactive: {
+        type: "buttons",
+        body,
+        buttons: [
+          { id: "entrenar_este", title: "📝 Entrenar con este" },
+          { id: "otro", title: "🔬 Probar otro" },
+          { id: "0", title: "↩️ Volver" },
+        ],
+      },
+      data: { ...state.data, ultimoMensajeSimulado: respuesta, ultimoResultadoSimulado: result },
+    };
+  } catch (err) {
+    logger.error({ err }, "Error simulando clasificación IA");
+    return {
+      reply: `❌ Error al clasificar: ${(err as Error).message}\n\nProbá de nuevo o escribí *0* para volver.`,
+      nextStep: 101,
+    };
+  }
+}
+
+// ── Reclasificar desde feedback IA ──
+async function handleReclasificarFeedback(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "menú") return handleGestionarIAMenu();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  // Si el usuario seleccionó un número de la lista de feedbacks
+  const reclasificarIds: Array<{ id: number; msg: string; original: string }> = state.data?.reclasificarIds || [];
+  const idx = parseInt(respuesta) - 1;
+  if (!isNaN(idx) && idx >= 0 && idx < reclasificarIds.length) {
+    const selected = reclasificarIds[idx];
+    return {
+      reply: "",
+      nextStep: 102,
+      data: {
+        ...state.data,
+        reclasificarFeedbackId: selected.id,
+        reclasificarMsg: selected.msg,
+        reclasificarOriginal: selected.original,
+      },
+      interactive: {
+        type: "list",
+        body: `🔄 Mensaje: "${(selected.msg || "").slice(0, 60)}"\n\nLa IA clasificó como: *${selected.original}*\n\n¿Cuál es la intención CORRECTA?`,
+        buttonText: "Elegir intención",
+        sections: [{
+          title: "Intenciones",
+          rows: [
+            { id: "reclamo", title: "Reclamo" },
+            { id: "consulta", title: "Consulta" },
+            { id: "aviso", title: "Aviso" },
+            { id: "baja", title: "Baja" },
+            { id: "hablar_persona", title: "Hablar persona" },
+            { id: "saludo", title: "Saludo" },
+            { id: "agradecimiento", title: "Agradecimiento" },
+            { id: "irrelevante", title: "Irrelevante" },
+            { id: "confirmar_difusion", title: "Confirmar difusión" },
+          ],
+        }],
+      },
+    };
+  }
+
+  // Si viene con un ID de feedback a corregir (ya seleccionó de la lista)
+  const feedbackId = state.data?.reclasificarFeedbackId;
+  const feedbackMsg = state.data?.reclasificarMsg;
+
+  if (feedbackId && feedbackMsg) {
+    // El usuario envió la intención correcta
+    const VALID_INTENTS = ["reclamo", "consulta", "aviso", "baja", "hablar_persona", "saludo", "agradecimiento", "irrelevante", "confirmar_difusion", "menu_opcion"];
+
+    if (!VALID_INTENTS.includes(cmd)) {
+      return {
+        reply: "",
+        nextStep: 102,
+        data: state.data,
+        interactive: {
+          type: "list",
+          body: `🔄 Mensaje: "${feedbackMsg.slice(0, 60)}"\n\n¿Cuál es la intención CORRECTA?`,
+          buttonText: "Elegir intención",
+          sections: [{
+            title: "Intenciones",
+            rows: [
+              { id: "reclamo", title: "Reclamo" },
+              { id: "consulta", title: "Consulta" },
+              { id: "aviso", title: "Aviso" },
+              { id: "baja", title: "Baja" },
+              { id: "hablar_persona", title: "Hablar persona" },
+              { id: "saludo", title: "Saludo" },
+              { id: "agradecimiento", title: "Agradecimiento" },
+              { id: "irrelevante", title: "Irrelevante" },
+              { id: "confirmar_difusion", title: "Confirmar difusión" },
+            ],
+          }],
+        },
+      };
+    }
+
+    // Guardar corrección + auto-crear training example
+    try {
+      await db.update(iaFeedback).set({
+        revisado: true,
+        intencionCorrecta: cmd,
+      }).where(eq(iaFeedback.id, feedbackId));
+
+      const trainingId = await addTrainingExample({
+        mensajeUsuario: feedbackMsg,
+        intencionCorrecta: cmd,
+        contexto: `Auto-reclasificado desde admin. Original: ${state.data?.reclasificarOriginal || "?"}`,
+        creadoPor: state.phone,
+        prioridad: 8,
+      });
+
+      return {
+        reply: "",
+        nextStep: 100,
+        interactive: {
+          type: "buttons",
+          body:
+            `✅ *Reclasificación guardada*\n\n` +
+            `💬 "${feedbackMsg.slice(0, 60)}"\n` +
+            `❌ Antes: ${state.data?.reclasificarOriginal}\n` +
+            `✅ Ahora: *${cmd}*\n\n` +
+            `📝 Training example #${trainingId} creado automáticamente.\n` +
+            `La IA va a usar este ejemplo en futuras clasificaciones.`,
+          buttons: [
+            { id: "reclasificar", title: "🔄 Reclasificar otro" },
+            { id: "0", title: "↩️ Volver a IA" },
+          ],
+        },
+      };
+    } catch (err) {
+      logger.error({ err }, "Error reclasificando feedback");
+      return { reply: "❌ Error al guardar. Intentá de nuevo.", nextStep: 100 };
+    }
+  }
+
+  // Mostrar últimos feedbacks mal clasificados para corregir
+  const malClasificados = await db
+    .select({
+      id: iaFeedback.id,
+      telefono: iaFeedback.telefono,
+      mensajeOriginal: iaFeedback.mensajeOriginal,
+      intencionDetectada: iaFeedback.intencionDetectada,
+      createdAt: iaFeedback.createdAt,
+    })
+    .from(iaFeedback)
+    .where(eq(iaFeedback.revisado, false))
+    .orderBy(desc(iaFeedback.createdAt))
+    .limit(8);
+
+  if (malClasificados.length === 0) {
+    return {
+      reply: "",
+      nextStep: 100,
+      interactive: {
+        type: "buttons",
+        body: "✅ No hay mensajes pendientes de reclasificación.\n\nTodos los feedbacks fueron revisados.",
+        buttons: [
+          { id: "0", title: "↩️ Volver a IA" },
+        ],
+      },
+    };
+  }
+
+  let body = `🔄 *Reclasificar mensajes* (${malClasificados.length} pendientes)\n\n`;
+  for (const [i, f] of malClasificados.entries()) {
+    const hora = f.createdAt
+      ? new Date(f.createdAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+      : "?";
+    body += `*${i + 1}.* "${(f.mensajeOriginal || "").slice(0, 50)}"\n`;
+    body += `   IA dijo: ${f.intencionDetectada || "?"} · ${hora}\n\n`;
+  }
+  body += "Escribí el *número* del mensaje para corregir, o *0* para volver.";
+
+  return {
+    reply: body,
+    nextStep: 102,
+    data: { reclasificarIds: malClasificados.map((f) => ({ id: f.id, msg: f.mensajeOriginal, original: f.intencionDetectada })) },
+  };
+}
+
+// ── Ver escalaciones activas ──
+async function handleVerEscalaciones(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "0" || cmd === "volver" || cmd === "menu" || cmd === "menú") return handleGestionarIAMenu();
+  if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
+
+  // Si seleccionó un número, ir a resolver
+  const idx = parseInt(respuesta) - 1;
+  const ids: Array<{ phone: string; reason: string }> = state.data?.escalacionesIds || [];
+
+  if (!isNaN(idx) && idx >= 0 && idx < ids.length) {
+    const esc = ids[idx];
+    // Buscar último mensaje del donante
+    const lastMsgs = await db
+      .select({ contenido: mensajesLog.contenido, direccion: mensajesLog.direccion, createdAt: mensajesLog.createdAt })
+      .from(mensajesLog)
+      .where(eq(mensajesLog.telefono, esc.phone))
+      .orderBy(desc(mensajesLog.createdAt))
+      .limit(6);
+
+    let historial = "Sin historial reciente.";
+    if (lastMsgs.length > 0) {
+      historial = lastMsgs
+        .reverse()
+        .map((m) => {
+          const dir = m.direccion === "entrante" ? "👤" : "🤖";
+          return `${dir} ${(m.contenido || "").slice(0, 60)}`;
+        })
+        .join("\n");
+    }
+
+    // Buscar nombre del donante
+    const [donante] = await db
+      .select({ nombre: donantes.nombre, direccion: donantes.direccion, estado: donantes.estado })
+      .from(donantes)
+      .where(eq(donantes.telefono, esc.phone))
+      .limit(1);
+
+    const nombre = donante?.nombre || "Desconocido";
+    const dir = donante?.direccion || "Sin dirección";
+
+    return {
+      reply: "",
+      nextStep: 104,
+      data: { ...state.data, resolverPhone: esc.phone, resolverNombre: nombre },
+      interactive: {
+        type: "buttons",
+        body:
+          `🚨 *Escalación #${idx + 1}*\n\n` +
+          `👤 ${nombre}\n` +
+          `📱 ${esc.phone}\n` +
+          `📍 ${dir}\n` +
+          `⚠️ Razón: *${esc.reason}*\n\n` +
+          `📋 *Últimos mensajes:*\n${historial}\n\n` +
+          `¿Qué querés hacer?`,
+        buttons: [
+          { id: "resolver", title: "✅ Resolver" },
+          { id: "volver_lista", title: "↩️ Volver a lista" },
+        ],
+      },
+    };
+  }
+
+  // Mostrar lista de escalaciones activas
+  const escalaciones = await db
+    .select({
+      phone: humanEscalations.phone,
+      reason: humanEscalations.reason,
+      escalatedAt: humanEscalations.escalatedAt,
+    })
+    .from(humanEscalations)
+    .where(eq(humanEscalations.estado, "activa"))
+    .orderBy(desc(humanEscalations.escalatedAt))
+    .limit(10);
+
+  if (escalaciones.length === 0) {
+    return {
+      reply: "",
+      nextStep: 100,
+      interactive: {
+        type: "buttons",
+        body: "✅ No hay escalaciones activas.\n\nTodas las donantes están siendo atendidas por el bot.",
+        buttons: [
+          { id: "0", title: "↩️ Volver a IA" },
+        ],
+      },
+    };
+  }
+
+  // Enriquecer con nombres de donantes
+  const phonesStr = escalaciones.map((e) => `'${e.phone}'`).join(",");
+
+  let body = `🚨 *Escalaciones activas* (${escalaciones.length})\n\n`;
+
+  for (const [i, esc] of escalaciones.entries()) {
+    const hora = esc.escalatedAt
+      ? new Date(esc.escalatedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+      : "?";
+
+    const reasonEmoji: Record<string, string> = {
+      frustration: "😤",
+      multiple_issues: "📋",
+      ia_fail: "🤖",
+      user_request: "🙋",
+      system_error: "❌",
+    };
+    const emoji = reasonEmoji[esc.reason] || "⚠️";
+
+    body += `*${i + 1}.* ${emoji} ${esc.phone}\n`;
+    body += `   ${esc.reason} · ${hora}\n\n`;
+  }
+
+  body += "Escribí el *número* para ver detalle y resolver, o *0* para volver.";
+
+  return {
+    reply: body,
+    nextStep: 103,
+    data: { escalacionesIds: escalaciones.map((e) => ({ phone: e.phone, reason: e.reason })) },
+  };
+}
+
+// ── Resolver escalación ──
+async function handleResolverEscalacion(respuesta: string, state: ConversationState): Promise<FlowResponse> {
+  const cmd = respuesta.toLowerCase().trim();
+
+  if (cmd === "volver_lista" || cmd === "volver" || cmd === "↩️ volver a lista") {
+    return await handleVerEscalaciones("ver", state);
+  }
+  if (cmd === "0" || cmd === "menu") return handleGestionarIAMenu();
+
+  if (cmd === "resolver" || cmd === "✅ resolver") {
+    const phone = state.data?.resolverPhone;
+    const nombre = state.data?.resolverNombre || "Donante";
+    if (!phone) return handleGestionarIAMenu();
+
+    try {
+      await resolveHumanEscalation(phone, state.phone);
+
+      return {
+        reply: "",
+        nextStep: 100,
+        interactive: {
+          type: "buttons",
+          body:
+            `✅ *Escalación resuelta*\n\n` +
+            `👤 ${nombre}\n` +
+            `📱 ${phone}\n\n` +
+            `El bot volverá a atender a esta donante automáticamente.\n` +
+            `Si vuelve a escribir, será procesada por la IA normalmente.`,
+          buttons: [
+            { id: "escalaciones", title: "🚨 Ver más escalaciones" },
+            { id: "0", title: "↩️ Volver a IA" },
+          ],
+        },
+      };
+    } catch (err) {
+      logger.error({ err, phone }, "Error resolviendo escalación");
+      return { reply: "❌ Error al resolver. Intentá de nuevo.", nextStep: 103 };
+    }
+  }
+
+  return await handleVerEscalaciones("ver", state);
 }

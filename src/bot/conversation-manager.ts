@@ -19,6 +19,7 @@ import { classifyIntent, type ClassifierResult } from "../services/clasificador-
 import { isHumanEscalated, escalateToHuman } from "../services/human-escalation";
 import { detectEscalationTrigger } from "../services/escalation-triggers";
 import { procesarConsultaDonante } from "../services/consulta-donante";
+import { generarRespuestaContextual } from "../services/respuesta-ia-contextual";
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sin interacción = reset
 
@@ -30,6 +31,7 @@ const CACHE_MAX_SIZE = 2000;
 setInterval(() => {
   const now = Date.now();
   const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
+  const cutoff2h = now - 2 * 60 * 60 * 1000;
   let cleaned = 0;
 
   for (const [phone, state] of conversationCache) {
@@ -49,8 +51,56 @@ setInterval(() => {
     }
   }
 
+  // Limpiar frustration counters viejos (2h sin actividad → reset)
+  for (const [phone, data] of frustrationCounter) {
+    if (now - data.lastSeen > cutoff2h) {
+      frustrationCounter.delete(phone);
+      cleaned++;
+    }
+  }
+
   if (cleaned > 0) logger.debug({ cleaned }, "Cache de conversaciones limpiada");
 }, 60 * 60 * 1000);
+
+// ── Contador de frustración progresiva ──
+// Trackea mensajes frustrados/enojados por teléfono.
+// 1er mensaje angry → IA responde empáticamente (sin escalar)
+// 2do mensaje angry → IA responde + notifica admin como alerta
+// 3er+ mensaje angry → hard escalate a humano (la persona está insistente)
+// Se resetea después de 2h sin mensajes frustrados o cuando admin resuelve.
+const frustrationCounter = new Map<string, { count: number; lastSeen: number }>();
+const FRUSTRATION_ESCALATE_THRESHOLD = 3; // Al 3er mensaje frustrado, escalar
+const FRUSTRATION_HARD_LIMIT = 500;
+
+function trackFrustration(phone: string, sentiment: string | undefined, needsHuman: boolean): number {
+  if (!needsHuman && sentiment !== "angry" && sentiment !== "frustrated") {
+    // Mensaje tranquilo → resetear contador (la donante se calmó)
+    frustrationCounter.delete(phone);
+    return 0;
+  }
+
+  const now = Date.now();
+  const current = frustrationCounter.get(phone);
+
+  // Si pasaron más de 2 horas, resetear
+  if (current && now - current.lastSeen > 2 * 60 * 60 * 1000) {
+    frustrationCounter.delete(phone);
+  }
+
+  // Hard limit de entries
+  if (!frustrationCounter.has(phone) && frustrationCounter.size >= FRUSTRATION_HARD_LIMIT) {
+    const oldest = [...frustrationCounter.entries()]
+      .sort((a, b) => a[1].lastSeen - b[1].lastSeen)[0];
+    if (oldest) frustrationCounter.delete(oldest[0]);
+  }
+
+  const data = frustrationCounter.get(phone) || { count: 0, lastSeen: now };
+  data.count++;
+  data.lastSeen = now;
+  frustrationCounter.set(phone, data);
+
+  return data.count;
+}
 
 // ── Leer estado (DB es fuente de verdad, cache es acelerador) ──
 async function getConversation(phone: string): Promise<ConversationState | null> {
@@ -229,6 +279,7 @@ function getMenuPrincipalTexto(phone: string): string {
 async function iniciarFlow(
   phone: string,
   flow: FlowType,
+  initialMessage: string = "",
 ): Promise<{ state: ConversationState; reply: string; interactive?: InteractiveMessage; notify?: FlowResponse["notify"] }> {
   const state = await startConversation(phone, flow);
   const flowHandler = getFlowByName(flow);
@@ -237,7 +288,7 @@ async function iniciarFlow(
     return { state, reply: menu.reply, interactive: menu.interactive };
   }
 
-  const response = await flowHandler.handle(state, "", undefined);
+  const response = await flowHandler.handle(state, initialMessage, undefined);
   if (response.data) state.data = { ...state.data, ...response.data };
   if (response.nextStep !== undefined) {
     state.step = response.nextStep;
@@ -260,7 +311,9 @@ export async function handleIncomingMessage(
 }> {
   // 1. Verificar escalación humana activa
   if (await isHumanEscalated(phone)) {
-    logger.info({ phone }, "Usuario escalado — mensaje derivado a humano");
+    logger.info({ phone }, "Usuario escalado — mensaje derivado a humano (silencio al usuario)");
+    // NO enviar nada al usuario — ya recibió mensaje de escalación.
+    // Solo notificar al admin para que vea los mensajes nuevos.
     return {
       reply: "",
       notify: {
@@ -278,11 +331,10 @@ export async function handleIncomingMessage(
     await escalateToHuman(phone, "user_request", {
       lastMessage: message,
       intent: `trigger:${trigger.category}:${trigger.matched}`,
-    });
+    }, false);
     return {
       reply:
-        "Te entendemos. 🙏 Tu mensaje fue derivado a nuestro equipo.\n" +
-        "Una persona se va a comunicar con vos a la brevedad.",
+        "Tu caso ya fue derivado a nuestro equipo. Te van a contactar a la brevedad. No es necesario que sigas escribiendo, ya tenemos tu mensaje.",
       notify: {
         target: "admin",
         message:
@@ -301,11 +353,10 @@ export async function handleIncomingMessage(
   // 2. Escape global: hablar con persona
   if (detectarHablarConPersona(message)) {
     if (state) await endConversation(phone);
-    await escalateToHuman(phone, "user_request", { lastMessage: message });
+    await escalateToHuman(phone, "user_request", { lastMessage: message }, false);
     return {
       reply:
-        "Entendemos que necesitás hablar con alguien. 🙋\n\n" +
-        "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.",
+        "Tu caso ya fue derivado a nuestro equipo. Te van a contactar a la brevedad. No es necesario que sigas escribiendo, ya tenemos tu mensaje.",
       notify: {
         target: "admin",
         message:
@@ -322,11 +373,11 @@ export async function handleIncomingMessage(
   if (!state) {
     // 3a. Detectar intención de baja
     if (detectarIntenciónBaja(message)) {
-      await escalateToHuman(phone, "user_request", { lastMessage: message, intent: "baja" });
+      await escalateToHuman(phone, "user_request", { lastMessage: message, intent: "baja" }, false);
       return {
         reply:
           "Lamentamos que quieras dejar de participar. 💙\n\n" +
-          "Tu mensaje fue recibido y una persona de nuestro equipo se va a comunicar con vos a la brevedad.",
+          "Tu caso ya fue derivado a nuestro equipo. Te van a contactar a la brevedad. No es necesario que sigas escribiendo, ya tenemos tu mensaje.",
         notify: {
           target: "admin",
           message:
@@ -355,17 +406,17 @@ export async function handleIncomingMessage(
       };
     }
     if (rol === "visitadora") {
-      const { reply, interactive, notify } = await iniciarFlow(phone, "visitadora");
+      const { reply, interactive, notify } = await iniciarFlow(phone, "visitadora", message);
       return { reply, interactive, notify };
     }
     if (rol === "admin") {
-      const { reply, interactive, notify } = await iniciarFlow(phone, "admin");
+      const { reply, interactive, notify } = await iniciarFlow(phone, "admin", message);
       return { reply, interactive, notify };
     }
 
     // Contacto auto-registrado sin completar datos → continuar registro
     if (rol === "donante" && donorEstado === "nueva") {
-      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+      const { reply, notify } = await iniciarFlow(phone, "nueva_donante", message);
       return { reply, notify };
     }
 
@@ -436,38 +487,90 @@ export async function handleIncomingMessage(
 
     // 3e. Número desconocido → registro
     if (rol === "desconocido") {
-      const { reply, notify } = await iniciarFlow(phone, "nueva_donante");
+      const { reply, notify } = await iniciarFlow(phone, "nueva_donante", message);
       return { reply, notify };
     }
 
-    // 3f. Donante conocida sin sesión → clasificar con IA y CREAR sesión
+    // 3f. Donante conocida sin sesión → clasificar con IA y responder contextualmente
     const resultado = await procesarConIA(phone, message);
 
-    // Si la IA devolvió menú o saludo, persistir estado para que no se repita bienvenida
-    if (resultado.intent === "saludo" || resultado.intent === "menu_opcion" || resultado.intent === "consulta") {
+    // Solo crear contacto_inicial para donantes NUEVOS o desconocidos que saludan
+    // Donantes con datos completos reciben respuesta IA directa (sin flow rígido)
+    const esSaludoOMenu = resultado.intent === "saludo" || resultado.intent === "menu_opcion";
+    if (esSaludoOMenu && (!donorEstado || donorEstado === "nueva")) {
       await startConversation(phone, "contacto_inicial");
     }
 
-    // Si necesita humano, escalar
-    if (resultado.needsHuman) {
+    // ── Frustración progresiva ──
+    // Trackear si la donante está frustrada/enojada/insistente.
+    // 1er mensaje → IA responde empáticamente
+    // 2do mensaje → IA responde + alerta al admin
+    // 3er+ mensaje → hard escalate (la persona está insistente, necesita humano)
+    const frustLevel = trackFrustration(phone, resultado.sentiment, resultado.needsHuman ?? false);
+    const shouldHardEscalate =
+      resultado.confidence === "low" ||  // IA no entiende → humano
+      frustLevel >= FRUSTRATION_ESCALATE_THRESHOLD;  // Insistente/enojada 3+ veces → humano
+
+    if (shouldHardEscalate) {
       const reason: Parameters<typeof escalateToHuman>[1] =
-        resultado.intent === "multiple_issues"
-          ? "multiple_issues"
-          : resultado.confidence === "low"
-            ? "ia_fail"
-            : "frustration";
+        resultado.confidence === "low" ? "ia_fail" : "frustration";
       await escalateToHuman(phone, reason, {
         lastMessage: message,
         intent: resultado.intent,
-      });
+      }, false);
+      logger.warn(
+        { phone, frustLevel, confidence: resultado.confidence },
+        "Hard escalation: frustración acumulada o IA no puede resolver",
+      );
+      resultado.reply = "Tu caso ya fue derivado a nuestro equipo. Te van a contactar a la brevedad. No es necesario que sigas escribiendo, ya tenemos tu mensaje.";
+    } else if (frustLevel > 0) {
+      // Frustrada pero no insistente todavía → IA responde + log
+      logger.info(
+        { phone, frustLevel, intent: resultado.intent, sentiment: resultado.sentiment },
+        "Donante frustrada — IA responde, monitoreando insistencia",
+      );
+    }
+
+    // Construir notificación según nivel de frustración
+    let notifyPayload = resultado.notify;
+    if (frustLevel >= 2 || shouldHardEscalate) {
+      // Nivel 2+: alertar al admin
+      const urgencyEmoji = shouldHardEscalate ? "🚨" : "⚠️";
+      const urgencyLabel = shouldHardEscalate ? "ESCALADA A HUMANO" : "ATENCIÓN REQUERIDA";
+      notifyPayload = {
+        target: "admin" as const,
+        message:
+          `${urgencyEmoji} *${urgencyLabel}*\n\n` +
+          `📱 ${phone}\n` +
+          `😤 Frustración: ${frustLevel}/${FRUSTRATION_ESCALATE_THRESHOLD}\n` +
+          `🎯 Intent: ${resultado.intent}\n` +
+          `💬 "${message.slice(0, 150)}"\n` +
+          `🤖 Respuesta IA: "${(resultado.reply || "").slice(0, 100)}"\n\n` +
+          (shouldHardEscalate
+            ? "La donante fue derivada a humano por insistencia."
+            : "La IA está respondiendo, pero la donante necesita atención."),
+      };
+    } else if (frustLevel === 1) {
+      // Primer enojo: solo supervisión silenciosa (el admin ve en el dashboard)
+      notifyPayload = {
+        target: "admin" as const,
+        message:
+          `👀 *Supervisión IA*\n\n` +
+          `📱 ${phone}\n` +
+          `🎯 Intent: ${resultado.intent} | Sentiment: ${resultado.sentiment || "unknown"}\n` +
+          `💬 "${message.slice(0, 150)}"\n` +
+          `🤖 Respuesta: "${(resultado.reply || "").slice(0, 80)}"\n\n` +
+          `Primer mensaje frustrado. IA respondió.`,
+      };
     }
 
     return {
       reply: resultado.reply,
       interactive: resultado.interactive,
-      notify: resultado.notify,
+      notify: notifyPayload,
       flowData: resultado.flowData,
-      needsHuman: resultado.needsHuman,
+      // Solo marcar needsHuman si realmente se hard-escaló
+      needsHuman: shouldHardEscalate,
     };
   }
 
@@ -571,6 +674,7 @@ async function procesarConIA(
   intent: string;
   needsHuman: boolean;
   confidence: "high" | "medium" | "low";
+  sentiment?: string;
 }> {
   // Obtener historial para contexto
   let historial: string[] | undefined;
@@ -595,45 +699,6 @@ async function procesarConIA(
     "Mensaje clasificado por IA",
   );
 
-  // Respuestas predefinidas por intención (templates, NO generadas por IA)
-  const respuestas: Record<string, { text: string; showMenu?: boolean }> = {
-    confirmar_difusion: {
-      text: "Recepción confirmada. Te esperamos en los días indicados. Recordá tener el bidón listo.",
-      showMenu: true,
-    },
-    reclamo: {
-      text: "Entendemos tu preocupación. Somos una empresa nueva y estamos ajustando la logística. Le pedimos disculpas y un poco de paciencia. El equipo ya fue notificado.",
-      showMenu: false,
-    },
-    aviso: {
-      text: "Registramos tu aviso. Le vamos a avisar al recolector de tu zona.",
-      showMenu: false,
-    },
-    consulta: {
-      text: "Recibimos tu consulta. Te respondemos a la brevedad.",
-      showMenu: false,
-    },
-    baja: {
-      text: "Lamentamos que quieras dejar de participar. Una persona de nuestro equipo se va a comunicar con vos.",
-      showMenu: false,
-    },
-    hablar_persona: {
-      text: "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.",
-      showMenu: false,
-    },
-    saludo: {
-      text: "Hola! Soy el asistente de GARYCIO. ¿En qué te puedo ayudar?",
-      showMenu: true,
-    },
-    agradecimiento: { text: "¡De nada! 😊 Estamos para ayudarte. Si necesitás algo más, escribinos cuando quieras.", showMenu: false },
-    irrelevante: { text: "", showMenu: false },
-    menu_opcion: { text: "", showMenu: true },
-    multiple_issues: {
-      text: "Veo que tenés varias cosas para contarnos. Te derivamos con un representante para que te ayude en todo.",
-      showMenu: false,
-    },
-  };
-
   // ── Detección de mensajes mixtos: si dice "gracias" PERO tiene una solicitud real,
   //    forzar a consulta para no quedar en silencio ──
   let effectiveIntent = result.intent;
@@ -647,14 +712,48 @@ async function procesarConIA(
     }
   }
 
-  const template = respuestas[effectiveIntent] || { text: "Recibimos tu mensaje. Te respondemos a la brevedad.", showMenu: false };
+  // Templates fallback solo para intents que NO necesitan IA contextual
+  const templatesFallback: Record<string, { text: string; showMenu?: boolean }> = {
+    confirmar_difusion: { text: "Recepción confirmada. Te esperamos en los días indicados. Recordá tener el bidón listo.", showMenu: true },
+    baja: { text: "Lamentamos que quieras dejar de participar. Una persona de nuestro equipo se va a comunicar con vos.", showMenu: false },
+    hablar_persona: { text: "Tu mensaje fue derivado a nuestro equipo. Una persona se va a comunicar con vos a la brevedad.", showMenu: false },
+    irrelevante: { text: "", showMenu: false },
+    menu_opcion: { text: "", showMenu: true },
+    multiple_issues: { text: "Veo que tenés varias cosas para contarnos. Te derivamos con un representante para que te ayude en todo.", showMenu: false },
+  };
 
-  let reply = template.text;
+  // Intenciones que deben resolverse con IA contextual (80% del tráfico)
+  const INTENTS_IA_CONTEXTUAL = new Set(["saludo", "agradecimiento", "aviso", "reclamo"]);
+
+  let reply: string;
   let interactive: InteractiveMessage | undefined;
   let notify: FlowResponse["notify"] | undefined;
   let flowData: { flowName: string; data: Record<string, any> } | undefined;
 
-  if (template.showMenu) {
+  if (INTENTS_IA_CONTEXTUAL.has(effectiveIntent)) {
+    // ── Respuesta IA contextual: usa datos DB + templates + training examples ──
+    try {
+      reply = await generarRespuestaContextual({
+        phone,
+        message,
+        intent: effectiveIntent,
+        historial,
+      });
+      logger.info({ phone, intent: effectiveIntent }, "Respuesta generada por IA contextual");
+    } catch (err) {
+      logger.error({ err, phone, intent: effectiveIntent }, "Error en IA contextual, usando fallback");
+      reply = templatesFallback[effectiveIntent]?.text || "Recibimos tu mensaje. Te respondemos a la brevedad.";
+    }
+  } else {
+    // ── Templates para intents no conversacionales ──
+    const tpl = templatesFallback[effectiveIntent];
+    reply = tpl?.text || "Recibimos tu mensaje. Te respondemos a la brevedad.";
+  }
+
+  // Mostrar menú para saludo y menu_opcion
+  const showMenu = effectiveIntent === "saludo" || effectiveIntent === "menu_opcion" || effectiveIntent === "confirmar_difusion";
+
+  if (showMenu) {
     const menu = getMenuPrincipalInteractive(phone);
     interactive = menu.interactive;
   }
@@ -720,14 +819,24 @@ async function procesarConIA(
       };
       break;
     case "consulta": {
-      // Usar servicio inteligente de consultas: busca datos reales en la DB
-      // y genera respuesta personalizada (días de recolección, estado, dirección)
+      // Primero: servicio inteligente con datos reales de la DB
       const consultaResult = await procesarConsultaDonante(phone, message);
-      reply = consultaResult.reply;
+      if (consultaResult.resuelta) {
+        reply = consultaResult.reply;
+      } else {
+        // Fallback: IA contextual cuando la DB no tiene datos suficientes
+        try {
+          reply = await generarRespuestaContextual({
+            phone, message, intent: "consulta", historial,
+          });
+        } catch {
+          reply = consultaResult.reply; // usar lo que devolvió procesarConsultaDonante
+        }
+      }
       if (consultaResult.notify) {
         notify = consultaResult.notify;
       }
-      // Si la IA indicó baja confianza pero el servicio pudo resolver, no notificar
+      // Si baja confianza + no resuelta → notificar al admin
       if (result.confidence === "low" && !consultaResult.resuelta) {
         notify = {
           target: "admin",
@@ -749,7 +858,7 @@ async function procesarConIA(
       break;
   }
 
-  return { reply, interactive, notify, flowData, intent: result.intent, needsHuman: result.needsHuman, confidence: result.confidence };
+  return { reply, interactive, notify, flowData, intent: result.intent, needsHuman: result.needsHuman, confidence: result.confidence, sentiment: result.sentiment };
 }
 
 // ── Helpers de detección ──

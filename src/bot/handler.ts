@@ -164,10 +164,9 @@ export async function processIncomingMessage(
     return;
   }
 
-  // ── 0a. Modo PAUSA: responder mantenimiento a no-admins ──
+  // ── 0a. Modo PAUSA: silencio total (admin responde manualmente) ──
   if (isPausedFor(phone)) {
-    logger.warn({ phone }, "Bot en PAUSA — mensaje rechazado");
-    await sendMessage(phone, getPauseMessage()).catch(() => {});
+    logger.info({ phone }, "Bot en PAUSA — silencio total");
     if (messageId) markAsRead(messageId).catch(() => {});
     return;
   }
@@ -175,7 +174,7 @@ export async function processIncomingMessage(
   // ── P0.10: si un humano (agente en 360 Inbox) intervino recientemente,
   //    el bot se calla por 30 min para no pisar la conversación.
   //    Detectado pasivamente vía webhook statuses (messageId desconocido).
-  if (isBotPaused(phone)) {
+  if (isBotPaused(phone) && !isAdminPhone(phone)) {
     logger.info(
       { phone, text: text.slice(0, 60) },
       "Bot pausado por intervención humana — ignorando inbound",
@@ -312,7 +311,9 @@ export async function processIncomingMessage(
 
     // Fallback de cortesía: si el reply es string vacío pero hay una intención,
     // enviar al menos un mensaje amable para no dejar a la donante en silencio.
-    if (hasReply && result.reply.trim() === "") {
+    // PERO: si hay interactive (menú, lista), el interactive ES la respuesta.
+    // PERO: si needsHuman es true, NO enviar cortesía (ya se escaló o ya está escalada).
+    if (hasReply && result.reply.trim() === "" && !result.interactive && !result.needsHuman) {
       result.reply = "Recibimos tu mensaje. Te respondemos a la brevedad. 😊";
     }
 

@@ -1,9 +1,14 @@
 import { FlowHandler, ConversationState, FlowResponse } from "./types";
+import { classifyIntent } from "../../services/clasificador-ia";
+import { logger } from "../../config/logger";
 
 /**
  * Flow de contacto inicial para donantes de zonas nuevas.
  * Objetivo: confirmar estado de donación, días de recolección y dirección exacta
  * para reorganizar los recorridos de los nuevos choferes.
+ *
+ * IMPORTANTE: Este flow solo debe activarse para donantes NUEVOS sin datos.
+ * Donantes conocidos con datos completos NO deben entrar aquí.
  *
  * Pasos:
  * 0 - Saludo + preguntar si actualmente está donando
@@ -33,7 +38,7 @@ export const contactoInicialFlow: FlowHandler = {
   },
 };
 
-function handleDonandoActualmente(respuesta: string, state: ConversationState): FlowResponse {
+async function handleDonandoActualmente(respuesta: string, state: ConversationState): Promise<FlowResponse> {
   const afirmativas = ["si", "sí", "sep", "sip", "claro", "obvio", "dale", "1"];
   const negativas = ["no", "nop", "na", "nah", "2"];
 
@@ -56,6 +61,30 @@ function handleDonandoActualmente(respuesta: string, state: ConversationState): 
       data: { donandoActualmente: false },
       notify: { target: "admin", message: "Donante indica que no está donando actualmente" },
     };
+  }
+
+  // ── Escape inteligente: si el mensaje NO es sí/no, clasificar con IA ──
+  // Esto evita el loop "¿Estás donando?" cuando la donante tiene un reclamo/consulta real
+  if (respuesta.length > 3) {
+    try {
+      const result = await classifyIntent(respuesta, { timeoutMs: 5000 });
+      const ESCAPE_INTENTS = new Set(["reclamo", "consulta", "aviso", "baja", "hablar_persona"]);
+
+      if (ESCAPE_INTENTS.has(result.intent) && result.confidence !== "low") {
+        logger.info(
+          { phone: state.phone, intent: result.intent, confidence: result.confidence },
+          "Escape inteligente de contacto_inicial: donante tiene intent real, no respuesta sí/no",
+        );
+        // Salir del flow y dejar que conversation-manager procese normalmente
+        return {
+          reply: "",
+          endFlow: true,
+          data: { escapedIntent: result.intent, escapedMessage: respuesta },
+        };
+      }
+    } catch (err) {
+      logger.debug({ err }, "Error en escape inteligente, continuando con flow normal");
+    }
   }
 
   return {

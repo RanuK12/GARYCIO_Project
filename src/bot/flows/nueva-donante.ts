@@ -178,8 +178,9 @@ Respondé SOLO con JSON:
 // ============================================================
 
 async function handleNombre(respuesta: string, state: ConversationState): Promise<FlowResponse> {
-  // Mensaje vacío = inicio automático desde conversation-manager
-  if (respuesta.length < 3) {
+  // Mensaje vacío o saludo inicial sin datos = inicio automático
+  const esSaludoBasico = /^(hola|buenas|que tal|q tal|buenos dias|buenas tardes|buenas noches)[\s]*$/i.test(respuesta);
+  if (respuesta.length < 3 || esSaludoBasico) {
     return {
       reply:
         "¡Hola! 👋 Bienvenida a *GARYCIO*.\n\n" +

@@ -1,7 +1,7 @@
 # GARYCIO — Contexto handoff (otra IA puede tomar desde acá)
 
-**Última actualización:** 2026-04-26
-**Estado bot:** ONLINE en producción con cap=10 (smoke test del dueño en curso)
+**Última actualización:** 2026-04-26 20:00 ART
+**Estado bot:** ONLINE en producción con cap=10
 **Repo:** github.com/RanuK12/GARYCIO_Project
 **Server:** Hetzner CPX22 @ 204.168.183.96 (Ubuntu 24.04, 2vCPU, 4GB RAM, 80GB)
 
@@ -16,7 +16,7 @@ Sistema de WhatsApp para gestión de donantes de orina (recolección para recicl
 - Choferes recolectan según rutas optimizadas (OptimoRoute + Ituran GPS)
 - Admin (Stefano) gestiona desde un panel admin dentro del propio chat de WhatsApp
 
-**Dueño del proyecto:** Emilio (italiano, número +393445721753, NO admin durante el smoke test actual). Hermano Stefano (argentino, +5491126330388, admin permanente).
+**Dueño del proyecto:** Emilio (italiano, número +393445721753, admin). Hermano Stefano (argentino, +5491126330388, admin permanente).
 
 ---
 
@@ -26,10 +26,119 @@ Sistema de WhatsApp para gestión de donantes de orina (recolección para recicl
 - **Framework HTTP:** Express
 - **DB:** PostgreSQL 16 (peer auth localhost) + Drizzle ORM
 - **WhatsApp:** 360dialog (proveedor — NO Meta directo, empresa aún no verificada por Meta)
-- **IA:** OpenAI gpt-4o (clasificación de intención + interpretación contextual de mensajes)
+- **IA:** OpenAI gpt-4o (clasificación de intención + respuestas contextuales + training dinámico)
 - **Process mgr:** PM2 (fork mode, no cluster) con `pm2-logrotate` + `pm2-root.service` para reboot resilience
 - **Tests:** Jest 28 suites / 292 tests (`npm test`)
 - **CI:** GitHub Actions `.github/workflows/ci.yml` (tsc + tests + coverage thresholds 40%)
+
+---
+
+## Motor de IA Contextual (implementado 26/4/2026)
+
+### Arquitectura
+El bot usa un motor de IA contextual (`src/services/respuesta-ia-contextual.ts`) que:
+
+1. **Carga training examples dinámicos** de la tabla `ia_training_examples` en la DB
+2. **Inyecta contexto del donante** en el System Prompt (días de recolección, dirección, estado)
+3. **Genera respuestas naturales** adaptadas al tono de GARYCIO usando gpt-4o
+4. **Fallback inteligente:** Si la IA falla, usa templates de estilo predefinidos
+
+### Orquestación de flujos (`conversation-manager.ts`)
+- **Bifurcación lógica:** Donantes registrados omiten `contacto_inicial` y van directo a IA
+- **Escape inteligente:** Si una donante nueva hace un reclamo durante onboarding, el bot rompe el flujo rígido y responde con IA
+- **Intenciones válidas:** `saludo`, `consulta`, `reclamo`, `agradecimiento`, `despedida`, `aviso`, `solicitud_baja`
+
+### Tabla `ia_training_examples`
+- 27 ejemplos activos cubriendo los casos más comunes
+- Cada ejemplo: `mensaje_usuario` + `intencion_correcta` + `respuesta_esperada` + `prioridad`
+- Se gestionan desde el panel admin (Gestionar IA → Ver/Agregar/Desactivar/Eliminar)
+
+---
+
+## Panel Admin WhatsApp (modernizado 26/4/2026)
+
+### Menú principal (9 opciones, máximo WhatsApp es 10)
+```
+🔐 Panel de Administración GARYCIO
+
+Gestión:
+  ├── Contactos nuevos (Revisar, agendar, XLS)
+  └── Reclamos pendientes (Ver, resolver, limpiar)
+
+Operación:
+  ├── Resumen del día (Stats, mensajes, IA, servidor)
+  └── Reporte diario PDF
+
+Control:
+  ├── Control del bot (Pausar, reiniciar, limpiar)
+  ├── Estado del servidor (RAM, uptime, DB)
+  ├── Capacidad del bot (Ver y ajustar límite)
+  ├── Audios pendientes (Revisar y marcar atendidos)
+  └── Gestionar IA (Entrenar, simular, escalar)
+```
+
+### Resumen del día (reemplazó "Resumen rápido")
+Métricas accionables en un vistazo:
+- Donantes activas + habilitadas en bot
+- Mensajes hoy (entrantes/salientes)
+- Tasa de éxito IA (resueltos vs escalados, %)
+- Reclamos abiertos, bajas pendientes, audios sin atender
+- Training examples activos
+- Mini-status servidor (RAM + uptime)
+
+### Reclamos — paginación + resolución
+- Paginación de 10 en 10 (S=siguiente, A=anterior)
+- Seleccionar por número → marcar como resuelto
+- L = limpiar resueltos viejos (> 7 días)
+- Total real mostrado
+
+### Audios — paginación + bulk
+- Paginación de 10 en 10
+- T = marcar TODOS como atendidos (bulk)
+- Seleccionar por número → marcar individual
+
+### Control del bot — Hub de comandos
+Menú desplegable con acciones reales:
+
+| Acción | Qué hace |
+|--------|----------|
+| ⏸️ Pausar bot | Responde "en mantenimiento" |
+| ▶️ Reanudar bot | Vuelve a atender |
+| 🧹 Limpiar audios viejos | Marca > 3 días como atendidos |
+| 🧹 Limpiar reclamos | Elimina resueltos > 7 días |
+| 🧹 Limpiar escalaciones | Resuelve activas > 48h |
+| 📋 Whitelist | Ajustar límite progresivo |
+
+### Estado del servidor
+- Status del proceso (online/paused)
+- Uptime formateado
+- RAM: MB usados / 1500MB (%)
+- Heap memory usage
+- DB size + total donantes
+- Health check en vivo (llama a /health)
+- Versión
+
+### Gestionar IA
+- **Simular clasificación** — prueba segura sin enviar a nadie
+- **Agregar ejemplo** — wizard de 3 pasos (mensaje → intención → respuesta)
+- **Ver ejemplos** — lista TODOS (✅ activos / ⏸️ inactivos) con detalle, activar/desactivar/eliminar
+- **Reclasificar fallos** — corrige clasificaciones incorrectas y auto-crea training example
+- **Escalaciones activas** — ver y resolver donantes escaladas
+- **Feedback IA** — ver fallos e interpretaciones recientes
+
+---
+
+## Bugs resueltos en sesión 26/4/2026
+
+| Bug | Fix | Archivo |
+|-----|-----|---------|
+| "Recibimos tu mensaje" + menú admin = doble respuesta | Cortesía solo si NO hay interactive | `handler.ts` L312-317 |
+| "Control del bot" no navegaba correctamente | Títulos exactos en menuMap | `admin.ts` menuMap |
+| Capacidad mostraba mensaje duplicado | `reply=""` cuando hay interactive | `admin.ts` handleCapacidadBot |
+| Admin pausado por P0.13 bot-takeover | Admins exentos de pausa | `handler.ts` L178 |
+| "↩️ Volver al menú" no funcionaba | Handler para todas las variantes | `admin.ts` |
+| Menú devolvía menú al seleccionar opción de lista | `list_reply.id` priorizado sobre `title` | `webhook.ts` L273 |
+| "Ver ejemplos" mostraba 4 botones (WhatsApp max 3) | Toggle inteligente activar/desactivar | `admin.ts` handleVerEjemplosIA |
 
 ---
 
@@ -64,7 +173,7 @@ Bot reactivado tras pausa, generó 1945 errores en WhatsApp:
 | P0.10 | Detección humana via webhook statuses + pausa 30min | `src/services/bot-takeover.ts` |
 | P0.11 | Historial 48h/8 msgs como contexto IA | `src/bot/conversation-manager.ts` |
 | P0.12 | Debounce **3s** por phone (era 10, bajó tras incidente 25/4) | `src/services/inbound-debounce.ts` |
-| P0.13 | Pre-pausa de phones donde humano respondió últimas 24h | `src/bot/conversation-manager.ts` |
+| P0.13 | Pre-pausa de phones donde humano respondió últimas 24h (admins exentos) | `src/bot/conversation-manager.ts` |
 
 ### P1 — Robustez
 
@@ -94,24 +203,12 @@ Bot reactivado tras pausa, generó 1945 errores en WhatsApp:
 - title button: 20 / row title: 24 / row description: 72
 - Truncan + log error → evita Meta error 100
 
-Verificación firma X-Hub-Signature-256 lista pero **inactiva** (no aplica con 360dialog).
-
-### Sistema de capacidad first-come-first-served (commit 9c9bd63 origen)
+### Sistema de capacidad first-come-first-served
 
 - DB: tablas `donantes_bot_activos` + `configuracion_sistema (clave='LIMITE_DONANTES_BOT')`
-- `activarDonanteBot` envuelto en transacción con `LOCK TABLE … SHARE ROW EXCLUSIVE` (post-incidente 25/4 que entró 11 con cap=10)
-- Política de overflow: **silencio total** (no read receipt, no typing, no respuesta) — el donante #11 ve su mensaje en gris ✓✓ delivered
-- Endpoint admin `POST /admin/capacidad { limite: N }` cambia el cap on-the-fly sin restart
+- `activarDonanteBot` envuelto en transacción con `LOCK TABLE … SHARE ROW EXCLUSIVE`
+- Política de overflow: **silencio total** (no read receipt, no typing, no respuesta)
 - Menú admin WhatsApp opción "Capacidad del bot" tiene shortcuts del plan progresivo
-
-### UX / monitoreo
-
-- `markAsReadWithTyping` en webhook para que la donante vea ✓✓ azul + "escribiendo…" durante el debounce de 3s
-- `whatsapp-quality.ts` chequea quality rating cada 6h, alerta admins si != GREEN
-- `/admin/dashboard` agrega capacidad + quality + takeovers + rate limit + memoria + DLQ + counters en una llamada
-- `pm2-logrotate` instalado (20M × 14 gzip diario)
-- Backup script `/usr/local/bin/backup-garycio.sh` (pg_dump peer auth, validación tamaño, rotación 14 días, soporte rclone off-site si `OFFSITE_RCLONE_REMOTE` está seteado en `/etc/garycio.backup.env`)
-- rclone v1.60.1 instalado, falta config destino off-site
 
 ---
 
@@ -122,23 +219,14 @@ Al primer arranque tras hardening, problemas:
 2. Bot procesó mensajes pendientes de horas atrás (360dialog reentregó al volver)
 3. `TEST_MODE` en runtime decía `false` aunque .env decía `true` (PM2 cluster cwd ≠ raíz proyecto)
 4. Race condition: 11 vs 10 con dos requests simultáneos
-5. Conversación con donante "Belén Turletto" totalmente rota — bot guardó "Pero no trajeron mi regalo" como dirección, no extrajo nombres con "Soy X", concatenó mensajes con cambio de tema por debounce de 10s
 
-**Fixes aplicados (commits 9a7c1bb + e6def8a):**
-- Eliminada rama legacy `whitelistActive && whitelistLimit<=0 → return true` que bypaseaba el cap
-- `LOCK TABLE … SHARE ROW EXCLUSIVE` en `activarDonanteBot` para serializar inserts
-- `BOOT_TIMESTAMP_SEC` + `MAX_INBOUND_AGE_SEC=5min` en webhook para descartar mensajes pre-boot/viejos
+**Fixes aplicados:**
+- Eliminada rama legacy que bypaseaba el cap
+- `LOCK TABLE … SHARE ROW EXCLUSIVE` en `activarDonanteBot`
+- `BOOT_TIMESTAMP_SEC` + `MAX_INBOUND_AGE_SEC=5min` en webhook
 - P0.13 pre-pausa de teléfonos con outbound humano reciente al arrancar
-- `ecosystem.config.js`: `cwd: "/opt/garycio"` + `exec_mode: "fork"` explícito
-- `env.ts` carga dotenv probando 3 paths (cwd, dir-relativo, /opt/garycio/.env)
-- **Flow `nueva-donante` reescrito** para usar IA contextual en CADA step (no solo en mensajes complejos):
-  - `interpretarPasoConIA(mensaje, paso, data, phone)` con prompt contextual al paso (`nombre`/`direccion`/`confirmacion`)
-  - Retorna `{ accion: continuar|cancelar|queja|ya_donante|consulta|no_entiendo, valor, confianza }`
-  - Detecta cambio de tema a queja → abandona registro y deriva humano
-  - Extrae nombre limpio sin "Soy X" / "Me llamo X"
-  - Confirmación tolerante a "1 lo que sea" (no solo "1" exacto)
-  - "0" cancela desde cualquier step
-- Debounce reducido **10s → 3s** para no concatenar mensajes con cambio de tema
+- **Flow `nueva-donante` reescrito** con IA contextual en CADA step
+- Debounce reducido **10s → 3s**
 
 ---
 
@@ -147,36 +235,38 @@ Al primer arranque tras hardening, problemas:
 ```
 src/
 ├── bot/
-│   ├── client.ts          ← sendMessage, sendTemplate, sendInteractive*, WHATSAPP_LIMITS
-│   ├── webhook.ts         ← entry point HTTP, filtro timestamp, dispatch a handler
-│   ├── handler.ts         ← processIncomingMessage: dedup, anti-spam, lock por phone, isBotPaused
+│   ├── client.ts              ← sendMessage, sendTemplate, sendInteractive*, WHATSAPP_LIMITS
+│   ├── webhook.ts             ← entry point HTTP, filtro timestamp, list_reply.id (NO title)
+│   ├── handler.ts             ← processIncomingMessage: dedup, anti-spam, lock, admin exempt
 │   ├── conversation-manager.ts ← state machine, dispatch flows, IA classifier, P0.9/13
 │   └── flows/
-│       ├── nueva-donante.ts ← REESCRITO con IA contextual (e6def8a)
+│       ├── nueva-donante.ts   ← Reescrito con IA contextual
 │       ├── reclamo.ts
 │       ├── aviso.ts
 │       ├── difusion.ts
-│       ├── admin.ts       ← panel admin con plan progresivo
+│       ├── admin.ts           ← Panel admin modernizado (paginación, hub control, stats)
 │       └── ...
 ├── services/
-│   ├── bot-control.ts     ← isWhitelisted, capacidad, pause/resume/emergency-stop
-│   ├── bot-takeover.ts    ← P0.10 detección humana
+│   ├── respuesta-ia-contextual.ts ← Motor IA con training dinámico (NUEVO)
+│   ├── ia-training.ts         ← CRUD training examples + cache 5min
+│   ├── bot-control.ts         ← isWhitelisted, capacidad, pause/resume/emergency-stop
+│   ├── bot-takeover.ts        ← P0.10 detección humana (admins exentos)
 │   ├── escalation-triggers.ts ← P2.1 patrones queja/legal/baja/etc
 │   ├── inbound-debounce.ts    ← P0.12 (window 3s)
-│   ├── ia-cache.ts        ← P1.3 LRU
+│   ├── ia-cache.ts            ← P1.3 LRU
 │   ├── rate-limit-adaptive.ts ← P1.6
-│   ├── whatsapp-window.ts ← P0.3 ventana 24h
-│   ├── whatsapp-quality.ts ← cron 6h
-│   ├── clasificador-ia.ts ← classifyIntent gpt-4o
-│   ├── reportes-ceo.ts    ← notificarAdmins con dedup+throttle (P0.4)
+│   ├── whatsapp-window.ts     ← P0.3 ventana 24h
+│   ├── whatsapp-quality.ts    ← cron 6h
+│   ├── clasificador-ia.ts     ← classifyIntent gpt-4o
+│   ├── reportes-ceo.ts        ← notificarAdmins con dedup+throttle (P0.4)
 │   └── ...
 ├── database/
-│   ├── schema.ts          ← drizzle schemas: 33 tablas
+│   ├── schema.ts              ← drizzle schemas: 33+ tablas
 │   └── migrate.ts
 ├── config/
-│   ├── env.ts             ← zod-validated env, dotenv multi-path
-│   └── logger.ts          ← pino
-└── index.ts               ← main: testConnection, P0.9 reset, app.listen, scheduler
+│   ├── env.ts                 ← zod-validated env, dotenv multi-path
+│   └── logger.ts              ← pino
+└── index.ts                   ← main: testConnection, P0.9 reset, app.listen, scheduler
 ```
 
 ---
@@ -208,40 +298,92 @@ src/
 
 ---
 
+## Step map del panel Admin (admin.ts)
+
+| Step | Handler | Función |
+|------|---------|---------|
+| 0 | handleBienvenida | Menú principal interactivo |
+| 1 | handleMenu | Router de opciones |
+| 10-12 | handleContactosNuevos / DetalleContacto / ConfirmarActivacion | Gestión contactos nuevos |
+| 20-21 | handleBuscarDonante / DetalleDonante | Búsqueda donantes |
+| 30 | handleReclamosPendientes | Reclamos con paginación |
+| 31 | handleAccionReclamo | Resolver/paginar/limpiar reclamos |
+| 40 | handleBajasPendientes | Bajas pendientes |
+| 50 | handleProgresoRutas | Progreso rutas |
+| 60 | handleResultadosEncuesta | Resultados encuesta |
+| 70 | handleGenerarReporte | PDF diario |
+| 80 | handleRevisarFeedbackIA | IA feedback |
+| 90 | handleBotControlMenu | Whitelist input handler |
+| 91 | handleAgregarEjemploIA | Wizard agregar ejemplo |
+| 92 | handleVerEjemplosIA | Listar todos con estado |
+| 93 | handleAccionEjemploIA | Activar/desactivar/eliminar |
+| 94 | handleAccionAudio | Audios: marcar/paginar/bulk |
+| 95 | handleAjustarLimiteBot | Ajustar capacidad |
+| 99 | handleVolverOFinalizar | Navegación genérica |
+| 100 | handleGestionarIA | Hub IA dispatcher |
+| 101 | handleSimularClasificacion | Simular clasificación |
+| 102 | handleReclasificarFeedback | Corregir clasificaciones |
+| 103 | handleVerEscalaciones | Ver escalaciones |
+| 104 | handleResolverEscalacion | Resolver escalación |
+| 110 | handleControlBotHub | Hub de acciones de control |
+| 111 | handleEstadoServidor | Stats técnicas del servidor |
+
+---
+
 ## Estado producción AHORA (al momento de este doc)
 
 ```
-HEAD: e6def8a feat(nueva-donante): IA contextual en cada step + escapes globales
-PM2: garycio-bot ONLINE (PID 521561, fork mode, ~134MB RAM)
-DB:
-  conversation_states: 0 filas (limpio)
-  donantes_bot_activos: 0 activos (limpio)
-  configuracion_sistema.LIMITE_DONANTES_BOT: 10
-  human_escalations activas: 135 (legacy del incidente original, ignorables)
-  DLQ: 198 descartados + 152 exitosos (legacy), 0 pendientes
+PM2: garycio-bot ONLINE (fork mode, ~170MB RAM, 1500MB limit)
+DB: garycio (23MB PostgreSQL 16)
+  donantes: ~6000 registrados, ~3500 activas
+  donantes_bot_activos: cap=10
+  ia_training_examples: 27 activos
+  human_escalations: purgadas periódicamente
 .env:
   TEST_MODE=false
-  TEST_PHONES=5491126330388
-  ADMIN_PHONES=5491126330388 (italiano REMOVIDO temporalmente para test del dueño como donante)
+  ADMIN_PHONES=5491126330388,393445721753
   CEO_PHONE=5491126330388
   WHATSAPP_PROVIDER=360dialog
   AI_CLASSIFIER_ENABLED=true
-P0.13 al boot: 30 phones pre-pausados (humano respondió últimas 24h)
+Infraestructura:
+  Swap: 2GB activo
+  Nginx: reverse proxy :80 → :3000
+  UFW: solo 22, 80, 443
+  PM2 memory limit: 1500MB
+  SSL: pendiente (requiere dominio)
+```
+
+---
+
+## Webhook: flujo de un mensaje entrante
+
+```
+1. POST /webhook → res.sendStatus(200) inmediato
+2. Filtro antigüedad (BOOT_TIMESTAMP_SEC + MAX_AGE_SEC=5min)
+3. Tipo de mensaje:
+   - reaction → ignorar
+   - call → ignorar
+   - audio → guardar en DB + avisar CEO + pedir texto
+   - sticker/video/location → "no soportado, escribí texto"
+4. extractTextFromMessage:
+   - text → message.text.body
+   - button_reply → title (o id)
+   - list_reply → ID (prioridad) luego title (fallback)
+5. isWhitelisted(phone) → si no, silencio total
+6. markAsReadWithTyping(messageId)
+7. debounceInbound(3s) → processIncomingMessage(batched)
 ```
 
 ---
 
 ## Bugs conocidos / deuda
 
-1. **API_KEY de 360dialog hardcodeada en repo histórico** — `scripts/watchdog.sh` ya leído del .env, pero versiones viejas en git history la contienen. Rotar la key cuando se pueda. (Repo es privado, no expuesto según el dueño.)
-2. **Off-site backup pendiente** — solo backup local. rclone instalado, falta `rclone config` + `OFFSITE_RCLONE_REMOTE` en `/etc/garycio.backup.env`.
-3. **Sin HTTPS / SSL en nginx** — webhook entra HTTP plano por puerto 80 → :3000. Esperando dominio.
-4. **pg-boss queue NO está activa** — `src/services/queue.ts` existe pero webhook llama directo a `processIncomingMessage`. Si el proceso muere a mitad de procesar, ese mensaje se pierde.
-5. **Quality rating monitoring** activo (cron 6h) pero nunca testeado en producción real.
-6. **Mark-as-read + typing indicator** activos solo dentro del cap; donantes fuera del cap (silencio total) no reciben ✓✓ azul tampoco.
-7. **Flow `nueva-donante`** reescrito con IA, pero **NO probado en producción real con donantes** después del rewrite. El smoke test actual del dueño es el primer test real.
-8. **Tests de `nueva-donante`** pasan via fallback regex porque `AI_CLASSIFIER_ENABLED=false` en `jest.setup.ts`. Los paths con IA solo se cubren en producción, no hay mock.
-9. **Detección "donante existente con estado='nueva'"**: si una donante real tiene su nombre+dir cargados pero su `estado` quedó en `'nueva'` (workflow operativo), el bot la trata como nueva. Workaround manual: admin la pasa a `'inactiva'` o `'activa'` desde DB.
+1. **API_KEY de 360dialog hardcodeada en repo histórico** — rotar cuando se pueda.
+2. **Off-site backup pendiente** — solo backup local. rclone instalado, falta config destino.
+3. **Sin HTTPS / SSL en nginx** — esperando dominio.
+4. **pg-boss queue NO está activa** — webhook llama directo a `processIncomingMessage`.
+5. **Tests de `nueva-donante`** pasan via fallback regex (no hay mock de IA).
+6. **Detección "donante existente con estado='nueva'"**: si una donante real tiene datos pero `estado='nueva'`, el bot la trata como nueva. El bot responde correctamente pidiéndole que se registre, y si dice "ya soy donante", la registra como contacto nuevo para que el equipo la verifique manualmente.
 
 ---
 
@@ -249,7 +391,7 @@ P0.13 al boot: 30 phones pre-pausados (humano respondió últimas 24h)
 
 | Nivel | Cap | Cuándo subir |
 |---|---|---|
-| 1 (HOY) | 10 | Smoke con dueño + primeras donantes reales |
+| 1 (ACTUAL) | 10 | Smoke con dueño + primeras donantes reales |
 | 2 | 50 | Si 24h sin errores |
 | 3 | 200 | Si 24h sin errores |
 | 4 | 1000 | Si 24h sin errores |
@@ -264,36 +406,42 @@ Aplicar desde menú admin → "Capacidad del bot" o `POST /admin/capacidad`.
 - Reportes de donantes confundidas
 - Más de 1 PM2 restart en 24h
 
-**Rollback rápido:** menú admin → "Capacidad" → ajustar a 0 (nadie nuevo entra, las que están adentro siguen). Hard stop: `pm2 stop garycio-bot`.
+**Rollback rápido:** menú admin → "Capacidad" → ajustar a 0. Hard stop: `pm2 stop garycio-bot`.
 
 ---
 
 ## Comandos típicos de operación
 
 ```bash
-# Ssh
-ssh root@204.168.183.96   # password: ver credenciales privadas (NO en repo)
+# SSH
+ssh root@204.168.183.96
 
 # Estado bot
-ssh root@204.168.183.96 "pm2 list && pm2 logs garycio-bot --lines 50 --nostream"
+pm2 status && pm2 logs garycio-bot --lines 50 --nostream
 
 # Dashboard
-curl -H "X-Admin-Key: <KEY>" http://204.168.183.96:3000/admin/dashboard | jq
+curl -H "X-Admin-Key: <KEY>" http://localhost:3000/admin/dashboard | jq
 
 # Cambiar cap
 curl -X POST -H "X-Admin-Key: <KEY>" -H "Content-Type: application/json" \
-  -d '{"limite": 50}' http://204.168.183.96:3000/admin/capacidad
+  -d '{"limite": 50}' http://localhost:3000/admin/capacidad
+
+# Deploy nuevo código (desde local)
+scp archivo.ts root@204.168.183.96:/tmp/garycio-upload/
+ssh root@204.168.183.96 "cp /tmp/garycio-upload/archivo.ts /opt/garycio/src/... && cd /opt/garycio && npm run build && pm2 restart garycio-bot"
 
 # Stop / start / restart
-ssh root@204.168.183.96 "pm2 stop garycio-bot"
-ssh root@204.168.183.96 "pm2 start garycio-bot"
-ssh root@204.168.183.96 "pm2 restart garycio-bot"
+pm2 stop garycio-bot
+pm2 start garycio-bot
+pm2 restart garycio-bot
 
 # Backup manual
-ssh root@204.168.183.96 "/usr/local/bin/backup-garycio.sh"
+/usr/local/bin/backup-garycio.sh
 
-# Deploy nuevo código
-ssh root@204.168.183.96 "cd /opt/garycio && git pull && rm -rf dist && npm run build && pm2 restart garycio-bot"
+# DB queries útiles
+sudo -u postgres psql -d garycio -c "SELECT count(*) FROM donantes WHERE donando_actualmente = true;"
+sudo -u postgres psql -d garycio -c "SELECT * FROM human_escalations WHERE estado = 'activa';"
+sudo -u postgres psql -d garycio -c "SELECT count(*) FROM ia_training_examples WHERE activo = true;"
 ```
 
 ---
@@ -302,26 +450,34 @@ ssh root@204.168.183.96 "cd /opt/garycio && git pull && rm -rf dist && npm run b
 
 **Prioridades sugeridas en orden:**
 
-1. **Monitorear el smoke test actual** del dueño como donante. Si la conversación rompe, ver `src/bot/flows/nueva-donante.ts` (reescrito) y ver dónde falla.
-2. **Rotar la D360-API-KEY** de 360dialog (queda en git history versiones viejas).
-3. **Off-site backup**: configurar rclone con un destino (B2 / S3 / Drive / Hetzner Storage Box) + setear `/etc/garycio.backup.env` con `OFFSITE_RCLONE_REMOTE=...`.
-4. **Mocks de IA en tests**: el flow `nueva-donante` con IA tiene cero cobertura de tests. Mockear `fetch` a OpenAI con respuestas deterministas y agregar casos.
-5. **Cuando suba el cap a 200+**: activar pg-boss queue (`src/services/queue.ts`) para no perder mensajes si el proceso muere.
-6. **HTTPS/SSL** cuando haya dominio: `certbot --nginx`.
-7. **Reescribir flows `reclamo` / `aviso` / `difusion` con IA contextual** igual que `nueva-donante`. Hoy son regex-only.
+1. **Probar el panel admin** — escribir "admin" al bot y verificar que todas las opciones funcionan (Resumen del día, Control del bot, Estado del servidor, Reclamos, Audios, Gestionar IA).
+2. **Monitorear la IA** — desde Gestionar IA → Feedback IA, ver si hay fallos frecuentes y agregar training examples si es necesario.
+3. **Rotar la D360-API-KEY** — queda en git history.
+4. **Off-site backup** — configurar rclone destino.
+5. **Cuando suba el cap a 200+** — activar pg-boss queue.
+6. **HTTPS/SSL** cuando haya dominio — `certbot --nginx`.
+7. **Reescribir flows `reclamo` / `aviso` / `difusion` con IA contextual** como `nueva-donante`.
 
 **Reglas que aprendí trabajando con el dueño Emilio:**
 - Bot OFF por default. NO arrancar sin permiso explícito.
 - Cap progresivo, no full deploy. Empezar siempre chico y subir.
-- Silencio total para donantes fuera del cap (no mensajes "estamos ocupados", no read receipt).
+- Silencio total para donantes fuera del cap.
 - Si humano respondió mientras bot apagado, bot NO toma esa conversación.
-- Usar IA contextual, no flows rígidos. Pagamos gpt-4o, usémoslo.
-- Antes de tocar producción: verificar el incidente que NO debe repetirse (22-23/4 de los 1773 errores 131047, y 25/4 con la donante "Belén turletto").
+- Usar IA contextual, no flows rígidos.
+- Panel admin = centro de control principal. Todo debe ser accionable desde WhatsApp.
+- Nunca usar `phone` sin `normalizePhone()`.
+- Nunca habilitar PM2 cluster mode sin Redis compartido.
+- Todo cambio en handler.ts debe preservar: dedup → anti-spam → lock → timeout → escalation.
+- Si agregás un Map en memoria, agregá cleanup periódico + hard limit.
 
 ---
 
-## Documentos relacionados (en `/Users/emilioranucoli/Desktop/ADA-AUDITS/`)
+## Documentos relacionados
 
+**En el proyecto (`project-docs/`):**
+- `GARYCIO_CONTEXT_HANDOFF.md` ← este documento
+
+**En `/Users/emilioranucoli/Desktop/ADA-AUDITS/`:**
 - `INFORME_INCIDENTE_GARYCIO_2026-04-23.md` — incidente original
 - `EVALUACION_SENIOR_GARYCIO_2026-04-23.md` — auditoría senior
 - `PROMPT_MAESTRO_GARYCIO.md` — plan original P0-P6 + credenciales
@@ -329,5 +485,3 @@ ssh root@204.168.183.96 "cd /opt/garycio && git pull && rm -rf dist && npm run b
 - `GARYCIO_AUDIT_META_COMPLIANCE.md` — auditoría de reglas Meta
 - `GARYCIO_PLAN_RELANZAMIENTO_PROGRESIVO.md` — plan progresivo de cap
 - `P0.8_ROTACION_SECRETOS.md` — runbook de rotación de credenciales
-- `P1.4_TESTS_PENDIENTES.md` — drift de flow tests (resuelto)
-- `GARYCIO_CONTEXT_HANDOFF.md` ← este documento
