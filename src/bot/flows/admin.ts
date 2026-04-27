@@ -1561,7 +1561,7 @@ function handleBotWhitelist(): FlowResponse {
     `Actual: ${current === 0 ? "Full (todos)" : current + " donantes"}\n\n` +
     `Plan:\n` +
     ROLLOUT_PLAN.map((p) => `  Día ${p.day}: ${p.limit === 0 ? "Full" : p.limit}`).join("\n") +
-    `\n\nEscribí un número para cambiar el límite (0 = full):`;
+    `\n\nEscribí un número para cambiar el límite, o "full" para habilitar todos (*0* para volver al menú):`;
 
   return { reply: body, nextStep: 90, data: { botControlAction: "whitelist" } };
 }
@@ -1575,9 +1575,11 @@ async function handleBotControlMenu(respuesta: string, state: ConversationState)
   if (cmd === "salir" || cmd === "finalizar") return { reply: "✅ Sesión finalizada.", endFlow: true };
 
   if (action === "whitelist") {
-    const limit = parseInt(respuesta);
+    let limit = parseInt(respuesta);
+    if (cmd === "full" || limit === -1) limit = 0;
+    
     if (isNaN(limit) || limit < 0) {
-      return { reply: "Número inválido. Escribí un número >= 0 (0 = full):", nextStep: 90, data: state.data };
+      return { reply: "Número inválido. Escribí un número, o 'full' para todos (*0* = volver):", nextStep: 90, data: state.data };
     }
     await setWhitelistLimit(limit);
     return {
