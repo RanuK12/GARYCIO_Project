@@ -1746,45 +1746,65 @@ async function handleVerEjemplosIA(respuesta: string, state: ConversationState):
   if (cmd === "1" || cmd === "volver al menú") return handleGestionarIAMenu();
   if (cmd === "2" || cmd === "finalizar" || cmd === "salir") return { reply: "✅ Sesión finalizada.", endFlow: true };
 
-  // Si escribió un número, mostrar detalle y acciones
-  const idx = parseInt(respuesta);
-  if (!isNaN(idx) && idx > 0) {
-    const ids: number[] = state.data?.iaEjemplosIds || [];
-    if (idx <= ids.length) {
-      // Buscar detalle del ejemplo
-      const { examples } = await listTrainingExamples({ limit: 100 });
-      const ejemplo = examples.find(e => e.id === ids[idx - 1]);
-      const detalle = ejemplo
-        ? `📝 *Ejemplo #${idx}*\n\n` +
-          `💬 Mensaje: "${ejemplo.mensajeUsuario.slice(0, 120)}"\n\n` +
-          `🎯 Intención: *${ejemplo.intencionCorrecta}*\n` +
-          `📊 Estado: ${ejemplo.activo ? "✅ Activo" : "⏸️ Inactivo"}\n` +
-          (ejemplo.respuestaEsperada
-            ? `\n🤖 Respuesta IA: "${ejemplo.respuestaEsperada.slice(0, 200)}"\n`
-            : "\n🤖 Respuesta: (solo clasificación, sin respuesta fija)\n") +
-          `\n¿Qué querés hacer?`
-        : `Ejemplo #${idx}\n\n¿Qué querés hacer?`;
+  // Paginación
+  if (cmd === "s" || cmd === "a") {
+    const pag = state.data?.paginaEjemplos ?? 0;
+    const totalEj = state.data?.totalEjemplos ?? 0;
+    const totalPag = Math.ceil(totalEj / 10);
+    let nuevaPag = pag;
+    if (cmd === "s" && pag + 1 < totalPag) nuevaPag = pag + 1;
+    if (cmd === "a" && pag > 0) nuevaPag = pag - 1;
+    state.data = { ...state.data, paginaEjemplos: nuevaPag };
+  } else {
+    // Si escribió un número, mostrar detalle y acciones
+    const idx = parseInt(respuesta);
+    if (!isNaN(idx) && idx > 0) {
+      let ids: number[] = state.data?.iaEjemplosIds || [];
+      if (ids.length === 0) {
+        const { examples } = await listTrainingExamples({ limit: 1000 });
+        ids = examples.map(e => e.id);
+      }
+      if (idx <= ids.length) {
+        // Buscar detalle del ejemplo
+        const { examples } = await listTrainingExamples({ limit: 1000 });
+        const ejemplo = examples.find(e => e.id === ids[idx - 1]);
+        const detalle = ejemplo
+          ? `📝 *Ejemplo #${idx}*\n\n` +
+            `💬 Mensaje: "${ejemplo.mensajeUsuario.slice(0, 120)}"\n\n` +
+            `🎯 Intención: *${ejemplo.intencionCorrecta}*\n` +
+            `📊 Estado: ${ejemplo.activo ? "✅ Activo" : "⏸️ Inactivo"}\n` +
+            (ejemplo.respuestaEsperada
+              ? `\n🤖 Respuesta IA: "${ejemplo.respuestaEsperada.slice(0, 200)}"\n`
+              : "\n🤖 Respuesta: (solo clasificación, sin respuesta fija)\n") +
+            `\n¿Qué querés hacer?`
+          : `Ejemplo #${idx}\n\n¿Qué querés hacer?`;
 
-      return {
-        reply: "",
-        nextStep: 93,
-        data: { ...state.data, iaEjemploSeleccionado: idx },
-        interactive: {
-          type: "buttons",
-          body: detalle,
-          buttons: [
-            { id: ejemplo?.activo ? "desactivar" : "activar", title: ejemplo?.activo ? "⏸️ Desactivar" : "✅ Activar" },
-            { id: "eliminar", title: "🗑️ Eliminar" },
-            { id: "volver", title: "↩️ Volver" },
-          ],
-        },
-      };
+        return {
+          reply: "",
+          nextStep: 93,
+          data: { ...state.data, iaEjemploSeleccionado: idx, iaEjemplosIds: ids },
+          interactive: {
+            type: "buttons",
+            body: detalle,
+            buttons: [
+              { id: ejemplo?.activo ? "desactivar" : "activar", title: ejemplo?.activo ? "⏸️ Desactivar" : "✅ Activar" },
+              { id: "eliminar", title: "🗑️ Eliminar" },
+              { id: "volver", title: "↩️ Volver" },
+            ],
+          },
+        };
+      }
     }
   }
 
-  const { examples, total } = await listTrainingExamples({ limit: 10 });
+  const pagina = state.data?.paginaEjemplos ?? 0;
+  const offset = pagina * 10;
+  
+  const { examples: allExamples, total } = await listTrainingExamples({ limit: 1000 });
+  const ids = allExamples.map(e => e.id);
+  const pageExamples = allExamples.slice(offset, offset + 10);
 
-  if (examples.length === 0) {
+  if (allExamples.length === 0) {
     return {
       reply: "",
       nextStep: 99,
@@ -1799,17 +1819,23 @@ async function handleVerEjemplosIA(respuesta: string, state: ConversationState):
     };
   }
 
-  let body = `🧠 *Ejemplos de entrenamiento* (${total} total)\n\n`;
-  for (const [i, ex] of examples.entries()) {
+  const totalPaginas = Math.ceil(total / 10);
+  let body = `🧠 *Ejemplos de entrenamiento* (${total} total) — Pág. ${pagina + 1}/${totalPaginas}\n\n`;
+  for (const [i, ex] of pageExamples.entries()) {
     const estado = ex.activo ? "✅" : "⏸️";
-    body += `*${i + 1}.* ${estado} [${ex.intencionCorrecta}] "${ex.mensajeUsuario.slice(0, 35)}"\n`;
+    body += `*${offset + i + 1}.* ${estado} [${ex.intencionCorrecta}] "${ex.mensajeUsuario.slice(0, 35)}"\n`;
   }
-  body += "\nEscribí el *número* para acciones, o *0* para volver.";
+  
+  body += "\n─────────────\n";
+  body += "Número = detalle";
+  if (pagina > 0) body += " | *A* = ant.";
+  if (pagina + 1 < totalPaginas) body += " | *S* = sig.";
+  body += "\n*0* para volver";
 
   return {
     reply: body,
     nextStep: 92,
-    data: { iaEjemplosIds: examples.map((e) => e.id) },
+    data: { ...state.data, iaEjemplosIds: ids, paginaEjemplos: pagina, totalEjemplos: total },
   };
 }
 
